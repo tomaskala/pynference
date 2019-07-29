@@ -4,7 +4,6 @@ import utils
 
 
 # TODO: Consider an exponential family class as PyTorch has.
-# TODO: Somehow mix-in location-scale distributions?
 
 
 class Distribution(abc.ABC):
@@ -61,3 +60,4 @@ class Distribution(abc.ABC):
     def _validate_input(self, x):
         if self.check_support and not np.all(self._support(x)):
             raise ValueError(f'The parameter {x} lies outside the support.')
+
