@@ -32,6 +32,16 @@ class Distribution(abc.ABC):
     def support(self):
         return self._support
 
+    @property
+    @abc.abstractmethod
+    def mean(self):
+        pass
+
+    @property
+    @abc.abstractmethod
+    def variance(self):
+        pass
+
     def log_prob(self, x):
         self._validate_input(x)
         return self._log_prob(x)
@@ -51,17 +61,3 @@ class Distribution(abc.ABC):
     def _validate_input(self, x):
         if self.check_support and not np.all(self._support(x)):
             raise ValueError(f'The parameter {x} lies outside the support.')
-
-
-class L1Distribution(Distribution):
-    @property
-    @abc.abstractmethod
-    def mean(self):
-        pass
-
-
-class L2Distribution(L1Distribution):
-    @property
-    @abc.abstractmethod
-    def variance(self):
-        pass
