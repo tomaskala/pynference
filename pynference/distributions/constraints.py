@@ -21,7 +21,7 @@ class RealVector(Constraint):
 
 
 class Interval(Constraint):
-    def __init__(self, lower: float, upper: float, include_lower: bool = False, include_upper, bool = False):
+    def __init__(self, lower: float, upper: float, include_lower: bool = False, include_upper: bool = False):
         self.lower = lower
         self.upper = upper
         self.include_lower = include_lower
