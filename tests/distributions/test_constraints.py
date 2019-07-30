@@ -41,6 +41,66 @@ def test_real_vector_outside():
     assert not real_vector(y)
 
 
+def test_open_interval():
+    lower = 4.0
+    upper = 21.0
+    interval = constraints.Interval(
+        lower, upper, include_lower=False, include_upper=False
+    )
+    x = 10.0
+    y = 10000.0
+
+    assert interval(x)
+    assert not interval(y)
+    assert not interval(lower)
+    assert not interval(upper)
+
+
+def test_lower_open_interval():
+    lower = 4.0
+    upper = 21.0
+    interval = constraints.Interval(
+        lower, upper, include_lower=False, include_upper=True
+    )
+    x = 10.0
+    y = 10000.0
+
+    assert interval(x)
+    assert not interval(y)
+    assert not interval(lower)
+    assert interval(upper)
+
+
+def test_upper_open_interval():
+    lower = 4.0
+    upper = 21.0
+    interval = constraints.Interval(
+        lower, upper, include_lower=True, include_upper=False
+    )
+    x = 10.0
+    y = 10000.0
+
+    assert interval(x)
+    assert not interval(y)
+    assert interval(lower)
+    assert not interval(upper)
+
+
+def test_closed_interval():
+    lower = 4.0
+    upper = 21.0
+    interval = constraints.Interval(
+        lower, upper, include_lower=True, include_upper=True
+    )
+    x = 10.0
+    y = 10000.0
+
+    assert interval(x)
+    assert not interval(y)
+    assert interval(lower)
+    assert interval(upper)
+
+
 def test_positive_within():
     positive = constraints.Positive()
     x = 9.0
