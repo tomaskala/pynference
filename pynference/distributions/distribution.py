@@ -5,9 +5,6 @@ import numpy as np
 import utils
 
 
-# TODO: Consider an exponential family class as PyTorch has.
-
-
 class Distribution(abc.ABC):
     _constraints = {}
     _support = None
@@ -63,3 +60,31 @@ class Distribution(abc.ABC):
         if self.check_support and not np.all(self._support(x)):
             raise ValueError(f'The parameter {x} lies outside the support.')
 
+
+class ExponentialFamily(Distribution):
+    """
+    Exponential family distribution of the form
+        h(x) \exp{(\eta^T t(x) - a(\eta))},
+    where h(x) is the base measure;
+          \eta is the natural parameter;
+          t(x) is the sufficient statistic;
+          a(\eta) is the log-normalizer.
+    """
+
+    @property
+    @abc.abstractmethod
+    def natural_parameter(self):
+        pass
+
+    @property
+    @abc.abstractmethod
+    def log_normalizer(self):
+        pass
+
+    @abc.abstractmethod
+    def base_measure(self, x):
+        pass
+
+    @abc.abstractmethod
+    def sufficient_statistic(self, x):
+        pass
