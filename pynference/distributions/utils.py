@@ -11,4 +11,4 @@ def check_random_state(seed):
     elif isinstance(seed, np.random.RandomState):
         return seed
     else:
-        raise ValueError(f'Invalid random seed {seed}.')
+        raise ValueError(f"Invalid random seed {seed}.")

@@ -9,11 +9,13 @@ class Distribution(abc.ABC):
     _constraints = {}
     _support = None
 
-    def __init__(self, batch_shape, rv_shape, check_parameters=True, check_support=True):
+    def __init__(
+        self, batch_shape, rv_shape, check_parameters=True, check_support=True
+    ):
         self.batch_shape = batch_shape
         self.rv_shape = rv_shape
         self.check_support = check_support
-        
+
         if check_parameters:
             for parameter, constraint in self._constraints.items():
                 if parameter not in self.__dict__:
@@ -24,7 +26,9 @@ class Distribution(abc.ABC):
                 parameter_value = getattr(self, parameter)
 
                 if not constraint(parameter_value):
-                    raise ValueError(f'Invalid value for {parameter}: {parameter_value}.')
+                    raise ValueError(
+                        f"Invalid value for {parameter}: {parameter_value}."
+                    )
 
     @property
     def support(self):
@@ -58,7 +62,7 @@ class Distribution(abc.ABC):
 
     def _validate_input(self, x):
         if self.check_support and not np.all(self._support(x)):
-            raise ValueError(f'The parameter {x} lies outside the support.')
+            raise ValueError(f"The parameter {x} lies outside the support.")
 
 
 class ExponentialFamily(Distribution):
