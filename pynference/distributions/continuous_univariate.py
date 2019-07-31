@@ -1,7 +1,7 @@
 from typing import Dict
 
+from constraints import Constraint
 from distribution import Distribution, ExponentialFamily
-from distribution.constraints import Constraint
 
 
 class Beta(ExponentialFamily):
