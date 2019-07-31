@@ -1,13 +1,15 @@
 import abc
+from typing import Dict
 
 import numpy as np
 
 import utils
+from constraints import Constraint
 
 
 class Distribution(abc.ABC):
-    _constraints = {}
-    _support = None
+    _constraints: Dict[str, Constraint] = {}
+    _support: Constraint = None
 
     def __init__(
         self, batch_shape, rv_shape, check_parameters=True, check_support=True

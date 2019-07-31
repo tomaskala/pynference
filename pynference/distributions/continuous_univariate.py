@@ -1,9 +1,12 @@
+from typing import Dict
+
 from distribution import Distribution, ExponentialFamily
+from distribution.constraints import Constraint
 
 
 class Beta(ExponentialFamily):
-    _constraints = {}
-    _support = None
+    _constraints: Dict[str, Constraint] = {}
+    _support: Constraint = None
 
     @property
     def mean(self):
@@ -35,8 +38,8 @@ class Beta(ExponentialFamily):
 
 
 class Cauchy(Distribution):
-    _constraints = {}
-    _support = None
+    _constraints: Dict[str, Constraint] = {}
+    _support: Constraint = None
 
     @property
     def mean(self):
