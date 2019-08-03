@@ -324,7 +324,7 @@ class Laplace(Distribution):
         x = random_state.random(sample_shape + self.batch_shape)
         y = random_state.random(sample_shape + self.batch_shape)
         epsilon = np.log(x) - np.log(y)
-        return self.loc + self._scale * epsilon
+        return self.loc + self.scale * epsilon
 
 
 class Logistic(Distribution):
