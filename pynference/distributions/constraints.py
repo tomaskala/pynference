@@ -12,12 +12,12 @@ class Constraint(abc.ABC):
 
 class Real(Constraint):
     def __call__(self, x: float) -> bool:
-        return np.isfinite(x)
+        return np.isfinite(x)  # type: ignore
 
 
 class RealVector(Constraint):
     def __call__(self, x: np.ndarray) -> bool:
-        return np.all(np.isfinite(x), axis=-1)
+        return np.all(np.isfinite(x), axis=-1)  # type: ignore
 
 
 class Interval(Constraint):
