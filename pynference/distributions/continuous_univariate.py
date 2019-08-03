@@ -1,6 +1,7 @@
 from typing import Dict
 
 import numpy as np
+from numpy.random import RandomState
 from scipy.special import betaln, gammaln
 
 from pynference.constants import ArrayLike, Parameter, Shape, Variate
@@ -60,7 +61,7 @@ class Beta(ExponentialFamily):
             - betaln(self.shape1, self.shape2)
         )
 
-    def _sample(self, sample_shape: Shape, random_state) -> Variate:
+    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
         x = self._gamma1.sample(sample_shape, random_state)
         y = self._gamma2.sample(sample_shape, random_state)
         return x / (x + y)
@@ -116,7 +117,7 @@ class Cauchy(Distribution):
         normalizer = -np.log(np.pi) - np.log(self.scale)
         return -np.log1p(np.power((x - self.loc) / self.scale, 2)) + normalizer
 
-    def _sample(self, sample_shape: Shape, random_state) -> Variate:
+    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
         epsilon = random_state.standard_cauchy(sample_shape + self.batch_shape)
         return self.loc + self.scale * epsilon
 
@@ -151,7 +152,7 @@ class Exponential(ExponentialFamily):
     def _log_prob(self, x: Variate) -> ArrayLike:
         return np.log(self.rate) - self.rate * x
 
-    def _sample(self, sample_shape: Shape, random_state) -> Variate:
+    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
         epsilon = random_state.standard_exponential(sample_shape + self.batch_shape)
         return epsilon / self.rate
 
@@ -206,7 +207,7 @@ class Gamma(ExponentialFamily):
         normalizer = self.shape * np.log(self.rate) - gammaln(self.shape)
         return (self.shape - 1.0) * np.log(x) - self.rate * x + normalizer
 
-    def _sample(self, sample_shape: Shape, random_state) -> Variate:
+    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
         pass  # TODO
 
     @property
@@ -266,7 +267,7 @@ class InverseGamma(ExponentialFamily):
         normalizer = self.shape * np.log(self.scale) - gammaln(self.shape)
         return (-self.shape - 1.0) * np.log(x) - self.scale / x + normalizer
 
-    def _sample(self, sample_shape: Shape, random_state) -> Variate:
+    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
         pass
 
     @property
@@ -319,7 +320,7 @@ class Laplace(Distribution):
     def _log_prob(self, x: Variate) -> ArrayLike:
         return -np.abs(x - self.loc) / self.scale - np.log(2.0) - np.log(self.scale)
 
-    def _sample(self, sample_shape: Shape, random_state) -> Variate:
+    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
         x = random_state.random(sample_shape + self.batch_shape)
         y = random_state.random(sample_shape + self.batch_shape)
         epsilon = np.log(x) - np.log(y)
@@ -366,7 +367,7 @@ class Logistic(Distribution):
             - 2.0 * np.log1p(np.exp(-standardized_var))
         )
 
-    def _sample(self, sample_shape: Shape, random_state) -> Variate:
+    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
         x = random_state.random(sample_shape + self.batch_shape)
         return self.loc + self.scale * (np.log(x) - np.log1p(-x))
 
@@ -414,7 +415,7 @@ class LogNormal(ExponentialFamily):
             - np.power(np.log(x) - self.loc, 2) / (2.0 * np.power(self.scale, 2))
         )
 
-    def _sample(self, sample_shape: Shape, random_state) -> Variate:
+    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
         pass
 
     @property
@@ -471,7 +472,7 @@ class Normal(ExponentialFamily):
         normalizer = -0.5 * (np.log(2.0) + np.log(np.pi) + np.log(self._variance))
         return -np.power(x - self._mean, 2) / (2.0 * self._variance) + normalizer
 
-    def _sample(self, sample_shape: Shape, random_state) -> Variate:
+    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
         epsilon = random_state.standard_normal(sample_shape + self.batch_shape)
         return self._mean + self._std * epsilon
 
@@ -538,7 +539,7 @@ class Pareto(Distribution):
             - (self.shape + 1.0) * np.log(x)
         )
 
-    def _sample(self, sample_shape: Shape, random_state) -> Variate:
+    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
         pass
 
 
@@ -597,7 +598,7 @@ class T(Distribution):
             + normalizer
         )
 
-    def _sample(self, sample_shape: Shape, random_state) -> Variate:
+    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
         epsilon = random_state.standard_t(self.df, sample_shape + self.batch_shape)
         return self.loc + self.scale * epsilon
 
@@ -654,7 +655,7 @@ class TruncatedNormal(Distribution):
     def _log_prob(self, x: Variate) -> ArrayLike:
         pass
 
-    def _sample(self, sample_shape: Shape, random_state) -> Variate:
+    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
         pass
 
 
@@ -699,6 +700,6 @@ class Uniform(Distribution):
     def _log_prob(self, x: Variate) -> ArrayLike:
         return -np.log(self.upper - self.lower)
 
-    def _sample(self, sample_shape: Shape, random_state) -> Variate:
+    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
         epsilon = random_state.random(sample_shape + self.batch_shape)
         return self.lower + (self.upper - self.lower) * epsilon

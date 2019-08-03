@@ -2,6 +2,7 @@ import abc
 from typing import Dict
 
 import numpy as np
+from numpy.random import RandomState
 
 import pynference.distributions.utils as utils
 from pynference.constants import ArrayLike, Parameter, Shape, Variate
@@ -64,7 +65,7 @@ class Distribution(abc.ABC):
         return self._sample(sample_shape, random_state)
 
     @abc.abstractmethod
-    def _sample(self, sample_shape: Shape, random_state) -> Variate:
+    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
         pass
 
     def _validate_input(self, x: Variate):
