@@ -39,6 +39,9 @@ class Beta(ExponentialFamily):
             check_support=check_support,
         )
 
+        self._gamma1 = Gamma(self.shape1, 1.0)
+        self._gamma2 = Gamma(self.shape2, 1.0)
+
     @property
     def mean(self) -> Parameter:
         return self.shape1 / (self.shape1 + self.shape2)
@@ -58,7 +61,9 @@ class Beta(ExponentialFamily):
         )
 
     def _sample(self, sample_shape: Shape, random_state) -> Variate:
-        pass
+        x = self._gamma1.sample(sample_shape, random_state)
+        y = self._gamma2.sample(sample_shape, random_state)
+        return x / (x + y)
 
     @property
     def natural_parameter(self) -> Parameter:
@@ -112,7 +117,8 @@ class Cauchy(Distribution):
         return -np.log1p(np.power((x - self.loc) / self.scale, 2)) + normalizer
 
     def _sample(self, sample_shape: Shape, random_state) -> Variate:
-        pass
+        epsilon = random_state.standard_cauchy(sample_shape + self.batch_shape)
+        return self.loc + self.scale * epsilon
 
 
 class Exponential(ExponentialFamily):
@@ -146,7 +152,8 @@ class Exponential(ExponentialFamily):
         return np.log(self.rate) - self.rate * x
 
     def _sample(self, sample_shape: Shape, random_state) -> Variate:
-        pass
+        epsilon = random_state.standard_exponential(sample_shape + self.batch_shape)
+        return epsilon / self.rate
 
     @property
     def natural_parameter(self) -> Parameter:
@@ -200,7 +207,7 @@ class Gamma(ExponentialFamily):
         return (self.shape - 1.0) * np.log(x) - self.rate * x + normalizer
 
     def _sample(self, sample_shape: Shape, random_state) -> Variate:
-        pass
+        pass  # TODO
 
     @property
     def natural_parameter(self) -> Parameter:
@@ -313,7 +320,10 @@ class Laplace(Distribution):
         return -np.abs(x - self.loc) / self.scale - np.log(2.0) - np.log(self.scale)
 
     def _sample(self, sample_shape: Shape, random_state) -> Variate:
-        pass
+        x = random_state.random(sample_shape + self.batch_shape)
+        y = random_state.random(sample_shape + self.batch_shape)
+        epsilon = np.log(x) - np.log(y)
+        return self.loc + self._scale * epsilon
 
 
 class Logistic(Distribution):
@@ -357,7 +367,8 @@ class Logistic(Distribution):
         )
 
     def _sample(self, sample_shape: Shape, random_state) -> Variate:
-        pass
+        x = random_state.random(sample_shape + self.batch_shape)
+        return self.loc + self.scale * (np.log(x) - np.log1p(-x))
 
 
 # TODO: Transformed Normal.
@@ -446,6 +457,8 @@ class Normal(ExponentialFamily):
             check_support=check_support,
         )
 
+        self._std = np.sqrt(self._variance)
+
     @property
     def mean(self) -> Parameter:
         return self._mean
@@ -459,7 +472,8 @@ class Normal(ExponentialFamily):
         return -np.power(x - self._mean, 2) / (2.0 * self._variance) + normalizer
 
     def _sample(self, sample_shape: Shape, random_state) -> Variate:
-        pass
+        epsilon = random_state.standard_normal(sample_shape + self.batch_shape)
+        return self._mean + self._std * epsilon
 
     @property
     def natural_parameter(self) -> Parameter:
@@ -584,7 +598,8 @@ class T(Distribution):
         )
 
     def _sample(self, sample_shape: Shape, random_state) -> Variate:
-        pass
+        epsilon = random_state.standard_t(self.df, sample_shape + self.batch_shape)
+        return self.loc + self.scale * epsilon
 
 
 # TODO: Transformed base TruncatedNormal (loc=0, scale=1, lower=0, upper=1).
@@ -685,4 +700,5 @@ class Uniform(Distribution):
         return -np.log(self.upper - self.lower)
 
     def _sample(self, sample_shape: Shape, random_state) -> Variate:
-        pass
+        epsilon = random_state.random(sample_shape + self.batch_shape)
+        return self.lower + (self.upper - self.lower) * epsilon
