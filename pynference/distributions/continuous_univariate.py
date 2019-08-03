@@ -1,6 +1,7 @@
 from typing import Dict
 
 import numpy as np
+from scipy.special import betaln, gammaln
 
 from pynference.constants import ArrayLike, Parameter, Shape, Variate
 from pynference.distributions.constraints import (
@@ -50,7 +51,11 @@ class Beta(ExponentialFamily):
         return numerator / denominator
 
     def _log_prob(self, x: Variate) -> ArrayLike:
-        pass
+        return (
+            (self.shape1 - 1.0) * np.log(x)
+            + (self.shape2 - 1.0) * np.log1p(-x)
+            - betaln(self.shape1, self.shape2)
+        )
 
     def _sample(self, sample_shape: Shape, random_state) -> Variate:
         pass
@@ -103,7 +108,8 @@ class Cauchy(Distribution):
         return np.full(shape=self.batch_shape, fill_value=np.nan)
 
     def _log_prob(self, x: Variate) -> ArrayLike:
-        pass
+        normalizer = -np.log(np.pi) - np.log(self.scale)
+        return -np.log1p(np.power((x - self.loc) / self.scale, 2)) + normalizer
 
     def _sample(self, sample_shape: Shape, random_state) -> Variate:
         pass
@@ -137,7 +143,7 @@ class Exponential(ExponentialFamily):
         return np.reciprocal(np.power(self.rate, 2))
 
     def _log_prob(self, x: Variate) -> ArrayLike:
-        pass
+        return np.log(self.rate) - self.rate * x
 
     def _sample(self, sample_shape: Shape, random_state) -> Variate:
         pass
@@ -190,7 +196,8 @@ class Gamma(ExponentialFamily):
         return self.shape / np.power(self.rate, 2)
 
     def _log_prob(self, x: Variate) -> ArrayLike:
-        pass
+        normalizer = self.shape * np.log(self.rate) - gammaln(self.shape)
+        return (self.shape - 1.0) * np.log(x) - self.rate * x + normalizer
 
     def _sample(self, sample_shape: Shape, random_state) -> Variate:
         pass
@@ -249,7 +256,8 @@ class InverseGamma(ExponentialFamily):
         )
 
     def _log_prob(self, x: Variate) -> ArrayLike:
-        pass
+        normalizer = self.shape * np.log(self.scale) - gammaln(self.shape)
+        return (-self.shape - 1.0) * np.log(x) - self.scale / x + normalizer
 
     def _sample(self, sample_shape: Shape, random_state) -> Variate:
         pass
@@ -302,7 +310,7 @@ class Laplace(Distribution):
         return 2.0 * np.power(self.scale, 2)
 
     def _log_prob(self, x: Variate) -> ArrayLike:
-        pass
+        return -np.abs(x - self.loc) / self.scale - np.log(2.0) - np.log(self.scale)
 
     def _sample(self, sample_shape: Shape, random_state) -> Variate:
         pass
@@ -341,7 +349,12 @@ class Logistic(Distribution):
         return np.power(self.scale * np.pi, 2) / 3.0
 
     def _log_prob(self, x: Variate) -> ArrayLike:
-        pass
+        standardized_var = (x - self.loc) / self.scale
+        return (
+            -standardized_var
+            - np.log(self.scale)
+            - 2.0 * np.log1p(np.exp(-standardized_var))
+        )
 
     def _sample(self, sample_shape: Shape, random_state) -> Variate:
         pass
@@ -382,7 +395,13 @@ class LogNormal(ExponentialFamily):
         return (np.exp(scale_squared) - 1.0) * np.exp(2.0 * self.loc + scale_squared)
 
     def _log_prob(self, x: Variate) -> ArrayLike:
-        pass
+        return (
+            -np.log(x)
+            - np.log(self.scale)
+            - 0.5 * np.log(2.0)
+            - 0.5 * np.log(np.pi)
+            - np.power(np.log(x) - self.loc, 2) / (2.0 * np.power(self.scale, 2))
+        )
 
     def _sample(self, sample_shape: Shape, random_state) -> Variate:
         pass
@@ -436,7 +455,8 @@ class Normal(ExponentialFamily):
         return self._variance
 
     def _log_prob(self, x: Variate) -> ArrayLike:
-        pass
+        normalizer = -0.5 * (np.log(2.0) + np.log(np.pi) + np.log(self._variance))
+        return -np.power(x - self._mean, 2) / (2.0 * self._variance) + normalizer
 
     def _sample(self, sample_shape: Shape, random_state) -> Variate:
         pass
@@ -498,7 +518,11 @@ class Pareto(Distribution):
         )
 
     def _log_prob(self, x: Variate) -> ArrayLike:
-        pass
+        return (
+            np.log(self.shape)
+            + self.shape * np.log(self.scale)
+            - (self.shape + 1.0) * np.log(x)
+        )
 
     def _sample(self, sample_shape: Shape, random_state) -> Variate:
         pass
@@ -546,7 +570,18 @@ class T(Distribution):
         return np.where(self.df > 1, variance, np.nan)
 
     def _log_prob(self, x: Variate) -> ArrayLike:
-        pass
+        standardized_var = (x - self.loc) / self.scale
+        normalizer = (
+            gammaln((self.df + 1.0) / 2.0)
+            - 0.5 * np.log(self.df)
+            - 0.5 * np.log(np.pi)
+            - gammaln(self.df / 2.0)
+            - np.log(self.scale)
+        )
+        return (
+            -((self.df + 1.0) / 2.0) * np.log1p(np.power(standardized_var, 2) / self.df)
+            + normalizer
+        )
 
     def _sample(self, sample_shape: Shape, random_state) -> Variate:
         pass
@@ -647,7 +682,7 @@ class Uniform(Distribution):
         return np.power(self.upper - self.lower, 2) / 12.0
 
     def _log_prob(self, x: Variate) -> ArrayLike:
-        pass
+        return -np.log(self.upper - self.lower)
 
     def _sample(self, sample_shape: Shape, random_state) -> Variate:
         pass
