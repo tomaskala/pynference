@@ -27,11 +27,14 @@ class Beta(ExponentialFamily):
 
     @property
     def mean(self):
-        pass
+        return self.shape1 / (self.shape1 + self.shape2)
 
     @property
     def variance(self):
-        pass
+        shape_sum = self.shape1 + self.shape2
+        numerator = self.shape1 * self.shape2
+        denominator = np.power(shape_sum, 2) * (shape_sum + 1.0)
+        return numerator / denominator
 
     def _log_prob(self, x):
         pass
@@ -74,11 +77,11 @@ class Cauchy(Distribution):
 
     @property
     def mean(self):
-        pass
+        return np.full(shape=self.batch_shape, fill_value=np.nan)
 
     @property
     def variance(self):
-        pass
+        return np.full(shape=self.batch_shape, fill_value=np.nan)
 
     def _log_prob(self, x):
         pass
@@ -106,11 +109,11 @@ class Exponential(ExponentialFamily):
 
     @property
     def mean(self):
-        pass
+        return np.reciprocal(self.rate)
 
     @property
     def variance(self):
-        pass
+        return np.reciprocal(np.power(self.rate, 2))
 
     def _log_prob(self, x):
         pass
@@ -153,11 +156,11 @@ class Gamma(ExponentialFamily):
 
     @property
     def mean(self):
-        pass
+        return self.shape / self.rate
 
     @property
     def variance(self):
-        pass
+        return self.shape / np.power(self.rate, 2)
 
     def _log_prob(self, x):
         pass
@@ -201,11 +204,16 @@ class InverseGamma(ExponentialFamily):
 
     @property
     def mean(self):
-        pass
+        return np.where(self.shape > 1.0, self.scale / (self.shape - 1.0), np.nan)
 
     @property
     def variance(self):
-        pass
+        return np.where(
+            self.shape > 2.0,
+            np.power(self.scale, 2)
+            / (np.power(self.shape - 1.0, 2) * (self.shape - 2.0)),
+            np.nan,
+        )
 
     def _log_prob(self, x):
         pass
@@ -248,11 +256,11 @@ class Laplace(Distribution):
 
     @property
     def mean(self):
-        pass
+        return self.loc
 
     @property
     def variance(self):
-        pass
+        return 2.0 * np.power(self.scale, 2)
 
     def _log_prob(self, x):
         pass
@@ -281,11 +289,11 @@ class Logistic(Distribution):
 
     @property
     def mean(self):
-        pass
+        return self.loc
 
     @property
     def variance(self):
-        pass
+        return np.power(self.scale * np.pi, 2) / 3.0
 
     def _log_prob(self, x):
         pass
@@ -315,11 +323,12 @@ class LogNormal(ExponentialFamily):
 
     @property
     def mean(self):
-        pass
+        return np.exp(self.loc + np.power(self.scale, 2) / 2.0)
 
     @property
     def variance(self):
-        pass
+        scale_squared = np.power(self.scale, 2)
+        return (np.exp(scale_squared) - 1.0) * np.exp(2.0 * self.loc + scale_squared)
 
     def _log_prob(self, x):
         pass
@@ -342,6 +351,7 @@ class LogNormal(ExponentialFamily):
         pass
 
 
+# TODO: Allow parameterizing in terms of mean & precision instead.
 class Normal(ExponentialFamily):
     _constraints: Dict[str, Constraint] = {"mean": real, "variance": positive}
     _support: Constraint = real
@@ -362,11 +372,11 @@ class Normal(ExponentialFamily):
 
     @property
     def mean(self):
-        pass
+        return self._mean
 
     @property
     def variance(self):
-        pass
+        return self._variance
 
     def _log_prob(self, x):
         pass
@@ -410,11 +420,19 @@ class Pareto(Distribution):
 
     @property
     def mean(self):
-        pass
+        return np.where(
+            self.shape > 1.0, self.shape * self.scale / (self.shape - 1.0), np.inf
+        )
 
     @property
     def variance(self):
-        pass
+        return np.where(
+            self.shape > 2.0,
+            np.power(self.scale, 2)
+            * self.shape
+            / (np.power(self.shape - 1.0, 2) * (self.shape - 2.0)),
+            np.inf,
+        )
 
     def _log_prob(self, x):
         pass
@@ -448,11 +466,14 @@ class T(Distribution):
 
     @property
     def mean(self):
-        pass
+        return np.where(self.df > 1, self.loc, np.nan)
 
     @property
     def variance(self):
-        pass
+        variance = np.where(
+            self.df > 2, np.power(self.scale, 2) * self.df / (self.df - 2.0), np.inf
+        )
+        return np.where(self.df > 1, variance, np.nan)
 
     def _log_prob(self, x):
         pass
@@ -461,26 +482,26 @@ class T(Distribution):
         pass
 
 
-# TODO: Transformed base TruncatedNormal (mean=0, variance=1, lower=0, upper=1).
+# TODO: Transformed base TruncatedNormal (loc=0, scale=1, lower=0, upper=1).
 class TruncatedNormal(Distribution):
     _constraints: Dict[str, Constraint] = {
-        "mean": real,
-        "variance": positive,
+        "loc": real,
+        "scale": positive,
         "lower": real,
         "upper": real,
     }
     _support: Constraint = None
 
     def __init__(
-        self, mean, variance, lower, upper, check_parameters=True, check_support=True
+        self, loc, scale, lower, upper, check_parameters=True, check_support=True
     ):
         batch_shape = broadcast_shapes(
-            np.shape(mean), np.shape(variance), np.shape(lower), np.shape(upper)
+            np.shape(loc), np.shape(scale), np.shape(lower), np.shape(upper)
         )
         rv_shape = ()
 
-        self._mean = np.broadcast_to(mean, batch_shape)
-        self._variance = np.broadcast_to(variance, batch_shape)
+        self.loc = np.broadcast_to(loc, batch_shape)
+        self.scale = np.broadcast_to(scale, batch_shape)
         self.lower = np.broadcast_to(lower, batch_shape)
         self.upper = np.broadcast_to(upper, batch_shape)
 
@@ -537,11 +558,11 @@ class Uniform(Distribution):
 
     @property
     def mean(self):
-        pass
+        return (self.lower + self.upper) / 2.0
 
     @property
     def variance(self):
-        pass
+        return np.power(self.upper - self.lower, 2) / 12.0
 
     def _log_prob(self, x):
         pass
