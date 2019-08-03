@@ -1,10 +1,10 @@
 import abc
-from typing import Dict, Tuple
+from typing import Dict
 
 import numpy as np
 
-import pynference.distribution.utils as utils
-from pynference.constants import ArrayLike, Parameter, Variate
+import pynference.distributions.utils as utils
+from pynference.constants import ArrayLike, Parameter, Shape, Variate
 from pynference.distributions.constraints import Constraint
 
 
@@ -14,8 +14,8 @@ class Distribution(abc.ABC):
 
     def __init__(
         self,
-        batch_shape: Tuple[int],
-        rv_shape: Tuple[int],
+        batch_shape: Shape,
+        rv_shape: Shape,
         check_parameters: bool = True,
         check_support: bool = True,
     ):
@@ -59,12 +59,12 @@ class Distribution(abc.ABC):
     def _log_prob(self, x: Variate) -> ArrayLike:
         pass
 
-    def sample(self, sample_shape: Tuple[int], random_state=None) -> Variate:
+    def sample(self, sample_shape: Shape = (), random_state=None) -> Variate:
         random_state = utils.check_random_state(random_state)
         return self._sample(sample_shape, random_state)
 
     @abc.abstractmethod
-    def _sample(self, sample_shape: Tuple[int], random_state) -> Variate:
+    def _sample(self, sample_shape: Shape, random_state) -> Variate:
         pass
 
     def _validate_input(self, x: Variate):

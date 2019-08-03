@@ -1,17 +1,17 @@
-from typing import Dict, Tuple
+from typing import Dict
 
 import numpy as np
 
-from pynference.constants import ArrayLike, Parameter, Variate
-from pynference.distribution.constraints import (
+from pynference.constants import ArrayLike, Parameter, Shape, Variate
+from pynference.distributions.constraints import (
     Constraint,
     non_negative,
     positive,
     real,
     zero_one,
 )
-from pynference.distribution.distribution import Distribution, ExponentialFamily
-from pynference.distribution.utils import broadcast_shapes
+from pynference.distributions.distribution import Distribution, ExponentialFamily
+from pynference.distributions.utils import broadcast_shapes
 
 
 class Beta(ExponentialFamily):
@@ -52,7 +52,7 @@ class Beta(ExponentialFamily):
     def _log_prob(self, x: Variate) -> ArrayLike:
         pass
 
-    def _sample(self, sample_shape: Tuple[int], random_state) -> Variate:
+    def _sample(self, sample_shape: Shape, random_state) -> Variate:
         pass
 
     @property
@@ -105,7 +105,7 @@ class Cauchy(Distribution):
     def _log_prob(self, x: Variate) -> ArrayLike:
         pass
 
-    def _sample(self, sample_shape: Tuple[int], random_state) -> Variate:
+    def _sample(self, sample_shape: Shape, random_state) -> Variate:
         pass
 
 
@@ -139,7 +139,7 @@ class Exponential(ExponentialFamily):
     def _log_prob(self, x: Variate) -> ArrayLike:
         pass
 
-    def _sample(self, sample_shape: Tuple[int], random_state) -> Variate:
+    def _sample(self, sample_shape: Shape, random_state) -> Variate:
         pass
 
     @property
@@ -192,7 +192,7 @@ class Gamma(ExponentialFamily):
     def _log_prob(self, x: Variate) -> ArrayLike:
         pass
 
-    def _sample(self, sample_shape: Tuple[int], random_state) -> Variate:
+    def _sample(self, sample_shape: Shape, random_state) -> Variate:
         pass
 
     @property
@@ -251,7 +251,7 @@ class InverseGamma(ExponentialFamily):
     def _log_prob(self, x: Variate) -> ArrayLike:
         pass
 
-    def _sample(self, sample_shape: Tuple[int], random_state) -> Variate:
+    def _sample(self, sample_shape: Shape, random_state) -> Variate:
         pass
 
     @property
@@ -304,7 +304,7 @@ class Laplace(Distribution):
     def _log_prob(self, x: Variate) -> ArrayLike:
         pass
 
-    def _sample(self, sample_shape: Tuple[int], random_state) -> Variate:
+    def _sample(self, sample_shape: Shape, random_state) -> Variate:
         pass
 
 
@@ -343,7 +343,7 @@ class Logistic(Distribution):
     def _log_prob(self, x: Variate) -> ArrayLike:
         pass
 
-    def _sample(self, sample_shape: Tuple[int], random_state) -> Variate:
+    def _sample(self, sample_shape: Shape, random_state) -> Variate:
         pass
 
 
@@ -384,7 +384,7 @@ class LogNormal(ExponentialFamily):
     def _log_prob(self, x: Variate) -> ArrayLike:
         pass
 
-    def _sample(self, sample_shape: Tuple[int], random_state) -> Variate:
+    def _sample(self, sample_shape: Shape, random_state) -> Variate:
         pass
 
     @property
@@ -438,7 +438,7 @@ class Normal(ExponentialFamily):
     def _log_prob(self, x: Variate) -> ArrayLike:
         pass
 
-    def _sample(self, sample_shape: Tuple[int], random_state) -> Variate:
+    def _sample(self, sample_shape: Shape, random_state) -> Variate:
         pass
 
     @property
@@ -500,7 +500,7 @@ class Pareto(Distribution):
     def _log_prob(self, x: Variate) -> ArrayLike:
         pass
 
-    def _sample(self, sample_shape: Tuple[int], random_state) -> Variate:
+    def _sample(self, sample_shape: Shape, random_state) -> Variate:
         pass
 
 
@@ -548,7 +548,7 @@ class T(Distribution):
     def _log_prob(self, x: Variate) -> ArrayLike:
         pass
 
-    def _sample(self, sample_shape: Tuple[int], random_state) -> Variate:
+    def _sample(self, sample_shape: Shape, random_state) -> Variate:
         pass
 
 
@@ -604,7 +604,7 @@ class TruncatedNormal(Distribution):
     def _log_prob(self, x: Variate) -> ArrayLike:
         pass
 
-    def _sample(self, sample_shape: Tuple[int], random_state) -> Variate:
+    def _sample(self, sample_shape: Shape, random_state) -> Variate:
         pass
 
 
@@ -649,5 +649,5 @@ class Uniform(Distribution):
     def _log_prob(self, x: Variate) -> ArrayLike:
         pass
 
-    def _sample(self, sample_shape: Tuple[int], random_state) -> Variate:
+    def _sample(self, sample_shape: Shape, random_state) -> Variate:
         pass
