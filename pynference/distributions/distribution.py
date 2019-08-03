@@ -1,18 +1,23 @@
 import abc
-from typing import Dict
+from typing import Dict, Tuple
 
 import numpy as np
 
-import utils
-from constraints import Constraint
+import pynference.distribution.utils as utils
+from pynference.constants import ArrayLike, Parameter, Variate
+from pynference.distributions.constraints import Constraint
 
 
 class Distribution(abc.ABC):
     _constraints: Dict[str, Constraint] = {}
-    _support: Constraint = None
+    _support: Constraint = None  # type: ignore
 
     def __init__(
-        self, batch_shape, rv_shape, check_parameters=True, check_support=True
+        self,
+        batch_shape: Tuple[int],
+        rv_shape: Tuple[int],
+        check_parameters: bool = True,
+        check_support: bool = True,
     ):
         self.batch_shape = batch_shape
         self.rv_shape = rv_shape
@@ -33,36 +38,36 @@ class Distribution(abc.ABC):
                     )
 
     @property
-    def support(self):
+    def support(self) -> Constraint:
         return self._support
 
     @property
     @abc.abstractmethod
-    def mean(self):
+    def mean(self) -> Parameter:
         pass
 
     @property
     @abc.abstractmethod
-    def variance(self):
+    def variance(self) -> Parameter:
         pass
 
-    def log_prob(self, x):
+    def log_prob(self, x: Variate) -> ArrayLike:
         self._validate_input(x)
         return self._log_prob(x)
 
     @abc.abstractmethod
-    def _log_prob(self, x):
+    def _log_prob(self, x: Variate) -> ArrayLike:
         pass
 
-    def sample(self, sample_shape, random_state=None):
+    def sample(self, sample_shape: Tuple[int], random_state=None) -> Variate:
         random_state = utils.check_random_state(random_state)
         return self._sample(sample_shape, random_state)
 
     @abc.abstractmethod
-    def _sample(self, sample_shape, random_state):
+    def _sample(self, sample_shape: Tuple[int], random_state) -> Variate:
         pass
 
-    def _validate_input(self, x):
+    def _validate_input(self, x: Variate):
         if self.check_support and not np.all(self._support(x)):
             raise ValueError(f"The parameter {x} lies outside the support.")
 
@@ -79,18 +84,18 @@ class ExponentialFamily(Distribution):
 
     @property
     @abc.abstractmethod
-    def natural_parameter(self):
+    def natural_parameter(self) -> Parameter:
         pass
 
     @property
     @abc.abstractmethod
-    def log_normalizer(self):
+    def log_normalizer(self) -> Parameter:
         pass
 
     @abc.abstractmethod
-    def base_measure(self, x):
+    def base_measure(self, x: Variate) -> ArrayLike:
         pass
 
     @abc.abstractmethod
-    def sufficient_statistic(self, x):
+    def sufficient_statistic(self, x: Variate) -> ArrayLike:
         pass
