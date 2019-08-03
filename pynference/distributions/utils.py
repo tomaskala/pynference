@@ -1,8 +1,9 @@
 import numbers
-from typing import Tuple
 
 import numpy as np
 from numpy.random import RandomState
+
+from pynference.constants import Shape
 
 
 def check_random_state(seed) -> RandomState:
@@ -16,7 +17,7 @@ def check_random_state(seed) -> RandomState:
         raise ValueError(f"Invalid random seed {seed}.")
 
 
-def broadcast_shapes(*shapes: Tuple[int]) -> Tuple[int]:
+def broadcast_shapes(*shapes: Shape) -> Shape:
     if len(shapes) == 1:
         return shapes[0]
 
@@ -33,4 +34,4 @@ def broadcast_shapes(*shapes: Tuple[int]) -> Tuple[int]:
             f"Incompatible shapes for broadcasting: {tuple(map(tuple, shapes))}."
         )
 
-    return tuple(result_shape)  # type: ignore
+    return tuple(result_shape)
