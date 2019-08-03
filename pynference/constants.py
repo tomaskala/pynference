@@ -12,4 +12,4 @@ Parameter = Union[float, np.ndarray]
 Variate = Union[float, np.ndarray]
 
 # Either an empty tuple (scalar) or a tuple of dimensions (array).
-Shape = Union[Tuple[()], Tuple[int]]
+Shape = Tuple[int, ...]
