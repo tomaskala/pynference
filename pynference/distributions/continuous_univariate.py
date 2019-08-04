@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Tuple
 
 import numpy as np
 from numpy.random import RandomState
@@ -67,7 +67,7 @@ class Beta(ExponentialFamily):
         return x / (x + y)
 
     @property
-    def natural_parameter(self) -> Parameter:
+    def natural_parameter(self) -> Tuple[Parameter, ...]:
         pass
 
     @property
@@ -77,7 +77,7 @@ class Beta(ExponentialFamily):
     def base_measure(self, x: Variate) -> ArrayLike:
         pass
 
-    def sufficient_statistic(self, x: Variate) -> ArrayLike:
+    def sufficient_statistic(self, x: Variate) -> Tuple[ArrayLike, ...]:
         pass
 
 
@@ -157,7 +157,7 @@ class Exponential(ExponentialFamily):
         return epsilon / self.rate
 
     @property
-    def natural_parameter(self) -> Parameter:
+    def natural_parameter(self) -> Tuple[Parameter, ...]:
         pass
 
     @property
@@ -167,7 +167,7 @@ class Exponential(ExponentialFamily):
     def base_measure(self, x: Variate) -> ArrayLike:
         pass
 
-    def sufficient_statistic(self, x: Variate) -> ArrayLike:
+    def sufficient_statistic(self, x: Variate) -> Tuple[ArrayLike, ...]:
         pass
 
 
@@ -214,7 +214,7 @@ class Gamma(ExponentialFamily):
         return epsilon / self.rate
 
     @property
-    def natural_parameter(self) -> Parameter:
+    def natural_parameter(self) -> Tuple[Parameter, ...]:
         pass
 
     @property
@@ -224,7 +224,7 @@ class Gamma(ExponentialFamily):
     def base_measure(self, x: Variate) -> ArrayLike:
         pass
 
-    def sufficient_statistic(self, x: Variate) -> ArrayLike:
+    def sufficient_statistic(self, x: Variate) -> Tuple[ArrayLike, ...]:
         pass
 
 
@@ -274,7 +274,7 @@ class InverseGamma(ExponentialFamily):
         pass
 
     @property
-    def natural_parameter(self) -> Parameter:
+    def natural_parameter(self) -> Tuple[Parameter, ...]:
         pass
 
     @property
@@ -284,7 +284,7 @@ class InverseGamma(ExponentialFamily):
     def base_measure(self, x: Variate) -> ArrayLike:
         pass
 
-    def sufficient_statistic(self, x: Variate) -> ArrayLike:
+    def sufficient_statistic(self, x: Variate) -> Tuple[ArrayLike, ...]:
         pass
 
 
@@ -422,7 +422,7 @@ class LogNormal(ExponentialFamily):
         pass
 
     @property
-    def natural_parameter(self) -> Parameter:
+    def natural_parameter(self) -> Tuple[Parameter, ...]:
         pass
 
     @property
@@ -432,7 +432,7 @@ class LogNormal(ExponentialFamily):
     def base_measure(self, x: Variate) -> ArrayLike:
         pass
 
-    def sufficient_statistic(self, x: Variate) -> ArrayLike:
+    def sufficient_statistic(self, x: Variate) -> Tuple[ArrayLike, ...]:
         pass
 
 
@@ -480,7 +480,7 @@ class Normal(ExponentialFamily):
         return self._mean + self._std * epsilon
 
     @property
-    def natural_parameter(self) -> Parameter:
+    def natural_parameter(self) -> Tuple[Parameter, ...]:
         pass
 
     @property
@@ -490,7 +490,7 @@ class Normal(ExponentialFamily):
     def base_measure(self, x: Variate) -> ArrayLike:
         pass
 
-    def sufficient_statistic(self, x: Variate) -> ArrayLike:
+    def sufficient_statistic(self, x: Variate) -> Tuple[ArrayLike, ...]:
         pass
 
 

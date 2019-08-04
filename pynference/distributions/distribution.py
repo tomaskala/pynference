@@ -1,5 +1,5 @@
 import abc
-from typing import Dict
+from typing import Dict, Tuple
 
 import numpy as np
 from numpy.random import RandomState
@@ -85,7 +85,7 @@ class ExponentialFamily(Distribution):
 
     @property
     @abc.abstractmethod
-    def natural_parameter(self) -> Parameter:
+    def natural_parameter(self) -> Tuple[Parameter, ...]:
         pass
 
     @property
@@ -98,5 +98,5 @@ class ExponentialFamily(Distribution):
         pass
 
     @abc.abstractmethod
-    def sufficient_statistic(self, x: Variate) -> ArrayLike:
+    def sufficient_statistic(self, x: Variate) -> Tuple[ArrayLike, ...]:
         pass
