@@ -81,6 +81,9 @@ class ExponentialFamily(Distribution):
           \eta is the natural parameter;
           t(x) is the sufficient statistic;
           a(\eta) is the log-normalizer.
+
+    The natural parameters and sufficient statistics are given as tuples instead
+    of arrays since the batch dimensions of the individual parameters may differ.
     """
 
     @property
