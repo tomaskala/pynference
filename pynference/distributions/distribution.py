@@ -33,7 +33,7 @@ class Distribution(abc.ABC):
 
                 parameter_value = getattr(self, parameter)
 
-                if not constraint(parameter_value):
+                if not np.all(constraint(parameter_value)):
                     raise ValueError(
                         f"Invalid value for {parameter}: {parameter_value}."
                     )
@@ -69,7 +69,7 @@ class Distribution(abc.ABC):
         pass
 
     def _validate_input(self, x: Variate):
-        if self.check_support and not np.all(self._support(x)):
+        if self.check_support and not np.all(self.support(x)):
             raise ValueError(f"The parameter {x} lies outside the support.")
 
 

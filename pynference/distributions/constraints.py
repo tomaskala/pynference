@@ -6,18 +6,18 @@ import numpy as np
 
 class Constraint(abc.ABC):
     @abc.abstractmethod
-    def __call__(self, x: Union[float, np.ndarray]) -> bool:
+    def __call__(self, x: Union[float, np.ndarray]) -> np.ndarray:
         pass
 
 
 class Real(Constraint):
-    def __call__(self, x: float) -> bool:
-        return np.isfinite(x)  # type: ignore
+    def __call__(self, x: float) -> np.ndarray:
+        return np.isfinite(x)
 
 
 class RealVector(Constraint):
-    def __call__(self, x: np.ndarray) -> bool:
-        return np.all(np.isfinite(x), axis=-1)  # type: ignore
+    def __call__(self, x: np.ndarray) -> np.ndarray:
+        return np.all(np.isfinite(x), axis=-1)
 
 
 class Interval(Constraint):
@@ -33,7 +33,7 @@ class Interval(Constraint):
         self.include_lower = include_lower
         self.include_upper = include_upper
 
-    def __call__(self, x: float) -> bool:
+    def __call__(self, x: float) -> np.ndarray:
         if self.include_lower and self.include_upper:
             return self.lower <= x <= self.upper
         elif self.include_lower:
