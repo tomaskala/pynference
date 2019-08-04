@@ -158,7 +158,7 @@ class Exponential(ExponentialFamily):
 
     @property
     def natural_parameter(self) -> Tuple[Parameter, ...]:
-        return -self.rate,
+        return (-self.rate,)
 
     @property
     def log_normalizer(self) -> Parameter:
@@ -168,7 +168,7 @@ class Exponential(ExponentialFamily):
         return 1.0
 
     def sufficient_statistic(self, x: Variate) -> Tuple[ArrayLike, ...]:
-        return x,
+        return (x,)
 
 
 class Gamma(ExponentialFamily):
@@ -279,7 +279,7 @@ class InverseGamma(ExponentialFamily):
 
     @property
     def log_normalizer(self) -> Parameter:
-        return gammaln(self.shape) - self.shape * np.log(self.rate)
+        return gammaln(self.shape) - self.shape * np.log(self.scale)
 
     def base_measure(self, x: Variate) -> ArrayLike:
         return 1.0
@@ -423,11 +423,16 @@ class LogNormal(ExponentialFamily):
 
     @property
     def natural_parameter(self) -> Tuple[Parameter, ...]:
-        return self.loc / np.power(self.scale, 2), -np.reciprocal(2.0 * np.power(self.scale, 2))
+        return (
+            self.loc / np.power(self.scale, 2),
+            -np.reciprocal(2.0 * np.power(self.scale, 2)),
+        )
 
     @property
     def log_normalizer(self) -> Parameter:
-        return np.power(self.loc, 2) / (2.0 * np.power(self.scale, 2)) + np.log(self.scale)
+        return np.power(self.loc, 2) / (2.0 * np.power(self.scale, 2)) + np.log(
+            self.scale
+        )
 
     def base_measure(self, x: Variate) -> ArrayLike:
         return np.reciprocal(np.sqrt(2.0 * np.pi) * x)
