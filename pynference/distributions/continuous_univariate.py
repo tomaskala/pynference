@@ -68,17 +68,17 @@ class Beta(ExponentialFamily):
 
     @property
     def natural_parameter(self) -> Tuple[Parameter, ...]:
-        pass
+        return self.shape1, self.shape2
 
     @property
     def log_normalizer(self) -> Parameter:
-        pass
+        return betaln(self.shape1, self.shape2)
 
     def base_measure(self, x: Variate) -> ArrayLike:
-        pass
+        return np.reciprocal(x * (1.0 - x))
 
     def sufficient_statistic(self, x: Variate) -> Tuple[ArrayLike, ...]:
-        pass
+        return np.log(x), np.log1p(-x)
 
 
 class Cauchy(Distribution):
@@ -158,17 +158,17 @@ class Exponential(ExponentialFamily):
 
     @property
     def natural_parameter(self) -> Tuple[Parameter, ...]:
-        pass
+        return -self.rate,
 
     @property
     def log_normalizer(self) -> Parameter:
-        pass
+        return -np.log(self.rate)
 
     def base_measure(self, x: Variate) -> ArrayLike:
-        pass
+        return 1.0
 
     def sufficient_statistic(self, x: Variate) -> Tuple[ArrayLike, ...]:
-        pass
+        return x,
 
 
 class Gamma(ExponentialFamily):
@@ -215,17 +215,17 @@ class Gamma(ExponentialFamily):
 
     @property
     def natural_parameter(self) -> Tuple[Parameter, ...]:
-        pass
+        return self.shape - 1.0, -self.rate
 
     @property
     def log_normalizer(self) -> Parameter:
-        pass
+        return gammaln(self.shape) - self.shape * np.log(self.rate)
 
     def base_measure(self, x: Variate) -> ArrayLike:
-        pass
+        return 1.0
 
     def sufficient_statistic(self, x: Variate) -> Tuple[ArrayLike, ...]:
-        pass
+        return np.log(x), x
 
 
 # TODO: Transformed Gamma.
@@ -275,17 +275,17 @@ class InverseGamma(ExponentialFamily):
 
     @property
     def natural_parameter(self) -> Tuple[Parameter, ...]:
-        pass
+        return -self.shape - 1.0, -self.scale
 
     @property
     def log_normalizer(self) -> Parameter:
-        pass
+        return gammaln(self.shape) - self.shape * np.log(self.rate)
 
     def base_measure(self, x: Variate) -> ArrayLike:
-        pass
+        return 1.0
 
     def sufficient_statistic(self, x: Variate) -> Tuple[ArrayLike, ...]:
-        pass
+        return np.log(x), np.reciprocal(x)
 
 
 class Laplace(Distribution):
@@ -423,17 +423,18 @@ class LogNormal(ExponentialFamily):
 
     @property
     def natural_parameter(self) -> Tuple[Parameter, ...]:
-        pass
+        return self.loc / np.power(self.scale, 2), -np.reciprocal(2.0 * np.power(self.scale, 2))
 
     @property
     def log_normalizer(self) -> Parameter:
-        pass
+        return np.power(self.loc, 2) / (2.0 * np.power(self.scale, 2)) + np.log(self.scale)
 
     def base_measure(self, x: Variate) -> ArrayLike:
-        pass
+        return np.reciprocal(np.sqrt(2.0 * np.pi) * x)
 
     def sufficient_statistic(self, x: Variate) -> Tuple[ArrayLike, ...]:
-        pass
+        log_x = np.log(x)
+        return log_x, np.power(log_x, 2)
 
 
 # TODO: Allow parameterizing in terms of mean & precision instead.
@@ -481,17 +482,17 @@ class Normal(ExponentialFamily):
 
     @property
     def natural_parameter(self) -> Tuple[Parameter, ...]:
-        pass
+        return self._mean / self._variance, -np.reciprocal(2.0 * self._variance)
 
     @property
     def log_normalizer(self) -> Parameter:
-        pass
+        return np.power(self._mean, 2) / (2.0 * self._variance) + np.log(self._std)
 
     def base_measure(self, x: Variate) -> ArrayLike:
-        pass
+        return 1.0 / np.sqrt(2.0 * np.pi)
 
     def sufficient_statistic(self, x: Variate) -> Tuple[ArrayLike, ...]:
-        pass
+        return x, np.power(x, 2)
 
 
 # TODO: Transformed exponential.
