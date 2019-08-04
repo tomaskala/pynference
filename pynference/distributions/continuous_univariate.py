@@ -16,6 +16,11 @@ from pynference.distributions.distribution import Distribution, ExponentialFamil
 from pynference.distributions.utils import broadcast_shapes
 
 
+# TODO: Sample using the Dirichlet distribution to allow reparameterization.
+# TODO: Just promote shapes instead of broadcasting, this works in most distributions.
+# TODO: Transformations.
+# TODO: Truncated normal.
+# TODO: Unit tests.
 class Beta(ExponentialFamily):
     _constraints: Dict[str, Constraint] = {"shape1": positive, "shape2": positive}
     _support: Constraint = zero_one
