@@ -208,7 +208,10 @@ class Gamma(ExponentialFamily):
         return (self.shape - 1.0) * np.log(x) - self.rate * x + normalizer
 
     def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        pass  # TODO
+        epsilon = random_state.standard_gamma(
+            self.shape, sample_shape + self.batch_shape
+        )
+        return epsilon / self.rate
 
     @property
     def natural_parameter(self) -> Parameter:
