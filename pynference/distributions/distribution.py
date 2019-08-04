@@ -1,11 +1,12 @@
 import abc
-from typing import Dict, Tuple
+from typing import Dict, Iterable, Tuple, Union
 
 import numpy as np
 from numpy.random import RandomState
 
 import pynference.distributions.utils as utils
 from pynference.constants import ArrayLike, Parameter, Shape, Variate
+from pynference.distribution.transformations import Transformation
 from pynference.distributions.constraints import Constraint
 
 
@@ -103,3 +104,40 @@ class ExponentialFamily(Distribution):
     @abc.abstractmethod
     def sufficient_statistic(self, x: Variate) -> Tuple[ArrayLike, ...]:
         pass
+
+
+class TransformedDistribution(Distribution):
+    def __init__(
+        self,
+        base_distribution: Distribution,
+        transformation: Union[Transformation, Iterable[Transformation]],
+        check_parameters: bool = True,
+        check_support: bool = True,
+    ):
+        if isinstance(transformation, Transformation):
+            transformation = [transformation]
+
+        if isinstance(base_distribution, TransformedDistribution):
+            self.base_distribution = base_distribution.base_distribution
+            self.transformation = base_distribution.transformation + transformation
+        else:
+            self.base_distribution = base_distribution
+            self.transformation = transformation
+
+        super().__init__(
+            batch_shape=batch_shape,  # TODO
+            rv_shape=rv_shape,  # TODO
+            check_parameters=check_parameters,
+            check_support=check_support,
+        )
+
+    def _log_prob(self, x: Variate) -> ArrayLike:
+        pass  # TODO
+
+    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
+        epsilon = self.base_distribution.sample(sample_shape, random_state)
+
+        for t in self.transformation:
+            epsilon = t(epsilon)
+
+        return epsilon
