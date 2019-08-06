@@ -1,4 +1,5 @@
 import abc
+import numbers
 
 import numpy as np
 
@@ -40,7 +41,9 @@ class Transformation(abc.ABC):
 
     @abc.abstractmethod
     def log_abs_J(self, x: Variate, y: Variate) -> Variate:
-        pass
+        """
+        Calculate the logarithm of the absolute value of the Jacobian dy/dx.
+        """
 
 
 class AffineTransformation(Transformation):
@@ -82,7 +85,12 @@ class AffineTransformation(Transformation):
 
     @abc.abstractmethod
     def log_abs_J(self, x: Variate, y: Variate) -> Variate:
-        pass  # TODO
+        result = np.log(np.abs(self.scale))
+
+        if isinstance(self.scale, numbers.Number):
+            result = np.full(result, np.shape(x))
+
+        return np.sum(result, axis=tuple(range(-self.rv_dim, 0)))
 
 
 class ExpTransformation(Transformation):
@@ -114,7 +122,7 @@ class ExpTransformation(Transformation):
 
     @abc.abstractmethod
     def log_abs_J(self, x: Variate, y: Variate) -> Variate:
-        pass  # TODO
+        return x
 
 
 class PowerTransformation(Transformation):
@@ -141,4 +149,6 @@ class PowerTransformation(Transformation):
 
     @abc.abstractmethod
     def log_abs_J(self, x: Variate, y: Variate) -> Variate:
-        pass  # TODO
+        # y = x^n
+        # dy/dx = n*x^(n-1) = n*x^n/x = n*y/x
+        return np.log(np.abs(self.power * y / x))

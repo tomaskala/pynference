@@ -1,5 +1,5 @@
 import abc
-from typing import Dict, Iterable, Tuple, Union
+from typing import Dict, Sequence, Tuple, Union
 
 import numpy as np
 from numpy.random import RandomState
@@ -110,7 +110,7 @@ class TransformedDistribution(Distribution):
     def __init__(
         self,
         base_distribution: Distribution,
-        transformation: Union[Transformation, Iterable[Transformation]],
+        transformation: Union[Transformation, Sequence[Transformation]],
         check_parameters: bool = True,
         check_support: bool = True,
     ):
@@ -118,21 +118,55 @@ class TransformedDistribution(Distribution):
             transformation = [transformation]
 
         if isinstance(base_distribution, TransformedDistribution):
-            self.base_distribution = base_distribution.base_distribution
-            self.transformation = base_distribution.transformation + transformation
+            self.base_distribution: Distribution = base_distribution.base_distribution
+            self.transformation: Sequence[
+                Transformation
+            ] = base_distribution.transformation + transformation
         else:
-            self.base_distribution = base_distribution
-            self.transformation = transformation
+            self.base_distribution: Distribution = base_distribution
+            self.transformation: Sequence[Transformation] = transformation
+
+        # Register batch and random variable shapes.
+        base_shape = base_distribution.batch_shape + base_distribution.rv_shape
+        max_shape = max(
+            [len(base_distribution.rv_shape)] + [t.rv_dim for t in transformation]
+        )
+
+        batch_shape = base_shape[:-max_shape]
+        rv_shape = base_shape[-max_shape:]
+
+        # Register the support after transformation.
+        domain = base_distribution.support
+
+        for t in transformation:
+            t.domain = domain
+            domain = t.codomain
+
+        self._support = domain
 
         super().__init__(
-            batch_shape=batch_shape,  # TODO
-            rv_shape=rv_shape,  # TODO
+            batch_shape=batch_shape,
+            rv_shape=rv_shape,
             check_parameters=check_parameters,
             check_support=check_support,
         )
 
     def _log_prob(self, x: Variate) -> ArrayLike:
-        pass  # TODO
+        log_prob = 0.0
+        rv_dim = len(self.rv_shape)
+        y = x
+
+        for t in reversed(self.transformation):
+            x = t.inverse(y)
+            dim_diff = rv_dim - t.rv_dim
+
+            log_det = t.log_abs_J(x, y)
+            sum_log_det = np.sum(log_det, axis=tuple(range(-dim_diff, 0)))
+            log_prob -= sum_log_det
+
+            y = x
+
+        return log_prob
 
     def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
         epsilon = self.base_distribution.sample(sample_shape, random_state)
