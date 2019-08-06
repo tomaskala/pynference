@@ -16,9 +16,9 @@ from pynference.distributions.distribution import Distribution, ExponentialFamil
 from pynference.distributions.utils import broadcast_shapes
 
 
-# TODO: Sample using the Dirichlet distribution to allow reparameterization.
 # TODO: Just promote shapes instead of broadcasting, this works in most distributions.
 # TODO: Transformations.
+# TODO: When testing, do not forget to test transformed distribution batch and rv shapes!
 # TODO: Truncated normal.
 # TODO: Unit tests.
 class Beta(ExponentialFamily):
