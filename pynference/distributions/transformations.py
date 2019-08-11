@@ -83,7 +83,6 @@ class AffineTransformation(Transformation):
     def inverse(self, y: Variate) -> Variate:
         return (y - self.loc) / self.scale
 
-    @abc.abstractmethod
     def log_abs_J(self, x: Variate, y: Variate) -> Variate:
         result = np.log(np.abs(self.scale))
 
@@ -120,7 +119,6 @@ class ExpTransformation(Transformation):
     def inverse(self, y: Variate) -> Variate:
         return np.log(y)
 
-    @abc.abstractmethod
     def log_abs_J(self, x: Variate, y: Variate) -> Variate:
         return x
 
@@ -147,7 +145,6 @@ class PowerTransformation(Transformation):
     def inverse(self, y: Variate) -> Variate:
         return np.power(y, np.reciprocal(self.power))
 
-    @abc.abstractmethod
     def log_abs_J(self, x: Variate, y: Variate) -> Variate:
         # y = x^n
         # dy/dx = n*x^(n-1) = n*x^n/x = n*y/x
