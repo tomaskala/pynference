@@ -620,37 +620,6 @@ class T(Distribution):
         return self.loc + self.scale * epsilon
 
 
-class _StandardTruncatedNormal(Distribution):
-    def __init__(
-        self,
-        batch_shape: Shape,
-        check_parameters: bool = True,
-        check_support: bool = True,
-    ):
-        rv_shape = ()
-
-        super().__init__(
-            batch_shape=batch_shape,
-            rv_shape=rv_shape,
-            check_parameters=check_parameters,
-            check_support=check_support,
-        )
-
-    @property
-    def mean(self) -> Parameter:
-        raise NotImplementedError()
-
-    @property
-    def variance(self) -> Parameter:
-        raise NotImplementedError()
-
-    def _log_prob(self, x: Variate) -> ArrayLike:
-        raise NotImplementedError()
-
-    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        raise NotImplementedError()
-
-
 class TruncatedNormal(Distribution):
     _constraints: Dict[str, Constraint] = {
         "loc": real,
