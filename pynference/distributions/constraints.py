@@ -71,6 +71,7 @@ non_negative = NonNegative()
 negative = Negative()
 non_positive = NonPositive()
 zero_one = Interval(0.0, 1.0)
+interval = Interval
 
 
 __all__ = [
@@ -81,4 +82,5 @@ __all__ = [
     "negative",
     "non_positive",
     "zero_one",
+    "interval",
 ]

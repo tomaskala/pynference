@@ -2,11 +2,12 @@ from typing import Dict, Tuple
 
 import numpy as np
 from numpy.random import RandomState
-from scipy.special import betaln, gammaln
+from scipy.special import betaln, gammaln, ndtr
 
 from pynference.constants import ArrayLike, Parameter, Shape, Variate
 from pynference.distributions.constraints import (
     Constraint,
+    interval,
     non_negative,
     positive,
     real,
@@ -29,6 +30,7 @@ from pynference.distributions.utils import broadcast_shapes
 # TODO: When testing, do not forget to test transformed distribution batch and rv shapes!
 # TODO: Truncated normal.
 # TODO: Unit tests.
+# TODO: Test batch constraints (many real numbers, many positive numbers, ...)
 class Beta(ExponentialFamily):
     _constraints: Dict[str, Constraint] = {"shape1": positive, "shape2": positive}
     _support: Constraint = zero_one
@@ -649,15 +651,13 @@ class _StandardTruncatedNormal(Distribution):
         raise NotImplementedError()
 
 
-# TODO
-class TruncatedNormal(TransformedDistribution):
+class TruncatedNormal(Distribution):
     _constraints: Dict[str, Constraint] = {
         "loc": real,
         "scale": positive,
         "lower": real,
         "upper": real,
     }
-    _support: Constraint = None
 
     def __init__(
         self,
@@ -690,19 +690,38 @@ class TruncatedNormal(TransformedDistribution):
             check_support=check_support,
         )
 
+        self._alpha = (self.lower - self.loc) / self.scale
+        self._beta = (self.upper - self.loc) / self.scale
+        self._Z = ndtr(self._beta) - ndtr(self._alpha)
+        self._phi_alpha = self._phi(self._alpha)
+        self._phi_beta = self._phi(self._beta)
+
+    @property
+    def support(self) -> Constraint:
+        return interval(lower=self.lower, upper=self.upper)
+
     @property
     def mean(self) -> Parameter:
-        pass
+        return self.loc + (self._phi_alpha - self._phi_beta) * self.scale / self._Z
 
     @property
     def variance(self) -> Parameter:
-        pass
+        fst = (self._alpha * self._phi_alpha - self._beta * self._phi_beta) / self._Z
+        snd = np.power((self._phi_alpha - self._phi_beta) / self._Z, 2)
+        return np.power(self.scale, 2) * (1.0 + fst - snd)
 
     def _log_prob(self, x: Variate) -> ArrayLike:
-        pass
+        xi = (x - self.loc) / self.scale
+        return self._log_phi(xi) - np.log(self.scale) - np.log(self._Z)
 
     def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        pass
+        pass  # TODO
+
+    def _phi(self, x: Variate) -> ArrayLike:
+        return np.exp(-np.power(x, 2) / 2.0) / np.sqrt(2.0 * np.pi)
+
+    def _log_phi(self, x: Variate) -> ArrayLike:
+        return -np.power(x, 2) / 2.0 - np.log(2.0) / 2.0 - np.log(np.pi) / 2.0
 
 
 class _StandardUniform(Distribution):
