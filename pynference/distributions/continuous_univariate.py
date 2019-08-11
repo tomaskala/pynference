@@ -12,12 +12,20 @@ from pynference.distributions.constraints import (
     real,
     zero_one,
 )
-from pynference.distributions.distribution import Distribution, ExponentialFamily
+from pynference.distributions.distribution import (
+    Distribution,
+    ExponentialFamily,
+    TransformedDistribution,
+)
+from pynference.distributions.transformations import (
+    AffineTransformation,
+    ExpTransformation,
+    PowerTransformation,
+)
 from pynference.distributions.utils import broadcast_shapes
 
 
 # TODO: Just promote shapes instead of broadcasting, this works in most distributions.
-# TODO: Transformations.
 # TODO: When testing, do not forget to test transformed distribution batch and rv shapes!
 # TODO: Truncated normal.
 # TODO: Unit tests.
@@ -233,10 +241,8 @@ class Gamma(ExponentialFamily):
         return np.log(x), x
 
 
-# TODO: Transformed Gamma.
-class InverseGamma(ExponentialFamily):
+class InverseGamma(TransformedDistribution, ExponentialFamily):
     _constraints: Dict[str, Constraint] = {"shape": positive, "scale": positive}
-    _support: Constraint = positive
 
     def __init__(
         self,
@@ -245,15 +251,20 @@ class InverseGamma(ExponentialFamily):
         check_parameters: bool = True,
         check_support: bool = True,
     ):
-        batch_shape = broadcast_shapes(np.shape(shape), np.shape(scale))
-        rv_shape = ()
+        base_distribution = Gamma(
+            shape=shape,
+            rate=scale,
+            check_parameters=check_parameters,
+            check_support=check_support,
+        )
+        transformation = PowerTransformation(power=-1.0)
 
-        self.shape = np.broadcast_to(shape, batch_shape)
-        self.scale = np.broadcast_to(scale, batch_shape)
+        self.shape = base_distribution.shape
+        self.scale = base_distribution.rate
 
         super().__init__(
-            batch_shape=batch_shape,
-            rv_shape=rv_shape,
+            base_distribution=base_distribution,
+            transformation=transformation,
             check_parameters=check_parameters,
             check_support=check_support,
         )
@@ -270,13 +281,6 @@ class InverseGamma(ExponentialFamily):
             / (np.power(self.shape - 1.0, 2) * (self.shape - 2.0)),
             np.nan,
         )
-
-    def _log_prob(self, x: Variate) -> ArrayLike:
-        normalizer = self.shape * np.log(self.scale) - gammaln(self.shape)
-        return (-self.shape - 1.0) * np.log(x) - self.scale / x + normalizer
-
-    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        pass
 
     @property
     def natural_parameter(self) -> Tuple[Parameter, ...]:
@@ -380,10 +384,8 @@ class Logistic(Distribution):
         return self.loc + self.scale * (np.log(x) - np.log1p(-x))
 
 
-# TODO: Transformed Normal.
-class LogNormal(ExponentialFamily):
+class LogNormal(TransformedDistribution, ExponentialFamily):
     _constraints: Dict[str, Constraint] = {"loc": real, "scale": positive}
-    _support: Constraint = positive
 
     def __init__(
         self,
@@ -392,15 +394,20 @@ class LogNormal(ExponentialFamily):
         check_parameters: bool = True,
         check_support: bool = True,
     ):
-        batch_shape = broadcast_shapes(np.shape(loc), np.shape(scale))
-        rv_shape = ()
+        base_distribution = Normal(
+            mean=loc,
+            variance=np.power(loc, 2),
+            check_parameters=check_parameters,
+            check_support=check_support,
+        )
+        transformation = ExpTransformation()
 
-        self.loc = np.broadcast_to(loc, batch_shape)
-        self.scale = np.broadcast_to(scale, batch_shape)
+        self.loc = base_distribution.loc
+        self.scale = base_distribution.scale
 
         super().__init__(
-            batch_shape=batch_shape,
-            rv_shape=rv_shape,
+            base_distribution=base_distribution,
+            transformation=transformation,
             check_parameters=check_parameters,
             check_support=check_support,
         )
@@ -413,18 +420,6 @@ class LogNormal(ExponentialFamily):
     def variance(self) -> Parameter:
         scale_squared = np.power(self.scale, 2)
         return (np.exp(scale_squared) - 1.0) * np.exp(2.0 * self.loc + scale_squared)
-
-    def _log_prob(self, x: Variate) -> ArrayLike:
-        return (
-            -np.log(x)
-            - np.log(self.scale)
-            - 0.5 * np.log(2.0)
-            - 0.5 * np.log(np.pi)
-            - np.power(np.log(x) - self.loc, 2) / (2.0 * np.power(self.scale, 2))
-        )
-
-    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        pass
 
     @property
     def natural_parameter(self) -> Tuple[Parameter, ...]:
@@ -448,6 +443,7 @@ class LogNormal(ExponentialFamily):
 
 
 # TODO: Allow parameterizing in terms of mean & precision instead.
+# TODO: Possibly also mean & std. In this case, modify lognormal appropriately.
 class Normal(ExponentialFamily):
     _constraints: Dict[str, Constraint] = {"mean": real, "variance": positive}
     _support: Constraint = real
@@ -482,6 +478,14 @@ class Normal(ExponentialFamily):
     def variance(self) -> Parameter:
         return self._variance
 
+    @property
+    def loc(self) -> Parameter:
+        return self._mean
+
+    @property
+    def scale(self) -> Parameter:
+        return self._std
+
     def _log_prob(self, x: Variate) -> ArrayLike:
         normalizer = -0.5 * (np.log(2.0) + np.log(np.pi) + np.log(self._variance))
         return -np.power(x - self._mean, 2) / (2.0 * self._variance) + normalizer
@@ -505,10 +509,8 @@ class Normal(ExponentialFamily):
         return x, np.power(x, 2)
 
 
-# TODO: Transformed exponential.
-class Pareto(Distribution):
+class Pareto(TransformedDistribution):
     _constraints: Dict[str, Constraint] = {"scale": positive, "shape": positive}
-    _support: Constraint = None
 
     def __init__(
         self,
@@ -518,14 +520,23 @@ class Pareto(Distribution):
         check_support: bool = True,
     ):
         batch_shape = broadcast_shapes(np.shape(scale), np.shape(shape))
-        rv_shape = ()
 
         self.scale = np.broadcast_to(scale, batch_shape)
         self.shape = np.broadcast_to(shape, batch_shape)
 
+        base_distribution = Exponential(
+            rate=self.shape,
+            check_parameters=check_parameters,
+            check_support=check_support,
+        )
+        transformation = [
+            ExpTransformation(),
+            AffineTransformation(loc=0.0, scale=self.scale),
+        ]
+
         super().__init__(
-            batch_shape=batch_shape,
-            rv_shape=rv_shape,
+            base_distribution=base_distribution,
+            transformation=transformation,
             check_parameters=check_parameters,
             check_support=check_support,
         )
@@ -545,16 +556,6 @@ class Pareto(Distribution):
             / (np.power(self.shape - 1.0, 2) * (self.shape - 2.0)),
             np.inf,
         )
-
-    def _log_prob(self, x: Variate) -> ArrayLike:
-        return (
-            np.log(self.shape)
-            + self.shape * np.log(self.scale)
-            - (self.shape + 1.0) * np.log(x)
-        )
-
-    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        pass
 
 
 class T(Distribution):
@@ -617,8 +618,39 @@ class T(Distribution):
         return self.loc + self.scale * epsilon
 
 
-# TODO: Transformed base TruncatedNormal (loc=0, scale=1, lower=0, upper=1).
-class TruncatedNormal(Distribution):
+class _StandardTruncatedNormal(Distribution):
+    def __init__(
+        self,
+        batch_shape: Shape,
+        check_parameters: bool = True,
+        check_support: bool = True,
+    ):
+        rv_shape = ()
+
+        super().__init__(
+            batch_shape=batch_shape,
+            rv_shape=rv_shape,
+            check_parameters=check_parameters,
+            check_support=check_support,
+        )
+
+    @property
+    def mean(self) -> Parameter:
+        raise NotImplementedError()
+
+    @property
+    def variance(self) -> Parameter:
+        raise NotImplementedError()
+
+    def _log_prob(self, x: Variate) -> ArrayLike:
+        raise NotImplementedError()
+
+    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
+        raise NotImplementedError()
+
+
+# TODO
+class TruncatedNormal(TransformedDistribution):
     _constraints: Dict[str, Constraint] = {
         "loc": real,
         "scale": positive,
@@ -673,10 +705,42 @@ class TruncatedNormal(Distribution):
         pass
 
 
-# TODO: Transformed standard uniform.
-class Uniform(Distribution):
+class _StandardUniform(Distribution):
+    _support: Constraint = zero_one
+
+    def __init__(
+        self,
+        batch_shape: Shape,
+        check_parameters: bool = True,
+        check_support: bool = True,
+    ):
+        rv_shape = ()
+
+        super().__init__(
+            batch_shape=batch_shape,
+            rv_shape=rv_shape,
+            check_parameters=check_parameters,
+            check_support=check_support,
+        )
+
+    @property
+    def mean(self) -> Parameter:
+        return np.full(shape=self.batch_shape, fill_value=0.5)
+
+    @property
+    def variance(self) -> Parameter:
+        return np.full(shape=self.batch_shape, fill_value=1.0 / 12.0)
+
+    def _log_prob(self, x: Variate) -> ArrayLike:
+        batch_shape = broadcast_shapes(self.batch_shape, np.shape(x))
+        return np.zeros(batch_shape)
+
+    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
+        return random_state.random(sample_shape + self.batch_shape)
+
+
+class Uniform(TransformedDistribution):
     _constraints: Dict[str, Constraint] = {"lower": real, "upper": real}
-    _support: Constraint = None
 
     def __init__(
         self,
@@ -686,7 +750,6 @@ class Uniform(Distribution):
         check_support: bool = True,
     ):
         batch_shape = broadcast_shapes(np.shape(lower), np.shape(upper))
-        rv_shape = ()
 
         self.lower = np.broadcast_to(lower, batch_shape)
         self.upper = np.broadcast_to(upper, batch_shape)
@@ -696,9 +759,18 @@ class Uniform(Distribution):
                 "All the lower bounds must be strictly lower than the upper bounds."
             )
 
-        super().__init__(
+        base_distribution = _StandardUniform(
             batch_shape=batch_shape,
-            rv_shape=rv_shape,
+            check_parameters=check_parameters,
+            check_support=check_support,
+        )
+        transformation = AffineTransformation(
+            loc=self.lower, scale=self.upper - self.lower
+        )
+
+        super().__init__(
+            base_distribution=base_distribution,
+            transformation=transformation,
             check_parameters=check_parameters,
             check_support=check_support,
         )
@@ -710,10 +782,3 @@ class Uniform(Distribution):
     @property
     def variance(self) -> Parameter:
         return np.power(self.upper - self.lower, 2) / 12.0
-
-    def _log_prob(self, x: Variate) -> ArrayLike:
-        return -np.log(self.upper - self.lower)
-
-    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        epsilon = random_state.random(sample_shape + self.batch_shape)
-        return self.lower + (self.upper - self.lower) * epsilon
