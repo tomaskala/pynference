@@ -28,7 +28,6 @@ from pynference.distributions.utils import broadcast_shapes
 
 # TODO: Just promote shapes instead of broadcasting, this works in most distributions.
 # TODO: When testing, do not forget to test transformed distribution batch and rv shapes!
-# TODO: Truncated normal.
 # TODO: Unit tests.
 # TODO: Test batch constraints (many real numbers, many positive numbers, ...)
 class Beta(ExponentialFamily):
@@ -398,7 +397,7 @@ class LogNormal(TransformedDistribution, ExponentialFamily):
     ):
         base_distribution = Normal(
             mean=loc,
-            variance=np.power(loc, 2),
+            std=scale,
             check_parameters=check_parameters,
             check_support=check_support,
         )
@@ -444,8 +443,6 @@ class LogNormal(TransformedDistribution, ExponentialFamily):
         return log_x, np.power(log_x, 2)
 
 
-# TODO: Allow parameterizing in terms of mean & precision instead.
-# TODO: Possibly also mean & std. In this case, modify lognormal appropriately.
 class Normal(ExponentialFamily):
     _constraints: Dict[str, Constraint] = {"mean": real, "variance": positive}
     _support: Constraint = real
@@ -453,10 +450,22 @@ class Normal(ExponentialFamily):
     def __init__(
         self,
         mean: Parameter,
-        variance: Parameter,
+        variance: Parameter = None,
+        precision: Parameter = None,
+        std: Parameter = None,
         check_parameters: bool = True,
         check_support: bool = True,
     ):
+        if (variance is not None) + (precision is not None) + (std is not None) != 1:
+            raise ValueError(
+                "Provide exactly one of the variance, precision or standard deviation parameters."
+            )
+
+        if precision is not None:
+            variance = np.reciprocal(precision)
+        else:
+            variance = np.power(std, 2)
+
         batch_shape = broadcast_shapes(np.shape(mean), np.shape(variance))
         rv_shape = ()
 
