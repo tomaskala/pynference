@@ -2,7 +2,7 @@ from typing import Dict, Tuple
 
 import numpy as np
 from numpy.random import RandomState
-from scipy.special import betaln, gammaln, ndtr
+from scipy.special import betaln, gammaln, ndtr, ndtri
 
 from pynference.constants import ArrayLike, Parameter, Shape, Variate
 from pynference.distributions.constraints import (
@@ -664,6 +664,13 @@ class TruncatedNormal(Distribution):
         self._Z = ndtr(self._beta) - ndtr(self._alpha)
         self._phi_alpha = self._phi(self._alpha)
         self._phi_beta = self._phi(self._beta)
+        self._Phi_alpha = ndtr(self._alpha)
+
+        self._standard_uniform = _StandardUniform(
+            batch_shape=batch_shape,
+            check_parameters=check_parameters,
+            check_support=check_support,
+        )
 
     @property
     def support(self) -> Constraint:
@@ -684,7 +691,8 @@ class TruncatedNormal(Distribution):
         return self._log_phi(xi) - np.log(self.scale) - np.log(self._Z)
 
     def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        pass  # TODO
+        epsilon = self._standard_uniform.sample(sample_shape, random_state)
+        return ndtri(self._Phi_alpha + epsilon * self._Z) * self.scale + self.loc
 
     def _phi(self, x: Variate) -> ArrayLike:
         return np.exp(-np.power(x, 2) / 2.0) / np.sqrt(2.0 * np.pi)
