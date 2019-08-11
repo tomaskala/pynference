@@ -444,7 +444,12 @@ class LogNormal(TransformedDistribution, ExponentialFamily):
 
 
 class Normal(ExponentialFamily):
-    _constraints: Dict[str, Constraint] = {"mean": real, "variance": positive}
+    _constraints: Dict[str, Constraint] = {
+        "_mean": real,
+        "_variance": positive,
+        "_precision": positive,
+        "_std": positive,
+    }
     _support: Constraint = real
 
     def __init__(
@@ -461,7 +466,7 @@ class Normal(ExponentialFamily):
                 "Provide exactly one of the variance, precision or standard deviation parameters."
             )
 
-        if precision is not None:
+        elif precision is not None:
             variance = np.reciprocal(precision)
         else:
             variance = np.power(std, 2)
@@ -480,6 +485,7 @@ class Normal(ExponentialFamily):
         )
 
         self._std = np.sqrt(self._variance)
+        self._precision = np.reciprocal(self._variance)
 
     @property
     def mean(self) -> Parameter:
@@ -488,6 +494,14 @@ class Normal(ExponentialFamily):
     @property
     def variance(self) -> Parameter:
         return self._variance
+
+    @property
+    def precision(self) -> Parameter:
+        return self._precision
+
+    @property
+    def std(self) -> Parameter:
+        return self._std
 
     @property
     def loc(self) -> Parameter:
