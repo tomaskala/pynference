@@ -35,13 +35,13 @@ class Interval(Constraint):
 
     def __call__(self, x: float) -> np.ndarray:
         if self.include_lower and self.include_upper:
-            return self.lower <= x <= self.upper
+            return (self.lower <= x) & (x <= self.upper)
         elif self.include_lower:
-            return self.lower <= x < self.upper
+            return (self.lower <= x) & (x < self.upper)
         elif self.include_upper:
-            return self.lower < x <= self.upper
+            return (self.lower < x) & (x <= self.upper)
         else:
-            return self.lower < x < self.upper
+            return (self.lower < x) & (x < self.upper)
 
 
 class Positive(Interval):

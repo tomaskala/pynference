@@ -334,8 +334,8 @@ class Laplace(Distribution):
         return -np.abs(x - self.loc) / self.scale - np.log(2.0) - np.log(self.scale)
 
     def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        x = random_state.random(sample_shape + self.batch_shape)
-        y = random_state.random(sample_shape + self.batch_shape)
+        x = random_state.random_sample(sample_shape + self.batch_shape)
+        y = random_state.random_sample(sample_shape + self.batch_shape)
         epsilon = np.log(x) - np.log(y)
         return self.loc + self.scale * epsilon
 
@@ -381,7 +381,7 @@ class Logistic(Distribution):
         )
 
     def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        x = random_state.random(sample_shape + self.batch_shape)
+        x = random_state.random_sample(sample_shape + self.batch_shape)
         return self.loc + self.scale * (np.log(x) - np.log1p(-x))
 
 
@@ -755,7 +755,7 @@ class _StandardUniform(Distribution):
         return np.zeros(batch_shape)
 
     def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        return random_state.random(sample_shape + self.batch_shape)
+        return random_state.random_sample(sample_shape + self.batch_shape)
 
 
 class Uniform(TransformedDistribution):

@@ -4,10 +4,10 @@ from typing import Dict, List, Tuple, Union
 import numpy as np
 from numpy.random import RandomState
 
-import pynference.distributions.utils as utils
 from pynference.constants import ArrayLike, Parameter, Shape, Variate
 from pynference.distributions.constraints import Constraint
 from pynference.distributions.transformations import Transformation
+from pynference.utils import check_random_state
 
 
 class Distribution(abc.ABC):
@@ -62,7 +62,7 @@ class Distribution(abc.ABC):
         pass
 
     def sample(self, sample_shape: Shape = (), random_state=None) -> Variate:
-        random_state = utils.check_random_state(random_state)
+        random_state = check_random_state(random_state)
         return self._sample(sample_shape, random_state)
 
     @abc.abstractmethod

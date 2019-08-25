@@ -54,7 +54,7 @@ class Transformation(abc.ABC):
 
 class AffineTransformation(Transformation):
     def __init__(self, loc: ArrayLike, scale: ArrayLike, domain=real):
-        if scale <= 0.0:
+        if np.any(scale <= 0.0):
             raise ValueError("The scale parameter must be positive.")
 
         super().__init__(domain=domain)
