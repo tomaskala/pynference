@@ -4,7 +4,7 @@ import numbers
 import numpy as np
 
 from pynference.constants import ArrayLike, Variate
-from pynference.distribution.constraints import (
+from pynference.distributions.constraints import (
     Constraint,
     Interval,
     Real,
