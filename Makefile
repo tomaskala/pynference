@@ -2,7 +2,7 @@ init:
 	pip install -r requirements.txt
 
 check:
-	pyflakes .
+	flake8 .
 	mypy .
 
 format:
