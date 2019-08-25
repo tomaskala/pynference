@@ -65,7 +65,7 @@ class Beta(ExponentialFamily):
     def variance(self) -> Parameter:
         shape_sum = self.shape1 + self.shape2
         numerator = self.shape1 * self.shape2
-        denominator = np.power(shape_sum, 2) * (shape_sum + 1.0)
+        denominator = np.square(shape_sum) * (shape_sum + 1.0)
         return numerator / denominator
 
     def _log_prob(self, x: Variate) -> ArrayLike:
@@ -129,7 +129,7 @@ class Cauchy(Distribution):
 
     def _log_prob(self, x: Variate) -> ArrayLike:
         normalizer = -np.log(np.pi) - np.log(self.scale)
-        return -np.log1p(np.power((x - self.loc) / self.scale, 2)) + normalizer
+        return -np.log1p(np.square((x - self.loc) / self.scale)) + normalizer
 
     def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
         epsilon = random_state.standard_cauchy(sample_shape + self.batch_shape)
@@ -161,7 +161,7 @@ class Exponential(ExponentialFamily):
 
     @property
     def variance(self) -> Parameter:
-        return np.reciprocal(np.power(self.rate, 2))
+        return np.reciprocal(np.square(self.rate))
 
     def _log_prob(self, x: Variate) -> ArrayLike:
         return np.log(self.rate) - self.rate * x
@@ -215,7 +215,7 @@ class Gamma(ExponentialFamily):
 
     @property
     def variance(self) -> Parameter:
-        return self.shape / np.power(self.rate, 2)
+        return self.shape / np.square(self.rate)
 
     def _log_prob(self, x: Variate) -> ArrayLike:
         normalizer = self.shape * np.log(self.rate) - gammaln(self.shape)
@@ -278,8 +278,7 @@ class InverseGamma(TransformedDistribution, ExponentialFamily):
     def variance(self) -> Parameter:
         return np.where(
             self.shape > 2.0,
-            np.power(self.scale, 2)
-            / (np.power(self.shape - 1.0, 2) * (self.shape - 2.0)),
+            np.square(self.scale) / np.square(self.shape - 1.0) / (self.shape - 2.0),
             np.nan,
         )
 
@@ -328,7 +327,7 @@ class Laplace(Distribution):
 
     @property
     def variance(self) -> Parameter:
-        return 2.0 * np.power(self.scale, 2)
+        return 2.0 * np.square(self.scale)
 
     def _log_prob(self, x: Variate) -> ArrayLike:
         return -np.abs(x - self.loc) / self.scale - np.log(2.0) - np.log(self.scale)
@@ -370,7 +369,7 @@ class Logistic(Distribution):
 
     @property
     def variance(self) -> Parameter:
-        return np.power(self.scale * np.pi, 2) / 3.0
+        return np.square(self.scale * np.pi) / 3.0
 
     def _log_prob(self, x: Variate) -> ArrayLike:
         standardized_var = (x - self.loc) / self.scale
@@ -415,32 +414,30 @@ class LogNormal(TransformedDistribution, ExponentialFamily):
 
     @property
     def mean(self) -> Parameter:
-        return np.exp(self.loc + np.power(self.scale, 2) / 2.0)
+        return np.exp(self.loc + 0.5 * np.square(self.scale))
 
     @property
     def variance(self) -> Parameter:
-        scale_squared = np.power(self.scale, 2)
-        return (np.exp(scale_squared) - 1.0) * np.exp(2.0 * self.loc + scale_squared)
+        scale_squared = np.square(self.scale)
+        return np.expm1(scale_squared) * np.exp(2.0 * self.loc + scale_squared)
 
     @property
     def natural_parameter(self) -> Tuple[Parameter, ...]:
         return (
-            self.loc / np.power(self.scale, 2),
-            -np.reciprocal(2.0 * np.power(self.scale, 2)),
+            self.loc / np.square(self.scale),
+            -np.reciprocal(2.0 * np.square(self.scale)),
         )
 
     @property
     def log_normalizer(self) -> Parameter:
-        return np.power(self.loc, 2) / (2.0 * np.power(self.scale, 2)) + np.log(
-            self.scale
-        )
+        return np.square(self.loc) / (2.0 * np.square(self.scale)) + np.log(self.scale)
 
     def base_measure(self, x: Variate) -> ArrayLike:
         return np.reciprocal(np.sqrt(2.0 * np.pi) * x)
 
     def sufficient_statistic(self, x: Variate) -> Tuple[ArrayLike, ...]:
         log_x = np.log(x)
-        return log_x, np.power(log_x, 2)
+        return log_x, np.square(log_x)
 
 
 class Normal(ExponentialFamily):
@@ -469,7 +466,7 @@ class Normal(ExponentialFamily):
         elif precision is not None:
             variance = np.reciprocal(precision)
         else:
-            variance = np.power(std, 2)
+            variance = np.square(std)
 
         batch_shape = broadcast_shapes(np.shape(mean), np.shape(variance))
         rv_shape = ()
@@ -513,7 +510,7 @@ class Normal(ExponentialFamily):
 
     def _log_prob(self, x: Variate) -> ArrayLike:
         normalizer = -0.5 * (np.log(2.0) + np.log(np.pi) + np.log(self._variance))
-        return -np.power(x - self._mean, 2) / (2.0 * self._variance) + normalizer
+        return -np.square(x - self._mean) / (2.0 * self._variance) + normalizer
 
     def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
         epsilon = random_state.standard_normal(sample_shape + self.batch_shape)
@@ -525,13 +522,13 @@ class Normal(ExponentialFamily):
 
     @property
     def log_normalizer(self) -> Parameter:
-        return np.power(self._mean, 2) / (2.0 * self._variance) + np.log(self._std)
+        return np.square(self._mean) / (2.0 * self._variance) + np.log(self._std)
 
     def base_measure(self, x: Variate) -> ArrayLike:
         return 1.0 / np.sqrt(2.0 * np.pi)
 
     def sufficient_statistic(self, x: Variate) -> Tuple[ArrayLike, ...]:
-        return x, np.power(x, 2)
+        return x, np.square(x)
 
 
 class Pareto(TransformedDistribution):
@@ -576,9 +573,9 @@ class Pareto(TransformedDistribution):
     def variance(self) -> Parameter:
         return np.where(
             self.shape > 2.0,
-            np.power(self.scale, 2)
+            np.square(self.scale)
             * self.shape
-            / (np.power(self.shape - 1.0, 2) * (self.shape - 2.0)),
+            / (np.square(self.shape - 1.0) * (self.shape - 2.0)),
             np.inf,
         )
 
@@ -620,7 +617,7 @@ class T(Distribution):
     @property
     def variance(self) -> Parameter:
         variance = np.where(
-            self.df > 2, np.power(self.scale, 2) * self.df / (self.df - 2.0), np.inf
+            self.df > 2, np.square(self.scale) * self.df / (self.df - 2.0), np.inf
         )
         return np.where(self.df > 1, variance, np.nan)
 
@@ -634,7 +631,7 @@ class T(Distribution):
             - np.log(self.scale)
         )
         return (
-            -((self.df + 1.0) / 2.0) * np.log1p(np.power(standardized_var, 2) / self.df)
+            -((self.df + 1.0) / 2.0) * np.log1p(np.square(standardized_var) / self.df)
             + normalizer
         )
 
@@ -706,8 +703,8 @@ class TruncatedNormal(Distribution):
     @property
     def variance(self) -> Parameter:
         fst = (self._alpha * self._phi_alpha - self._beta * self._phi_beta) / self._Z
-        snd = np.power((self._phi_alpha - self._phi_beta) / self._Z, 2)
-        return np.power(self.scale, 2) * (1.0 + fst - snd)
+        snd = np.square((self._phi_alpha - self._phi_beta) / self._Z)
+        return np.square(self.scale) * (1.0 + fst - snd)
 
     def _log_prob(self, x: Variate) -> ArrayLike:
         xi = (x - self.loc) / self.scale
@@ -718,10 +715,10 @@ class TruncatedNormal(Distribution):
         return ndtri(self._Phi_alpha + epsilon * self._Z) * self.scale + self.loc
 
     def _phi(self, x: Variate) -> ArrayLike:
-        return np.exp(-np.power(x, 2) / 2.0) / np.sqrt(2.0 * np.pi)
+        return np.exp(-np.square(x) / 2.0) / np.sqrt(2.0 * np.pi)
 
     def _log_phi(self, x: Variate) -> ArrayLike:
-        return -np.power(x, 2) / 2.0 - np.log(2.0) / 2.0 - np.log(np.pi) / 2.0
+        return -np.square(x) / 2.0 - np.log(2.0) / 2.0 - np.log(np.pi) / 2.0
 
 
 class _StandardUniform(Distribution):
@@ -800,4 +797,4 @@ class Uniform(TransformedDistribution):
 
     @property
     def variance(self) -> Parameter:
-        return np.power(self.upper - self.lower, 2) / 12.0
+        return np.square(self.upper - self.lower) / 12.0

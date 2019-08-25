@@ -133,8 +133,8 @@ class TransformedDistribution(Distribution):
             [len(base_distribution.rv_shape)] + [t.rv_dim for t in transformation]
         )
 
-        batch_shape = base_shape[:-max_shape]
-        rv_shape = base_shape[-max_shape:]
+        batch_shape = base_shape[: len(base_shape) - max_shape]
+        rv_shape = base_shape[len(base_shape) - max_shape :]
 
         # Register the support after transformation.
         domain = base_distribution.support
