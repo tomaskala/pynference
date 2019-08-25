@@ -1,13 +1,13 @@
 import abc
-from typing import Dict, Sequence, Tuple, Union
+from typing import Dict, List, Tuple, Union
 
 import numpy as np
 from numpy.random import RandomState
 
 import pynference.distributions.utils as utils
 from pynference.constants import ArrayLike, Parameter, Shape, Variate
-from pynference.distribution.transformations import Transformation
 from pynference.distributions.constraints import Constraint
+from pynference.distributions.transformations import Transformation
 
 
 class Distribution(abc.ABC):
@@ -110,21 +110,22 @@ class TransformedDistribution(Distribution):
     def __init__(
         self,
         base_distribution: Distribution,
-        transformation: Union[Transformation, Sequence[Transformation]],
+        transformation: Union[Transformation, List[Transformation]],
         check_parameters: bool = True,
         check_support: bool = True,
     ):
         if isinstance(transformation, Transformation):
             transformation = [transformation]
 
+        self.base_distribution: Distribution
+        self.transformation: List[Transformation]
+
         if isinstance(base_distribution, TransformedDistribution):
-            self.base_distribution: Distribution = base_distribution.base_distribution
-            self.transformation: Sequence[
-                Transformation
-            ] = base_distribution.transformation + transformation
+            self.base_distribution = base_distribution.base_distribution
+            self.transformation = base_distribution.transformation + transformation
         else:
-            self.base_distribution: Distribution = base_distribution
-            self.transformation: Sequence[Transformation] = transformation
+            self.base_distribution = base_distribution
+            self.transformation = transformation
 
         # Register batch and random variable shapes.
         base_shape = base_distribution.batch_shape + base_distribution.rv_shape
@@ -152,6 +153,7 @@ class TransformedDistribution(Distribution):
         )
 
     def _log_prob(self, x: Variate) -> ArrayLike:
+        # Transformation theorem in the log domain.
         log_prob = 0.0
         rv_dim = len(self.rv_shape)
         y = x

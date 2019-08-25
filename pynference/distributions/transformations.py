@@ -16,10 +16,16 @@ from pynference.distribution.constraints import (
 
 
 class Transformation(abc.ABC):
+    def __init__(self, domain: Constraint):
+        self._domain = domain
+
     @property
-    @abc.abstractmethod
     def domain(self) -> Constraint:
-        pass
+        return self._domain
+
+    @domain.setter
+    def domain(self, value: Constraint):
+        self._domain = value
 
     @property
     @abc.abstractmethod
@@ -51,13 +57,10 @@ class AffineTransformation(Transformation):
         if scale <= 0.0:
             raise ValueError("The scale parameter must be positive.")
 
+        super().__init__(domain=domain)
+
         self.loc = loc
         self.scale = scale
-        self._domain = domain
-
-    @property
-    def domain(self) -> Constraint:
-        return self._domain
 
     @property
     def codomain(self) -> Constraint:
@@ -94,11 +97,7 @@ class AffineTransformation(Transformation):
 
 class ExpTransformation(Transformation):
     def __init__(self, domain=real):
-        self._domain = domain
-
-    @property
-    def domain(self) -> Constraint:
-        return self._domain
+        super().__init__(domain=domain)
 
     @property
     def codomain(self) -> Constraint:
@@ -125,11 +124,9 @@ class ExpTransformation(Transformation):
 
 class PowerTransformation(Transformation):
     def __init__(self, power: ArrayLike):
-        self.power = power
+        super().__init__(domain=positive)
 
-    @property
-    def domain(self) -> Constraint:
-        return positive
+        self.power = power
 
     @property
     def codomain(self) -> Constraint:
