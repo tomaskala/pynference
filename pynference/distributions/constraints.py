@@ -14,10 +14,16 @@ class Real(Constraint):
     def __call__(self, x: float) -> np.ndarray:
         return np.isfinite(x)
 
+    def __str__(self) -> str:
+        return "real"
+
 
 class RealVector(Constraint):
     def __call__(self, x: np.ndarray) -> np.ndarray:
         return np.all(np.isfinite(x), axis=-1)
+
+    def __str__(self) -> str:
+        return "real_vector"
 
 
 class Interval(Constraint):
@@ -42,6 +48,16 @@ class Interval(Constraint):
             return (self.lower < x) & (x <= self.upper)
         else:
             return (self.lower < x) & (x < self.upper)
+
+    def __str__(self) -> str:
+        if self.include_lower and self.include_upper:
+            return f"[{self.lower}, {self.upper}]"
+        elif self.include_lower:
+            return f"[{self.lower}, {self.upper})"
+        elif self.include_upper:
+            return f"({self.lower}, {self.upper}]"
+        else:
+            return f"({self.lower}, {self.upper})"
 
 
 class Positive(Interval):
