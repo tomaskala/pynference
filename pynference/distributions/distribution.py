@@ -168,6 +168,10 @@ class TransformedDistribution(Distribution):
 
             y = x
 
+        dim_diff = rv_dim - len(self.base_distribution.rv_shape)
+        log_prob += np.sum(
+            self.base_distribution.log_prob(y), axis=tuple(range(-dim_diff, 0))
+        )
         return log_prob
 
     def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
