@@ -106,8 +106,8 @@ class TestExponentialFamilies:
     }
 
     n_samples = 20000
-    atol = 1
-    rtol = 1
+    atol = 1e-6
+    rtol = 1e-6
 
     def test_base_measure_positive_within_support(self):
         for distribution_cls, parameters in self.distributions.items():
