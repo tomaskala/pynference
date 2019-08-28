@@ -129,13 +129,6 @@ class TestExponentialFamilies:
                 sample_shape=(self.n_samples,), random_state=self.random_state
             )
 
-            print(distribution)
-            print(np.min(samples), np.max(samples))
-            print(
-                np.min(distribution.log_prob(samples)),
-                np.max(distribution.log_prob(samples)),
-            )
-
             h_x = distribution.base_measure(samples)
             eta = distribution.natural_parameter
             t_x = distribution.sufficient_statistic(samples)
@@ -377,7 +370,6 @@ class TestSamplingShapes:
 
         for distribution_cls, parameter_set in self.distributions.items():
             for i, parameters in enumerate(parameter_set):
-                print(parameters)
                 distribution = distribution_cls(**parameters)
 
                 samples = distribution.sample(
