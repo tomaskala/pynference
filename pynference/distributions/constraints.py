@@ -3,6 +3,8 @@ from typing import Union
 
 import numpy as np
 
+from pynference.constants import ArrayLike
+
 
 class Constraint(abc.ABC):
     @abc.abstractmethod
@@ -29,8 +31,8 @@ class RealVector(Constraint):
 class Interval(Constraint):
     def __init__(
         self,
-        lower: float,
-        upper: float,
+        lower: ArrayLike,
+        upper: ArrayLike,
         include_lower: bool = False,
         include_upper: bool = False,
     ):
@@ -48,6 +50,17 @@ class Interval(Constraint):
             return (self.lower < x) & (x <= self.upper)
         else:
             return (self.lower < x) & (x < self.upper)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Interval):
+            return NotImplemented
+
+        return (  # type: ignore
+            np.all(self.lower == other.lower)
+            and np.all(self.upper == other.upper)
+            and np.all(self.include_lower == other.include_lower)
+            and np.all(self.include_upper == other.include_upper)
+        )
 
     def __str__(self) -> str:
         if self.include_lower and self.include_upper:

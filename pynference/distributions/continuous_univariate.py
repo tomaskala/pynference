@@ -27,9 +27,7 @@ from pynference.distributions.utils import broadcast_shapes
 
 
 # TODO: Just promote shapes instead of broadcasting, this works in most distributions.
-# TODO: When testing, do not forget to test transformed distribution batch and rv shapes!
 # TODO: Unit tests.
-# TODO: Test batch constraints (many real numbers, many positive numbers, ...)
 class Beta(ExponentialFamily):
     _constraints: Dict[str, Constraint] = {"shape1": positive, "shape2": positive}
     _support: Constraint = zero_one
@@ -790,6 +788,10 @@ class Uniform(TransformedDistribution):
             check_parameters=check_parameters,
             check_support=check_support,
         )
+
+    @property
+    def support(self) -> Constraint:
+        return interval(self.lower, self.upper)
 
     @property
     def mean(self) -> Parameter:

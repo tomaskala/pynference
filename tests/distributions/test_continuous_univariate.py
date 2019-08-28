@@ -19,6 +19,7 @@ from pynference.distributions import (
     TruncatedNormal,
     Uniform,
 )
+from pynference.distributions.constraints import interval, positive
 from pynference.utils import check_random_state
 
 
@@ -425,4 +426,53 @@ class TestSamplingShapes:
 class TestTransformedDistributions:
     random_state = check_random_state(123)
 
-    distributions = [InverseGamma, LogNormal, Pareto, Uniform]
+    distributions = {
+        InverseGamma: (
+            generate(random_state, shape=(), positive=["shape", "scale"]),
+            generate(random_state, shape=(2,), positive=["shape", "scale"]),
+            generate(random_state, shape=(2, 3), positive=["shape", "scale"]),
+        ),
+        LogNormal: (
+            generate(random_state, shape=(), positive="scale", real="loc"),
+            generate(random_state, shape=(2,), positive="scale", real="loc"),
+            generate(random_state, shape=(2, 3), positive="scale", real="loc"),
+        ),
+        Pareto: (
+            generate(random_state, shape=(), positive=["scale", "shape"]),
+            generate(random_state, shape=(2,), positive=["scale", "shape"]),
+            generate(random_state, shape=(2, 3), positive=["scale", "shape"]),
+        ),
+        Uniform: (
+            generate(random_state, shape=(), lower="lower", upper="upper"),
+            generate(random_state, shape=(2,), lower="lower", upper="upper"),
+            generate(random_state, shape=(2, 3), lower="lower", upper="upper"),
+        ),
+    }
+
+    supports = {
+        InverseGamma: lambda d: positive,
+        LogNormal: lambda d: positive,
+        Pareto: lambda d: interval(d.scale, np.inf),
+        Uniform: lambda d: interval(d.lower, d.upper),
+    }
+
+    def test_supports(self):
+        for distribution_cls, parameter_set in self.distributions.items():
+            for i, parameters in enumerate(parameter_set):
+                distribution = distribution_cls(**parameters)
+
+                assert distribution.support == self.supports[type(distribution)](
+                    distribution
+                ), f"support of {distribution}"
+
+    def test_shapes(self):
+        batch_shapes = [(), (2,), (2, 3)]
+
+        for distribution_cls, parameter_set in self.distributions.items():
+            for i, parameters in enumerate(parameter_set):
+                distribution = distribution_cls(**parameters)
+
+                assert (
+                    distribution.batch_shape == batch_shapes[i]
+                ), f"batch_shape of {distribution}"
+                assert distribution.rv_shape == (), f"rv_shape of {distribution}"
