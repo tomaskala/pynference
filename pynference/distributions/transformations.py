@@ -17,15 +17,7 @@ from pynference.distributions.constraints import (
 
 class Transformation(abc.ABC):
     def __init__(self, domain: Constraint):
-        self._domain = domain
-
-    @property
-    def domain(self) -> Constraint:
-        return self._domain
-
-    @domain.setter
-    def domain(self, value: Constraint):
-        self._domain = value
+        self.domain = domain
 
     @property
     @abc.abstractmethod
@@ -64,18 +56,18 @@ class AffineTransformation(Transformation):
 
     @property
     def codomain(self) -> Constraint:
-        if isinstance(self._domain, Real):
+        if isinstance(self.domain, Real):
             return real
-        elif isinstance(self._domain, RealVector):
+        elif isinstance(self.domain, RealVector):
             return real_vector
-        elif isinstance(self._domain, Interval):
-            return Interval(self(self._domain.lower), self(self._domain.upper))
+        elif isinstance(self.domain, Interval):
+            return Interval(self(self.domain.lower), self(self.domain.upper))
         else:
             raise NotImplementedError()
 
     @property
     def rv_dim(self) -> int:
-        if isinstance(self._domain, Real):
+        if isinstance(self.domain, Real):
             return 0
         else:
             return 1
@@ -101,10 +93,10 @@ class ExpTransformation(Transformation):
 
     @property
     def codomain(self) -> Constraint:
-        if isinstance(self._domain, Real):
+        if isinstance(self.domain, Real):
             return positive
-        elif isinstance(self._domain, Interval):
-            return Interval(self(self._domain.lower), self(self._domain.upper))
+        elif isinstance(self.domain, Interval):
+            return Interval(self(self.domain.lower), self(self.domain.upper))
         else:
             raise NotImplementedError()
 
