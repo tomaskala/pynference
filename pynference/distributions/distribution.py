@@ -36,7 +36,7 @@ class Distribution(abc.ABC):
 
                 if not np.all(constraint(parameter_value)):
                     raise ValueError(
-                        f"Invalid value for {parameter}: {parameter_value}."
+                        f"Invalid value for {parameter}: {parameter_value}. The parameter must satisfy the constraint '{constraint}'."
                     )
 
     @property

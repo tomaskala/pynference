@@ -1,8 +1,9 @@
 from typing import Dict, List, Optional, Union
 
 import numpy as np
+import pytest
 import scipy.stats as stats
-from pytest import approx
+from pytest import approx, raises
 
 from pynference.constants import Parameter, Shape
 from pynference.distributions import (
@@ -91,7 +92,7 @@ def generate(
 
 
 # TODO: Pass one parameter as array of parameters, the other parameter as a scalar and check that i broadcasts. This should check whether shape promoting instead of proper broadcasting works.
-class TestBroadcasting:
+class TestBroadcasting:  # TODO
     random_state = check_random_state(123)
 
 
@@ -341,7 +342,138 @@ class TestLogProb:
 
 
 class TestParameterConstraints:
-    random_state = check_random_state(123)
+    def test_beta(self):
+        with raises(ValueError, match=r".*positive.*"):
+            Beta(shape1=-1.0, shape2=1.0)
+            Beta(shape1=1.0, shape2=-1.0)
+            Beta(shape1=0.0, shape2=1.0)
+            Beta(shape1=1.0, shape2=0.0)
+
+    def test_cauchy(self):
+        with raises(ValueError, match=r".*real.*"):
+            Cauchy(loc=np.nan, scale=1.0)
+            Cauchy(loc=-np.inf, scale=1.0)
+            Cauchy(loc=np.inf, scale=1.0)
+
+        with raises(ValueError, match=r".*positive.*"):
+            Cauchy(loc=1.0, scale=-1.0)
+            Cauchy(loc=1.0, scale=0.0)
+
+    def test_exponential(self):
+        with raises(ValueError, match=r".*positive.*"):
+            Exponential(rate=-1.0)
+            Exponential(rate=0.0)
+
+    def test_gamma(self):
+        with raises(ValueError, match=r".*positive.*"):
+            Gamma(shape=-1.0, rate=1.0)
+            Gamma(shape=1.0, rate=-1.0)
+            Gamma(shape=0.0, rate=1.0)
+            Gamma(shape=1.0, rate=0.0)
+
+    def test_inverse_gamma(self):
+        with raises(ValueError, match=r".*positive.*"):
+            InverseGamma(shape=-1.0, scale=1.0)
+            InverseGamma(shape=1.0, scale=-1.0)
+            InverseGamma(shape=0.0, scale=1.0)
+            InverseGamma(shape=1.0, scale=0.0)
+
+    def test_laplace(self):
+        with raises(ValueError, match=r".*real.*"):
+            Laplace(loc=np.nan, scale=1.0)
+            Laplace(loc=-np.inf, scale=1.0)
+            Laplace(loc=np.inf, scale=1.0)
+
+        with raises(ValueError, match=r".*positive.*"):
+            Laplace(loc=1.0, scale=-1.0)
+            Laplace(loc=1.0, scale=0.0)
+
+    def test_logistic(self):
+        with raises(ValueError, match=r".*real.*"):
+            Logistic(loc=np.nan, scale=1.0)
+            Logistic(loc=-np.inf, scale=1.0)
+            Logistic(loc=np.inf, scale=1.0)
+
+        with raises(ValueError, match=r".*positive.*"):
+            Logistic(loc=1.0, scale=-1.0)
+            Logistic(loc=1.0, scale=0.0)
+
+    def test_log_normal(self):
+        with raises(ValueError, match=r".*real.*"):
+            LogNormal(loc=np.nan, scale=1.0)
+            LogNormal(loc=-np.inf, scale=1.0)
+            LogNormal(loc=np.inf, scale=1.0)
+
+        with raises(ValueError, match=r".*positive.*"):
+            LogNormal(loc=1.0, scale=-1.0)
+            LogNormal(loc=1.0, scale=0.0)
+
+    def test_normal(self):
+        with raises(ValueError, match=r".*real.*"):
+            Normal(mean=np.nan, std=1.0)
+            Normal(mean=-np.inf, std=1.0)
+            Normal(mean=np.inf, std=1.0)
+
+        with raises(ValueError, match=r".*positive.*"):
+            Normal(mean=1.0, std=-1.0)
+            Normal(mean=1.0, std=0.0)
+
+    def test_pareto(self):
+        with raises(ValueError, match=r".*positive.*"):
+            Pareto(scale=-1.0, shape=1.0)
+            Pareto(scale=1.0, shape=-1.0)
+            Pareto(scale=0.0, shape=1.0)
+            Pareto(scale=1.0, shape=0.0)
+
+    def test_t(self):
+        with raises(ValueError, match=r".*positive.*"):
+            T(df=-1.0, loc=1.0, scale=1.0)
+            T(df=0.0, loc=1.0, scale=1.0)
+
+        with raises(ValueError, match=r".*real.*"):
+            T(df=1.0, loc=np.nan, scale=1.0)
+            T(df=1.0, loc=np.inf, scale=1.0)
+            T(df=1.0, loc=-np.inf, scale=1.0)
+
+        with raises(ValueError, match=r".*positive.*"):
+            T(df=1.0, loc=1.0, scale=-1.0)
+            T(df=1.0, loc=1.0, scale=0.0)
+
+    def test_truncated_normal(self):
+        with raises(ValueError, match=r".*real.*"):
+            TruncatedNormal(loc=np.nan, scale=1.0, lower=1.0, upper=2.0)
+            TruncatedNormal(loc=np.inf, scale=1.0, lower=1.0, upper=2.0)
+            TruncatedNormal(loc=-np.inf, scale=1.0, lower=1.0, upper=2.0)
+
+        with raises(ValueError, match=r".*positive.*"):
+            TruncatedNormal(loc=1.0, scale=-1.0, lower=1.0, upper=2.0)
+            TruncatedNormal(loc=1.0, scale=0.0, lower=1.0, upper=2.0)
+
+        with raises(ValueError, match=r".*real.*"):
+            TruncatedNormal(loc=1.0, scale=1.0, lower=-np.inf, upper=1.0)
+            TruncatedNormal(loc=1.0, scale=1.0, lower=1.0, upper=np.inf)
+
+        with raises(ValueError, match=r".*strictly lower.*"):
+            TruncatedNormal(loc=1.0, scale=1.0, lower=np.nan, upper=1.0)
+            TruncatedNormal(loc=1.0, scale=1.0, lower=1.0, upper=np.nan)
+            TruncatedNormal(loc=1.0, scale=1.0, lower=1.0, upper=1.0)
+            TruncatedNormal(loc=1.0, scale=1.0, lower=2.0, upper=1.0)
+            TruncatedNormal(loc=1.0, scale=1.0, lower=np.inf, upper=np.inf)
+            TruncatedNormal(loc=1.0, scale=1.0, lower=-np.inf, upper=-np.inf)
+
+    @pytest.mark.filterwarnings("ignore", category=RuntimeWarning)
+    def test_uniform(self):
+        with raises(ValueError, match=r".*real.*"):
+            Uniform(lower=-np.inf, upper=1.0)
+            Uniform(lower=1.0, upper=np.inf)
+
+        with raises(ValueError, match=r".*strictly lower.*"):
+            Uniform(lower=np.nan, upper=1.0)
+            Uniform(lower=1.0, upper=np.nan)
+            Uniform(lower=1.0, upper=1.0)
+            Uniform(lower=2.0, upper=1.0)
+            Uniform(lower=np.inf, upper=np.inf)
+            Uniform(lower=-np.inf, upper=-np.inf)
 
 
 class TestSamplingShapes:

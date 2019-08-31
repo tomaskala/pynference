@@ -64,33 +64,45 @@ class Interval(Constraint):
 
     def __str__(self) -> str:
         if self.include_lower and self.include_upper:
-            return f"[{self.lower}, {self.upper}]"
+            return f"interval[{self.lower}, {self.upper}]"
         elif self.include_lower:
-            return f"[{self.lower}, {self.upper})"
+            return f"interval[{self.lower}, {self.upper})"
         elif self.include_upper:
-            return f"({self.lower}, {self.upper}]"
+            return f"interval({self.lower}, {self.upper}]"
         else:
-            return f"({self.lower}, {self.upper})"
+            return f"interval({self.lower}, {self.upper})"
 
 
 class Positive(Interval):
     def __init__(self):
         super().__init__(lower=0.0, upper=np.inf)
 
+    def __str__(self) -> str:
+        return "positive"
+
 
 class NonNegative(Interval):
     def __init__(self):
         super().__init__(lower=0.0, upper=np.inf, include_lower=True)
+
+    def __str__(self) -> str:
+        return "non_negative"
 
 
 class Negative(Interval):
     def __init__(self):
         super().__init__(lower=-np.inf, upper=0.0)
 
+    def __str__(self) -> str:
+        return "negative"
+
 
 class NonPositive(Interval):
     def __init__(self):
         super().__init__(lower=-np.inf, upper=0.0, include_upper=True)
+
+    def __str__(self) -> str:
+        return "non_positive"
 
 
 real = Real()
