@@ -50,7 +50,6 @@ class AffineTransformation(Transformation):
             raise ValueError("The scale parameter must be positive.")
 
         super().__init__(domain=domain)
-
         self.loc = loc
         self.scale = scale
 
