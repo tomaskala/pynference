@@ -1,6 +1,7 @@
 from typing import Dict, List, Optional, Union
 
 import numpy as np
+import scipy.stats as stats
 from pytest import approx
 
 from pynference.constants import Parameter, Shape
@@ -271,6 +272,75 @@ class TestFirstTwoMoments:
 
 
 class TestLogProb:
+    random_state = check_random_state(123)
+
+    distributions = {
+        Beta: generate(random_state, shape=(), positive=["shape1", "shape2"]),
+        Cauchy: generate(random_state, shape=(), positive="scale", real="loc"),
+        Exponential: generate(random_state, shape=(), positive="rate"),
+        Gamma: generate(random_state, shape=(), positive=["shape", "rate"]),
+        InverseGamma: generate(random_state, shape=(), positive=["shape", "scale"]),
+        Laplace: generate(random_state, shape=(), positive="scale", real="loc"),
+        Logistic: generate(random_state, shape=(), positive="scale", real="loc"),
+        LogNormal: generate(random_state, shape=(), positive="scale", real="loc"),
+        Normal: generate(random_state, shape=(), positive="std", real="mean"),
+        Pareto: generate(random_state, shape=(), positive=["scale", "shape"]),
+        T: generate(random_state, shape=(), positive=["df", "scale"], real="loc"),
+        TruncatedNormal: generate(
+            random_state,
+            shape=(),
+            positive="scale",
+            real="loc",
+            lower="lower",
+            upper="upper",
+        ),
+        Uniform: generate(random_state, shape=(), lower="lower", upper="upper"),
+    }
+
+    dist2scipy = {
+        Beta: lambda dist: stats.beta(a=dist.shape1, b=dist.shape2),
+        Cauchy: lambda dist: stats.cauchy(loc=dist.loc, scale=dist.scale),
+        Exponential: lambda dist: stats.expon(scale=np.reciprocal(dist.rate)),
+        Gamma: lambda dist: stats.gamma(a=dist.shape, scale=np.reciprocal(dist.rate)),
+        InverseGamma: lambda dist: stats.invgamma(a=dist.shape, scale=dist.scale),
+        Laplace: lambda dist: stats.laplace(loc=dist.loc, scale=dist.scale),
+        Logistic: lambda dist: stats.logistic(loc=dist.loc, scale=dist.scale),
+        LogNormal: lambda dist: stats.lognorm(scale=np.exp(dist.loc), s=dist.scale),
+        Normal: lambda dist: stats.norm(loc=dist.mean, scale=dist.std),
+        Pareto: lambda dist: stats.pareto(b=dist.shape, scale=dist.scale),
+        T: lambda dist: stats.t(df=dist.df, loc=dist.loc, scale=dist.scale),
+        TruncatedNormal: lambda dist: stats.truncnorm(
+            a=(dist.lower - dist.loc) / dist.scale,
+            b=(dist.upper - dist.loc) / dist.scale,
+            loc=dist.loc,
+            scale=dist.scale,
+        ),
+        Uniform: lambda dist: stats.uniform(
+            loc=dist.lower, scale=dist.upper - dist.lower
+        ),
+    }
+
+    n_samples = 100
+    atol = 1e-6
+    rtol = 1e-6
+
+    def test_log_prob(self):
+        for distribution_cls, parameters in self.distributions.items():
+            distribution = distribution_cls(**parameters)
+
+            if distribution_cls not in self.dist2scipy:
+                continue
+            scipy_distribution = self.dist2scipy[distribution_cls](distribution)
+
+            samples = distribution.sample(
+                sample_shape=(self.n_samples,), random_state=self.random_state
+            )
+            assert distribution.log_prob(samples) == approx(
+                scipy_distribution.logpdf(samples), rel=self.rtol, abs=self.atol
+            ), f"log_prob of {distribution}"
+
+
+class TestParameterConstraints:
     random_state = check_random_state(123)
 
 

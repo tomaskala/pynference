@@ -66,10 +66,10 @@ class AffineTransformation(Transformation):
 
     @property
     def rv_dim(self) -> int:
-        if isinstance(self.domain, Real):
-            return 0
-        else:
+        if isinstance(self.domain, RealVector):
             return 1
+        else:
+            return 0
 
     def __call__(self, x: Variate) -> Variate:
         return self.loc + self.scale * x
@@ -81,7 +81,7 @@ class AffineTransformation(Transformation):
         result = np.log(np.abs(self.scale))
 
         if isinstance(self.scale, numbers.Number):
-            result = np.full(result, np.shape(x))
+            result = np.full(shape=np.shape(x), fill_value=result)
 
         return np.sum(result, axis=tuple(range(-self.rv_dim, 0)))
 
