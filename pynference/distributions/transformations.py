@@ -1,5 +1,4 @@
 import abc
-import numbers
 
 import numpy as np
 
@@ -79,12 +78,8 @@ class AffineTransformation(Transformation):
         return (y - self.loc) / self.scale
 
     def log_abs_J(self, x: Variate, y: Variate) -> Variate:
-        result = np.log(np.abs(self.scale))
-
-        if isinstance(self.scale, numbers.Number):
-            result = np.full(shape=np.shape(x), fill_value=result)
-
-        return sum_last(result, self.rv_dim)
+        log_det = np.log(np.abs(self.scale))
+        return sum_last(np.broadcast_to(log_det, np.shape(x)), self.rv_dim)
 
 
 class ExpTransformation(Transformation):

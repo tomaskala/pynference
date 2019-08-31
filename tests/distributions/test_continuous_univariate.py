@@ -91,9 +91,80 @@ def generate(
     return parameters
 
 
-# TODO: Pass one parameter as array of parameters, the other parameter as a scalar and check that i broadcasts. This should check whether shape promoting instead of proper broadcasting works.
-class TestBroadcasting:  # TODO
+class TestBroadcasting:
     random_state = check_random_state(123)
+
+    distributions = {
+        Beta: ["shape1", "shape2"],
+        Cauchy: ["loc", "scale"],
+        Exponential: ["rate"],
+        Gamma: ["shape", "rate"],
+        InverseGamma: ["shape", "scale"],
+        Laplace: ["loc", "scale"],
+        Logistic: ["loc", "scale"],
+        LogNormal: ["loc", "scale"],
+        Normal: ["mean", "std"],
+        Pareto: ["scale", "shape"],
+        T: ["df", "loc", "scale"],
+        TruncatedNormal: ["loc", "scale", "lower", "upper"],
+        Uniform: ["lower", "upper"],
+    }
+
+    n_samples = 100
+    atol = 1e-6
+    rtol = 1e-6
+
+    def test_broadcasting(self):
+        for distribution_cls, params in self.distributions.items():
+            # Try setting each parameter to X and the others to aranges.
+            # X == one distribution gets [[1.0]], the other [[1.0, 1.0], [1.0, 1.0]].
+            fst_params = {}
+            snd_params = {}
+
+            for p1 in params:
+                fst_params[p1] = np.full(shape=(2, 2), fill_value=1.0)
+                snd_params[p1] = np.array(1.0).reshape(1, 1)
+
+                for p2 in params:
+                    if p1 == p2:
+                        continue
+
+                    fst_params[p2] = np.arange(2, 6, dtype=float).reshape(2, 2)
+                    snd_params[p2] = np.arange(2, 6, dtype=float).reshape(2, 2)
+
+                # Hack to make all lower bounds < upper bounds.
+                if (
+                    "lower" in fst_params
+                    and "upper" in fst_params
+                    and "lower" in snd_params
+                    and "upper" in snd_params
+                ):
+                    if np.all(fst_params["lower"] >= fst_params["upper"]):
+                        fst_params["lower"], fst_params["upper"] = (
+                            fst_params["upper"],
+                            fst_params["lower"],
+                        )
+
+                        fst_params["upper"] += 1.0
+
+                    if np.all(snd_params["lower"] >= snd_params["upper"]):
+                        snd_params["lower"], snd_params["upper"] = (
+                            snd_params["upper"],
+                            snd_params["lower"],
+                        )
+
+                        snd_params["upper"] += 1.0
+
+                fst = distribution_cls(**fst_params)
+                snd = distribution_cls(**snd_params)
+
+                samples = fst.sample(
+                    sample_shape=(self.n_samples,), random_state=self.random_state
+                )
+
+                assert fst.log_prob(samples) == approx(
+                    snd.log_prob(samples), rel=self.rtol, abs=self.atol
+                ), f"log_prob of {fst}"
 
 
 class TestExponentialFamilies:

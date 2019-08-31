@@ -27,7 +27,6 @@ from pynference.distributions.utils import broadcast_shapes
 
 
 # TODO: Just promote shapes instead of broadcasting, this works in most distributions.
-# TODO: Unit tests.
 class Beta(ExponentialFamily):
     _constraints: Dict[str, Constraint] = {"shape1": positive, "shape2": positive}
     _support: Constraint = zero_one
