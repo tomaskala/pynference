@@ -7,6 +7,7 @@ from numpy.random import RandomState
 from pynference.constants import ArrayLike, Parameter, Shape, Variate
 from pynference.distributions.constraints import Constraint
 from pynference.distributions.transformations import Transformation
+from pynference.distributions.utils import sum_last
 from pynference.utils import check_random_state
 
 
@@ -163,15 +164,13 @@ class TransformedDistribution(Distribution):
             dim_diff = rv_dim - t.rv_dim
 
             log_det = t.log_abs_J(x, y)
-            sum_log_det = np.sum(log_det, axis=tuple(range(-dim_diff, 0)))
+            sum_log_det = sum_last(log_det, dim_diff)
             log_prob -= sum_log_det
 
             y = x
 
         dim_diff = rv_dim - len(self.base_distribution.rv_shape)
-        log_prob += np.sum(
-            self.base_distribution.log_prob(y), axis=tuple(range(-dim_diff, 0))
-        )
+        log_prob += sum_last(self.base_distribution.log_prob(y), dim_diff)
         return log_prob
 
     def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:

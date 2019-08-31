@@ -13,6 +13,7 @@ from pynference.distributions.constraints import (
     real,
     real_vector,
 )
+from pynference.distributions.utils import sum_last
 
 
 class Transformation(abc.ABC):
@@ -83,7 +84,7 @@ class AffineTransformation(Transformation):
         if isinstance(self.scale, numbers.Number):
             result = np.full(shape=np.shape(x), fill_value=result)
 
-        return np.sum(result, axis=tuple(range(-self.rv_dim, 0)))
+        return sum_last(result, self.rv_dim)
 
 
 class ExpTransformation(Transformation):

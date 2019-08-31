@@ -1,6 +1,6 @@
 import numpy as np
 
-from pynference.constants import Shape
+from pynference.constants import ArrayLike, Shape
 
 
 def broadcast_shapes(*shapes: Shape) -> Shape:
@@ -21,3 +21,7 @@ def broadcast_shapes(*shapes: Shape) -> Shape:
         )
 
     return tuple(result_shape)
+
+
+def sum_last(array: np.ndarray, k: int) -> ArrayLike:
+    return np.sum(array, axis=tuple(range(-k, 0)))

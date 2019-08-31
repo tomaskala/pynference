@@ -1,6 +1,7 @@
+import numpy as np
 import pytest
 
-from pynference.distributions.utils import broadcast_shapes
+from pynference.distributions.utils import broadcast_shapes, sum_last
 
 
 def test_broadcast_single_arg():
@@ -74,3 +75,14 @@ def test_broadcast_incompatible2():
 
     with pytest.raises(ValueError):
         broadcast_shapes(x, y)
+
+
+def test_sum_last1():
+    array = np.arange(24).reshape(3, 8)
+    assert np.all(sum_last(array, 1) == np.array([28, 92, 156]))
+
+
+def test_sum_last2():
+    array = np.arange(48).reshape(3, 8, 2)
+    assert np.all(sum_last(array, 1) == np.arange(1, 97, 4).reshape(3, 8))
+    assert np.all(sum_last(array, 2) == np.array([120, 376, 632]))
