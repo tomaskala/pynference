@@ -1,3 +1,5 @@
+from typing import Iterable
+
 import numpy as np
 
 from pynference.constants import ArrayLike, Shape
@@ -21,6 +23,20 @@ def broadcast_shapes(*shapes: Shape) -> Shape:
         )
 
     return tuple(result_shape)
+
+
+def promote_shapes(*arrays: np.ndarray, shape: Shape = ()) -> Iterable[np.ndarray]:
+    if len(arrays) < 2 and not shape:
+        return arrays
+    else:
+        shapes = [np.shape(array) for array in arrays]
+        n_dims = len(broadcast_shapes(shape, *shapes))
+        return [
+            np.reshape(array, (1,) * (n_dims - len(s)) + s)
+            if len(s) < n_dims
+            else array
+            for array, s in zip(arrays, shapes)
+        ]
 
 
 def sum_last(array: np.ndarray, k: int) -> ArrayLike:

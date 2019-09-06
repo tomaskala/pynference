@@ -23,10 +23,9 @@ from pynference.distributions.transformations import (
     ExpTransformation,
     PowerTransformation,
 )
-from pynference.distributions.utils import broadcast_shapes
+from pynference.distributions.utils import broadcast_shapes, promote_shapes
 
 
-# TODO: Just promote shapes instead of broadcasting, this works in most distributions.
 class Beta(ExponentialFamily):
     _constraints: Dict[str, Constraint] = {"shape1": positive, "shape2": positive}
     _support: Constraint = zero_one
@@ -41,8 +40,7 @@ class Beta(ExponentialFamily):
         batch_shape = broadcast_shapes(np.shape(shape1), np.shape(shape2))
         rv_shape = ()
 
-        self.shape1 = np.broadcast_to(shape1, batch_shape)
-        self.shape2 = np.broadcast_to(shape2, batch_shape)
+        self.shape1, self.shape2 = promote_shapes(shape1, shape2)
 
         super().__init__(
             batch_shape=batch_shape,
@@ -106,8 +104,7 @@ class Cauchy(Distribution):
         batch_shape = broadcast_shapes(np.shape(loc), np.shape(scale))
         rv_shape = ()
 
-        self.loc = np.broadcast_to(loc, batch_shape)
-        self.scale = np.broadcast_to(scale, batch_shape)
+        self.loc, self.scale = promote_shapes(loc, scale)
 
         super().__init__(
             batch_shape=batch_shape,
@@ -196,8 +193,7 @@ class Gamma(ExponentialFamily):
         batch_shape = broadcast_shapes(np.shape(shape), np.shape(rate))
         rv_shape = ()
 
-        self.shape = np.broadcast_to(shape, batch_shape)
-        self.rate = np.broadcast_to(rate, batch_shape)
+        self.shape, self.rate = promote_shapes(shape, rate)
 
         super().__init__(
             batch_shape=batch_shape,
@@ -308,8 +304,7 @@ class Laplace(Distribution):
         batch_shape = broadcast_shapes(np.shape(loc), np.shape(scale))
         rv_shape = ()
 
-        self.loc = np.broadcast_to(loc, batch_shape)
-        self.scale = np.broadcast_to(scale, batch_shape)
+        self.loc, self.scale = promote_shapes(loc, scale)
 
         super().__init__(
             batch_shape=batch_shape,
@@ -350,8 +345,7 @@ class Logistic(Distribution):
         batch_shape = broadcast_shapes(np.shape(loc), np.shape(scale))
         rv_shape = ()
 
-        self.loc = np.broadcast_to(loc, batch_shape)
-        self.scale = np.broadcast_to(scale, batch_shape)
+        self.loc, self.scale = promote_shapes(loc, scale)
 
         super().__init__(
             batch_shape=batch_shape,
@@ -468,8 +462,7 @@ class Normal(ExponentialFamily):
         batch_shape = broadcast_shapes(np.shape(mean), np.shape(variance))
         rv_shape = ()
 
-        self._mean = np.broadcast_to(mean, batch_shape)
-        self._variance = np.broadcast_to(variance, batch_shape)
+        self._mean, self._variance = promote_shapes(mean, variance)
 
         super().__init__(
             batch_shape=batch_shape,
@@ -538,10 +531,7 @@ class Pareto(TransformedDistribution):
         check_parameters: bool = True,
         check_support: bool = True,
     ):
-        batch_shape = broadcast_shapes(np.shape(scale), np.shape(shape))
-
-        self.scale = np.broadcast_to(scale, batch_shape)
-        self.shape = np.broadcast_to(shape, batch_shape)
+        self.scale, self.shape = promote_shapes(scale, shape)
 
         base_distribution = Exponential(
             rate=self.shape,
@@ -597,8 +587,7 @@ class T(Distribution):
         rv_shape = ()
 
         self.df = np.broadcast_to(df, batch_shape)
-        self.loc = np.broadcast_to(loc, batch_shape)
-        self.scale = np.broadcast_to(scale, batch_shape)
+        self.loc, self.scale = promote_shapes(loc, scale)
 
         super().__init__(
             batch_shape=batch_shape,
@@ -659,10 +648,9 @@ class TruncatedNormal(Distribution):
         )
         rv_shape = ()
 
-        self.loc = np.broadcast_to(loc, batch_shape)
-        self.scale = np.broadcast_to(scale, batch_shape)
-        self.lower = np.broadcast_to(lower, batch_shape)
-        self.upper = np.broadcast_to(upper, batch_shape)
+        self.loc, self.scale, self.lower, self.upper = promote_shapes(
+            loc, scale, lower, upper
+        )
 
         if not np.all(self.lower < self.upper):
             raise ValueError(
@@ -764,8 +752,7 @@ class Uniform(TransformedDistribution):
     ):
         batch_shape = broadcast_shapes(np.shape(lower), np.shape(upper))
 
-        self.lower = np.broadcast_to(lower, batch_shape)
-        self.upper = np.broadcast_to(upper, batch_shape)
+        self.lower, self.upper = promote_shapes(lower, upper)
 
         if not np.all(self.lower < self.upper):
             raise ValueError(

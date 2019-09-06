@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from pynference.distributions.utils import broadcast_shapes, sum_last
+from pynference.distributions.utils import broadcast_shapes, promote_shapes, sum_last
 
 
 def test_broadcast_single_arg():
@@ -75,6 +75,38 @@ def test_broadcast_incompatible2():
 
     with pytest.raises(ValueError):
         broadcast_shapes(x, y)
+
+
+def test_promote_shapes_no_extra_shape():
+    x = np.arange(12).reshape(4, 3)
+    y = np.arange(3)
+    z = np.arange(3).reshape(1, 1, 3)
+
+    xx, yy, zz = promote_shapes(x, y, z)
+
+    assert xx.shape == (1, 4, 3)
+    assert yy.shape == (1, 1, 3)
+    assert zz.shape == (1, 1, 3)
+
+    assert np.all(xx[0] == x)
+    assert np.all(yy[0, 0] == y)
+    assert np.all(zz == z)
+
+
+def test_promote_shapes_extra_shape():
+    x = np.arange(12).reshape(4, 3)
+    y = np.arange(3)
+    z = np.arange(3).reshape(1, 1, 3)
+
+    xx, yy, zz = promote_shapes(x, y, z, shape=(1, 1, 1, 4, 3))
+
+    assert xx.shape == (1, 1, 1, 4, 3)
+    assert yy.shape == (1, 1, 1, 1, 3)
+    assert zz.shape == (1, 1, 1, 1, 3)
+
+    assert np.all(xx[0, 0, 0] == x)
+    assert np.all(yy[-1] == y)
+    assert np.all(zz[-1] == z)
 
 
 def test_sum_last1():
