@@ -105,6 +105,61 @@ class NonPositive(Interval):
         return "non_positive"
 
 
+class Integer(Constraint):
+    def __call__(self, x: float) -> np.ndarray:
+        return np.equal(np.mod(x, 1), 0)
+
+    def __str__(self) -> str:
+        return "integer"
+
+
+class IntegerInterval(Interval):
+    def __call__(self, x: float) -> np.ndarray:
+        return super().__call__(x) & (np.equal(np.mod(x, 1), 0))
+
+    def __str__(self) -> str:
+        if self.include_lower and self.include_upper:
+            return f"integer_interval[{self.lower}, {self.upper}]"
+        elif self.include_lower:
+            return f"integer_interval[{self.lower}, {self.upper})"
+        elif self.include_upper:
+            return f"integer_interval({self.lower}, {self.upper}]"
+        else:
+            return f"integer_interval({self.lower}, {self.upper})"
+
+
+class PositiveInteger(IntegerInterval):
+    def __init__(self):
+        super().__init__(lower=0, upper=np.inf)
+
+    def __str__(self) -> str:
+        return "positive_integer"
+
+
+class NonNegativeInteger(IntegerInterval):
+    def __init__(self):
+        super().__init__(lower=0, upper=np.inf, include_lower=True)
+
+    def __str__(self) -> str:
+        return "non_negative_integer"
+
+
+class NegativeInteger(IntegerInterval):
+    def __init__(self):
+        super().__init__(lower=-np.inf, upper=0)
+
+    def __str__(self) -> str:
+        return "negative_integer"
+
+
+class NonPositiveInteger(IntegerInterval):
+    def __init__(self):
+        super().__init__(lower=-np.inf, upper=0, include_upper=True)
+
+    def __str__(self) -> str:
+        return "non_positive_integer"
+
+
 real = Real()
 real_vector = RealVector()
 positive = Positive()
@@ -113,6 +168,13 @@ negative = Negative()
 non_positive = NonPositive()
 zero_one = Interval(0.0, 1.0)
 interval = Interval
+integer = Integer()
+integer_interval = IntegerInterval
+positive_integer = PositiveInteger()
+non_negative_integer = NonNegativeInteger()
+negative_integer = NegativeInteger()
+non_positive_integer = NonPositiveInteger()
+zero_one_integer = IntegerInterval(0, 1, include_lower=True, include_upper=True)
 
 
 __all__ = [
@@ -124,4 +186,11 @@ __all__ = [
     "non_positive",
     "zero_one",
     "interval",
+    "integer",
+    "integer_interval",
+    "positive_integer",
+    "non_negative_integer",
+    "negative_integer",
+    "non_positive_integer",
+    "zero_one_integer",
 ]

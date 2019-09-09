@@ -1,8 +1,9 @@
 from typing import Iterable
 
 import numpy as np
+from scipy.special import gammaln
 
-from pynference.constants import ArrayLike, Shape
+from pynference.constants import ArrayLike, Parameter, Shape, Variate
 
 
 def broadcast_shapes(*shapes: Shape) -> Shape:
@@ -23,6 +24,12 @@ def broadcast_shapes(*shapes: Shape) -> Shape:
         )
 
     return tuple(result_shape)
+
+
+def log_binomial_coefficient(n: Parameter, k: Variate) -> ArrayLike:
+    log_numerator = gammaln(n + 1)
+    log_denominator = gammaln(k + 1) + gammaln(n - k + 1)
+    return log_numerator - log_denominator
 
 
 def promote_shapes(*arrays: np.ndarray, shape: Shape = ()) -> Iterable[np.ndarray]:
