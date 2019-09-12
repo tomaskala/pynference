@@ -24,8 +24,6 @@ from pynference.distributions.utils import (
 )
 
 
-# TODO: Test the new constraints.
-# TODO: Test log_binomial_coefficient.
 class Bernoulli(ExponentialFamily):
     _constraints: Dict[str, Constraint] = {"p": zero_one}
     _support: Constraint = zero_one_integer

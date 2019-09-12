@@ -1,7 +1,14 @@
 import numpy as np
 import pytest
+from pytest import approx
+from scipy.special import factorial
 
-from pynference.distributions.utils import broadcast_shapes, promote_shapes, sum_last
+from pynference.distributions.utils import (
+    broadcast_shapes,
+    log_binomial_coefficient,
+    promote_shapes,
+    sum_last,
+)
 
 
 def test_broadcast_single_arg():
@@ -118,3 +125,27 @@ def test_sum_last2():
     array = np.arange(48).reshape(3, 8, 2)
     assert np.all(sum_last(array, 1) == np.arange(1, 97, 4).reshape(3, 8))
     assert np.all(sum_last(array, 2) == np.array([120, 376, 632]))
+
+
+def test_log_binomial_coefficient1():
+    n = 10
+    k = 5
+    binomial_coef = factorial(n, exact=True) / (
+        factorial(k, exact=True) * factorial(n - k, exact=True)
+    )
+
+    assert log_binomial_coefficient(n, k) == approx(
+        np.log(binomial_coef), rel=1e-5, abs=1e-5
+    )
+
+
+def test_log_binomial_coefficient2():
+    n = 6
+    k = 3
+    binomial_coef = factorial(n, exact=True) / (
+        factorial(k, exact=True) * factorial(n - k, exact=True)
+    )
+
+    assert log_binomial_coefficient(n, k) == approx(
+        np.log(binomial_coef), rel=1e-5, abs=1e-5
+    )
