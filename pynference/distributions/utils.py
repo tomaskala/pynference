@@ -20,7 +20,7 @@ def broadcast_shapes(*shapes: Shape) -> Shape:
 
     if not np.all((shapes == result_shape) | (shapes == 1)):
         raise ValueError(
-            f"Incompatible shapes for broadcasting: {tuple(map(tuple, shapes))}."
+            f"Incompatible shapes for broadcasting: {tuple(map(tuple, shapes))}."  # type: ignore
         )
 
     return tuple(result_shape)

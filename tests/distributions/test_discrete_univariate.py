@@ -1,10 +1,8 @@
-
 from typing import Dict, List, Optional, Union
 
 import numpy as np
-import pytest
 import scipy.stats as stats
-from pytest import approx, raises
+from pytest import approx
 
 from pynference.constants import Parameter, Shape
 from pynference.distributions import (
@@ -16,7 +14,6 @@ from pynference.distributions import (
     NegativeBinomial,
     Poisson,
 )
-from pynference.distributions.constraints import interval, positive
 from pynference.utils import check_random_state
 
 
@@ -98,7 +95,9 @@ def generate(
             integral = [integral]
 
         for p in integral:
-            parameters[p] = random_state.randint(low=limits["integral_low"], high=limits["integral_high"] + 1, size=shape)
+            parameters[p] = random_state.randint(
+                low=limits["integral_low"], high=limits["integral_high"] + 1, size=shape
+            )
 
     if integral_lower is not None:
         if isinstance(integral_lower, str):
@@ -106,7 +105,9 @@ def generate(
 
         for p in integral_lower:
             parameters[p] = random_state.randint(
-                low=limits["integral_lower_low"], high=limits["integral_lower_high"], size=shape
+                low=limits["integral_lower_low"],
+                high=limits["integral_lower_high"],
+                size=shape,
             )
 
     if integral_upper is not None:
@@ -115,7 +116,9 @@ def generate(
 
         for p in integral_upper:
             parameters[p] = random_state.randint(
-                low=limits["integral_upper_low"], high=limits["integral_upper_high"], size=shape
+                low=limits["integral_upper_low"],
+                high=limits["integral_upper_high"],
+                size=shape,
             )
 
     if zero_one is not None:
@@ -276,9 +279,18 @@ class TestFirstTwoMoments:
             generate(random_state, shape=(2, 3), real="x"),
         ),
         DiscreteUniform: (
-            generate(random_state, shape=(), integral_lower="lower", integral_upper="upper"),
-            generate(random_state, shape=(2,), integral_lower="lower", integral_upper="upper"),
-            generate(random_state, shape=(2, 3), integral_lower="lower", integral_upper="upper"),
+            generate(
+                random_state, shape=(), integral_lower="lower", integral_upper="upper"
+            ),
+            generate(
+                random_state, shape=(2,), integral_lower="lower", integral_upper="upper"
+            ),
+            generate(
+                random_state,
+                shape=(2, 3),
+                integral_lower="lower",
+                integral_upper="upper",
+            ),
         ),
         Geometric: (
             generate(random_state, shape=(), zero_one="p"),
@@ -326,7 +338,9 @@ class TestLogProb:
     distributions = {
         Bernoulli: generate(random_state, shape=(), zero_one="p"),
         Binomial: generate(random_state, shape=(), integral="n", zero_one="p"),
-        DiscreteUniform: generate(random_state, shape=(), integral_lower="lower", integral_upper="upper"),
+        DiscreteUniform: generate(
+            random_state, shape=(), integral_lower="lower", integral_upper="upper"
+        ),
         Geometric: generate(random_state, shape=(), zero_one="p"),
         NegativeBinomial: generate(random_state, shape=(), positive="r", zero_one="p"),
         Poisson: generate(random_state, shape=(), positive="rate"),
@@ -335,10 +349,12 @@ class TestLogProb:
     dist2scipy = {
         Bernoulli: lambda dist: stats.bernoulli(p=dist.p),
         Binomial: lambda dist: stats.binom(n=dist.n, p=dist.p),
-        DiscreteUniform: lambda dist: stats.randint(low=dist.lower, high=dist.upper + 1),
+        DiscreteUniform: lambda dist: stats.randint(
+            low=dist.lower, high=dist.upper + 1
+        ),
         Geometric: lambda dist: stats.nbinom(n=1, p=dist.p),
         NegativeBinomial: lambda dist: stats.nbinom(n=dist.r, p=1.0 - dist.p),
-        Poisson: lambda dist: stats.poisson(mu=dist.rate)
+        Poisson: lambda dist: stats.poisson(mu=dist.rate),
     }
 
     n_samples = 100
