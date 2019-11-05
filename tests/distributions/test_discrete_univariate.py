@@ -28,6 +28,7 @@ def generate(
     lower: Optional[Union[str, List[str]]] = None,
     upper: Optional[Union[str, List[str]]] = None,
     integral: Optional[Union[str, List[str]]] = None,
+    zero_one: Optional[Union[str, List[str]]] = None,
     **limits: float,
 ) -> Dict[str, Parameter]:
     parameters = {}
@@ -92,6 +93,13 @@ def generate(
 
         for p in integral:
             parameters[p] = random_state.randint(low=limits["integral_low"], high=limits["integral_high"] + 1, size=shape)
+
+    if zero_one is not None:
+        if isinstance(zero_one, str):
+            zero_one = [zero_one]
+
+            for p in zero_one:
+                parameters[p] = random_state.rand(*shape)
 
     return parameters
 
@@ -174,3 +182,51 @@ class TestBroadcasting:
                 assert fst.log_prob(samples) == approx(
                     snd.log_prob(samples), rel=self.rtol, abs=self.atol
                 ), f"log_prob of {fst}"
+
+
+class TestExponentialFamilies:
+    random_state = check_random_state(123)
+
+    distributions = {
+        Bernoulli: generate(random_state, shape=(), zero_one="p"),
+        Binomial: generate(random_state, shape=(), integral="n", zero_one="p"),
+        Geometric: generate(random_state, shape=(), zero_one="p"),
+        NegativeBinomial: generate(random_state, shape=(), positive="r", zero_one="p"),
+        Poisson: generate(random_state, shape=(), positive="rate"),
+    }
+
+    n_samples = 20000
+    atol = 1e-6
+    rtol = 1e-6
+
+    def test_base_measure_positive_within_support(self):
+        for distribution_cls, parameters in self.distributions.items():
+            distribution = distribution_cls(**parameters)
+
+            samples = distribution.sample(
+                sample_shape=(self.n_samples,), random_state=self.random_state
+            )
+
+            assert np.all(
+                distribution.base_measure(samples) > 0
+            ), f"base measure of {distribution}"
+
+    def test_log_probs_equal(self):
+        for distribution_cls, parameters in self.distributions.items():
+            distribution = distribution_cls(**parameters)
+
+            samples = distribution.sample(
+                sample_shape=(self.n_samples,), random_state=self.random_state
+            )
+
+            h_x = distribution.base_measure(samples)
+            eta = distribution.natural_parameter
+            t_x = distribution.sufficient_statistic(samples)
+            a_eta = distribution.log_normalizer
+
+            dot_product = sum(np.dot(e, t) for e, t in zip(eta, t_x))
+            expected_log_prob = np.log(h_x) + dot_product - a_eta
+
+            assert distribution.log_prob(samples) == approx(
+                expected_log_prob, rel=self.rtol, abs=self.atol
+            ), f"log_prob of {distribution}"
