@@ -317,3 +317,45 @@ class TestFirstTwoMoments:
                 assert np.var(samples, axis=0) == approx(
                     distribution.variance, rel=self.rtol, abs=self.atol
                 ), f"variance of {distribution}"
+
+
+class TestLogProb:
+    random_state = check_random_state(123)
+
+    # Purposefully not testing the Dirac distribution since it does not exist in scipy.
+    distributions = {
+        Bernoulli: generate(random_state, shape=(), zero_one="p"),
+        Binomial: generate(random_state, shape=(), integral="n", zero_one="p"),
+        DiscreteUniform: generate(random_state, shape=(), integral_lower="lower", integral_upper="upper"),
+        Geometric: generate(random_state, shape=(), zero_one="p"),
+        NegativeBinomial: generate(random_state, shape=(), positive="r", zero_one="p"),
+        Poisson: generate(random_state, shape=(), positive="rate"),
+    }
+
+    dist2scipy = {
+        Bernoulli: lambda dist: stats.bernoulli(p=dist.p),
+        Binomial: lambda dist: stats.binom(n=dist.n, p=dist.p),
+        DiscreteUniform: lambda dist: stats.randint(low=dist.lower, high=dist.upper + 1),
+        Geometric: lambda dist: stats.nbinom(n=1, p=dist.p),
+        NegativeBinomial: lambda dist: stats.nbinom(n=dist.r, p=1.0 - dist.p),
+        Poisson: lambda dist: stats.poisson(mu=dist.rate)
+    }
+
+    n_samples = 100
+    atol = 1e-6
+    rtol = 1e-6
+
+    def test_log_prob(self):
+        for distribution_cls, parameters in self.distributions.items():
+            distribution = distribution_cls(**parameters)
+
+            if distribution_cls not in self.dist2scipy:
+                continue
+            scipy_distribution = self.dist2scipy[distribution_cls](distribution)
+
+            samples = distribution.sample(
+                sample_shape=(self.n_samples,), random_state=self.random_state
+            )
+            assert distribution.log_prob(samples) == approx(
+                scipy_distribution.logpmf(samples), rel=self.rtol, abs=self.atol
+            ), f"log_prob of {distribution}"
