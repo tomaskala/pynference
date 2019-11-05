@@ -28,6 +28,8 @@ def generate(
     lower: Optional[Union[str, List[str]]] = None,
     upper: Optional[Union[str, List[str]]] = None,
     integral: Optional[Union[str, List[str]]] = None,
+    integral_lower: Optional[Union[str, List[str]]] = None,
+    integral_upper: Optional[Union[str, List[str]]] = None,
     zero_one: Optional[Union[str, List[str]]] = None,
     **limits: float,
 ) -> Dict[str, Parameter]:
@@ -47,6 +49,10 @@ def generate(
         "upper_high": 30.0,
         "integral_low": 2,
         "integral_high": 10,
+        "integral_lower_low": -10,
+        "integral_lower_high": 10,
+        "integral_upper_low": 20,
+        "integral_upper_high": 30,
     }
 
     limits = {**limits_default, **limits}
@@ -93,6 +99,24 @@ def generate(
 
         for p in integral:
             parameters[p] = random_state.randint(low=limits["integral_low"], high=limits["integral_high"] + 1, size=shape)
+
+    if integral_lower is not None:
+        if isinstance(integral_lower, str):
+            integral_lower = [integral_lower]
+
+        for p in integral_lower:
+            parameters[p] = random_state.randint(
+                low=limits["integral_lower_low"], high=limits["integral_lower_high"], size=shape
+            )
+
+    if integral_upper is not None:
+        if isinstance(integral_upper, str):
+            integral_upper = [integral_upper]
+
+        for p in integral_upper:
+            parameters[p] = random_state.randint(
+                low=limits["integral_upper_low"], high=limits["integral_upper_high"], size=shape
+            )
 
     if zero_one is not None:
         if isinstance(zero_one, str):
@@ -230,3 +254,66 @@ class TestExponentialFamilies:
             assert distribution.log_prob(samples) == approx(
                 expected_log_prob, rel=self.rtol, abs=self.atol
             ), f"log_prob of {distribution}"
+
+
+class TestFirstTwoMoments:
+    random_state = check_random_state(123)
+
+    distributions = {
+        Bernoulli: (
+            generate(random_state, shape=(), zero_one="p"),
+            generate(random_state, shape=(2,), zero_one="p"),
+            generate(random_state, shape=(2, 3), zero_one="p"),
+        ),
+        Binomial: (
+            generate(random_state, shape=(), integral="n", zero_one="p"),
+            generate(random_state, shape=(2,), integral="n", zero_one="p"),
+            generate(random_state, shape=(2, 3), integral="n", zero_one="p"),
+        ),
+        Dirac: (
+            generate(random_state, shape=(), real="x"),
+            generate(random_state, shape=(2,), real="x"),
+            generate(random_state, shape=(2, 3), real="x"),
+        ),
+        DiscreteUniform: (
+            generate(random_state, shape=(), integral_lower="lower", integral_upper="upper"),
+            generate(random_state, shape=(2,), integral_lower="lower", integral_upper="upper"),
+            generate(random_state, shape=(2, 3), integral_lower="lower", integral_upper="upper"),
+        ),
+        Geometric: (
+            generate(random_state, shape=(), zero_one="p"),
+            generate(random_state, shape=(2,), zero_one="p"),
+            generate(random_state, shape=(2, 3), zero_one="p"),
+        ),
+        NegativeBinomial: (
+            generate(random_state, shape=(), positive="r", zero_one="p"),
+            generate(random_state, shape=(2,), positive="r", zero_one="p"),
+            generate(random_state, shape=(2, 3), positive="r", zero_one="p"),
+        ),
+        Poisson: (
+            generate(random_state, shape=(), positive="rate"),
+            generate(random_state, shape=(2,), positive="rate"),
+            generate(random_state, shape=(2, 2), positive="rate"),
+        ),
+    }
+
+    n_samples = 200000
+    atol = 1e-4
+    rtol = 0.75
+
+    def test_mean_and_variance(self):
+        for distribution_cls, parameter_set in self.distributions.items():
+            for i, parameters in enumerate(parameter_set):
+                distribution = distribution_cls(**parameters)
+
+                samples = distribution.sample(
+                    sample_shape=(self.n_samples,), random_state=self.random_state
+                )
+
+                assert np.mean(samples, axis=0) == approx(
+                    distribution.mean, rel=self.rtol, abs=self.atol
+                ), f"mean of {distribution}"
+
+                assert np.var(samples, axis=0) == approx(
+                    distribution.variance, rel=self.rtol, abs=self.atol
+                ), f"variance of {distribution}"

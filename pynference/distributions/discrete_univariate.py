@@ -260,7 +260,9 @@ class Geometric(ExponentialFamily):
         return x * np.log1p(-self.p) + np.log(self.p)
 
     def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        return random_state.geometric(p=self.p, size=sample_shape + self.batch_shape)
+        return random_state.negative_binomial(
+            n=1, p=self.p, size=sample_shape + self.batch_shape
+        )
 
     @property
     def natural_parameter(self) -> Tuple[Parameter, ...]:
