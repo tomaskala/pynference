@@ -512,7 +512,7 @@ class Normal(ExponentialFamily):
         return np.square(self._mean) * 0.5 * self._precision + np.log(self._std)
 
     def base_measure(self, x: Variate) -> ArrayLike:
-        return 1.0 / np.sqrt(2.0 * np.pi)
+        return np.power(2.0 * np.pi, -0.5)
 
     def sufficient_statistic(self, x: Variate) -> Tuple[ArrayLike, ...]:
         return x, np.square(x)
