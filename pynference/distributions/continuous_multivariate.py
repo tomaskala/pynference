@@ -1,7 +1,9 @@
 from typing import Dict, Tuple
+from enum import Enum, auto
 
 import numpy as np
 from numpy.random import RandomState
+import scipy.linalg as la
 from scipy.special import gammaln
 
 from pynference.constants import ArrayLike, Parameter, Shape, Variate
@@ -11,6 +13,13 @@ from pynference.distributions.distribution import (
     ExponentialFamily,
     TransformedDistribution,
 )
+from pynference.distributions.utils import broadcast_shapes, promote_shapes
+
+
+# TODO: Thoroughly test all cases of the multivariate normal distribution.
+# TODO: mean: scalar/vector/matrix, variance & precision: scalar/vector/matrix
+# TODO: mean: scalar/vector/matrix, variance_diag & precision_diag: vector/matrix
+# TODO: mean: scalar/vector/matrix, covariance_matrix & precision_matrix & cholesky_triu: matrix & matrices
 
 
 class Dirichlet(ExponentialFamily):
@@ -73,7 +82,7 @@ class Dirichlet(ExponentialFamily):
         )
 
     def base_measure(self, x: Variate) -> ArrayLike:
-        return 1.0 / np.exp(np.sum(np.log(x), axis=-1))
+        return np.reciprocal(np.exp(np.sum(np.log(x), axis=-1)))
 
     def sufficient_statistic(self, x: Variate) -> Tuple[ArrayLike, ...]:
         return (np.log(x),)
@@ -83,28 +92,157 @@ class InverseWishart(TransformedDistribution):
     pass
 
 
+def cholesky_inverse(matrix):
+    # https://nbviewer.jupyter.org/gist/fehiepsi/5ef8e09e61604f10607380467eb82006#Precision-to-scale_tril
+    tril_inv = np.swapaxes(la.cholesky(matrix[..., ::-1, ::-1])[..., ::-1, ::-1], -2, -1)
+    identity = np.broadcast_to(np.identity(matrix.shape[-1]), tril_inv.shape)
+    return la.solve_triangular(tril_inv, identity, lower=True)
+
+
+class ScaleType(Enum):
+    SCALAR = auto()
+    VECTOR = auto()
+    MATRIX = auto()
+
+
 class MultivariateNormal(ExponentialFamily):
     _constraints: Dict[str, Constraint] = {}
     _support: Constraint = None
 
     def __init__(
-        self, check_parameters: bool = True, check_support: bool = True,
+        self,
+        mean: Parameter,
+        variance: Parameter = None,
+        precision: Parameter = None,
+        variance_diag: Parameter = None,
+        precision_diag: Parameter = None,
+        covariance_matrix: Parameter = None,
+        precision_matrix: Parameter = None,
+        cholesky_tril: Parameter = None,
+        check_parameters: bool = True,
+        check_support: bool = True,
     ):
-        pass
+        if (
+            (variance is not None)
+            + (precision is not None)
+            + (variance_diag is not None)
+            + (precision_diag is not None)
+            + (covariance_matrix is not None)
+            + (precision_matrix is not None)
+            + (cholesky_tril is not None)
+            != 1
+        ):
+            raise ValueError(
+                "Provide exactly one of the variance, precision, diagonal variance, "
+                "diagonal precision, covariance matrix, precision matrix or Cholesky "
+                "lower triangular part of the covariance matrix parameters."
+            )
+
+        if np.isscalar(mean):
+            mean = np.expand_dims(mean, axis=-1)
+
+        # TODO: self.covariance_matrix = self._precision_matrix = None
+        # TODO: Assign it in branches of the `if` below where applicable
+        # TODO: Ask if they are None in the getters and compute & otherwise
+        self._covariance_matrix = None
+        self._precision_matrix = None
+
+        if variance is not None or precision is not None:
+            self._scale_type = ScaleType.SCALAR
+
+            if precision is not None:
+                variance = np.reciprocal(precision)
+
+            batch_shape = broadcast_shapes(np.shape(mean)[:-1], np.shape(variance))
+            rv_shape = np.shape(mean)[-1:]
+
+            self.mean = np.broadcast_to(mean, batch_shape + rv_shape)
+        elif variance_diag is not None or precision_diag is not None:
+            self._scale_type = ScaleType.VECTOR
+
+            if precision_diag is not None:
+                variance_diag = np.reciprocal(precision_diag)
+
+            batch_shape = broadcast_shapes(np.shape(mean)[:-1], np.shape(variance_diag)[:-1])
+            rv_shape = np.shape(variance_diag)[-1:]
+
+            self.mean = np.broadcast_to(mean, batch_shape + rv_shape)
+        else:
+            self._scale_type = ScaleType.MATRIX
+            mean = mean[..., np.newaxis]
+
+            if covariance_matrix is not None:
+                mean, self._covariance_matrix = promote_shapes(mean, covariance_matrix)
+                self._cholesky_tril = la.cholesky(covariance_matrix)
+            elif precision_matrix is not None:
+                mean, self._precision_matrix = promote_shapes(mean, precision_matrix)
+                self._cholesky_tril = cholesky_inverse(precision_matrix)
+            else:
+                mean, self._cholesky_tril = promote_shapes(mean, cholesky_tril)
+
+            batch_shape = broadcast_shapes(np.shape(mean)[:-2], np.shape(self._cholesky_tril)[:-2])
+            rv_shape = np.shape(self._cholesky_tril)[-1:]
+
+            self.mean = np.broadcast_to(np.squeeze(mean, axis=-1), batch_shape + rv_shape)
+
+        super().__init__(
+            batch_shape=batch_shape,
+            rv_shape=rv_shape,
+            check_parameters=check_parameters,
+            check_support=check_support,
+        )
 
     @property
     def mean(self) -> Parameter:
-        pass
+        return self.mean
 
     @property
     def variance(self) -> Parameter:
-        pass
+        if self._scale_type == ScaleType.SCALAR:
+            pass
+        elif self._scale_type == ScaleType.VECTOR:
+            pass
+        else:
+            pass
+
+    @property
+    def covariance_matrix(self) -> Parameter:
+        if self._scale_type == ScaleType.SCALAR:
+            pass
+        elif self._scale_type == ScaleType.VECTOR:
+            pass
+        else:
+            if self._covariance_matrix is None:
+                self._covariance_matrix = self.cholesky_tril @ self.cholesky_tril.T
+
+            return self._covariance_matrix
+
+    def precision_matrix(self) -> Parameter:
+        if self._scale_type == ScaleType.SCALAR:
+            pass
+        elif self._scale_type == ScaleType.VECTOR:
+            pass
+        else:
+            if self._precision_matrix is None:
+                cholesky_tril_inv = la.inv(self.cholesky_tril)
+
+            return cholesky_tril_inv.T @ cholesky_tril_inv
 
     def _log_prob(self, x: Variate) -> ArrayLike:
-        pass
+        if self._scale_type == ScaleType.SCALAR:
+            pass
+        elif self._scale_type == ScaleType.VECTOR:
+            pass
+        else:
+            pass
 
     def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        pass
+        if self._scale_type == ScaleType.SCALAR:
+            pass
+        elif self._scale_type == ScaleType.VECTOR:
+            pass
+        else:
+            pass
 
     @property
     def natural_parameter(self) -> Tuple[Parameter, ...]:
@@ -115,10 +253,10 @@ class MultivariateNormal(ExponentialFamily):
         pass
 
     def base_measure(self, x: Variate) -> ArrayLike:
-        pass
+        return np.power(2.0 * np.pi, -self.rv_shape / 2.0)
 
     def sufficient_statistic(self, x: Variate) -> Tuple[ArrayLike, ...]:
-        pass
+        return x, np.outer(x, x)
 
 
 class MultivariateT(Distribution):
