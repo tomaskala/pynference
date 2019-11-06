@@ -48,3 +48,13 @@ def promote_shapes(*arrays: np.ndarray, shape: Shape = ()) -> Iterable[np.ndarra
 
 def sum_last(array: np.ndarray, k: int) -> ArrayLike:
     return np.sum(array, axis=tuple(range(-k, 0)))
+
+
+def arraywise_diagonal(diagonals: np.ndarray) -> np.ndarray:
+    out_shape = diagonals.shape[:-1] + (diagonals.shape[-1], diagonals.shape[-1])
+    out = np.zeros(out_shape)
+
+    diag_indices = np.arange(diagonals.shape[-1])
+    out[..., diag_indices, diag_indices] = diagonals
+
+    return out
