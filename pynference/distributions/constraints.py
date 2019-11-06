@@ -176,6 +176,17 @@ class ZeroOneInteger(IntegerInterval):
         return "binary"
 
 
+class Simplex(Constraint):
+    eps = 1e-6
+
+    def __call__(self, x: Union[float, np.ndarray]) -> np.ndarray:
+        x_sum = np.sum(x, axis=-1)
+        return np.all(x > 0.0, axis=-1) & (x_sum <= 1.0) & (x_sum > 1.0 - self.eps)
+
+    def __str__(self) -> str:
+        return "simplex"
+
+
 real = Real()
 real_vector = RealVector()
 positive = Positive()
@@ -191,6 +202,7 @@ non_negative_integer = NonNegativeInteger()
 negative_integer = NegativeInteger()
 non_positive_integer = NonPositiveInteger()
 zero_one_integer = ZeroOneInteger()
+simplex = Simplex()
 
 
 __all__ = [
@@ -209,4 +221,5 @@ __all__ = [
     "negative_integer",
     "non_positive_integer",
     "zero_one_integer",
+    "simplex",
 ]
