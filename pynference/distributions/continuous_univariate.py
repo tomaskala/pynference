@@ -497,7 +497,7 @@ class Normal(ExponentialFamily):
 
     def _log_prob(self, x: Variate) -> ArrayLike:
         normalizer = -0.5 * (np.log(2.0) + np.log(np.pi) + np.log(self._variance))
-        return -np.square(x - self._mean) / (2.0 * self._variance) + normalizer
+        return -np.square(x - self._mean) * 0.5 * self._precision + normalizer
 
     def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
         epsilon = random_state.standard_normal(sample_shape + self.batch_shape)
@@ -505,11 +505,11 @@ class Normal(ExponentialFamily):
 
     @property
     def natural_parameter(self) -> Tuple[Parameter, ...]:
-        return self._mean / self._variance, -np.reciprocal(2.0 * self._variance)
+        return self._mean * self._precision, -0.5 * self._precision
 
     @property
     def log_normalizer(self) -> Parameter:
-        return np.square(self._mean) / (2.0 * self._variance) + np.log(self._std)
+        return np.square(self._mean) * 0.5 * self._precision + np.log(self._std)
 
     def base_measure(self, x: Variate) -> ArrayLike:
         return 1.0 / np.sqrt(2.0 * np.pi)
