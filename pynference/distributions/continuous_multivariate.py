@@ -73,7 +73,7 @@ class Dirichlet(ExponentialFamily):
         )
 
     def base_measure(self, x: Variate) -> ArrayLike:
-        return 1.0 / np.product(x, axis=-1)
+        return 1.0 / np.exp(np.sum(np.log(x), axis=-1))
 
     def sufficient_statistic(self, x: Variate) -> Tuple[ArrayLike, ...]:
         return (np.log(x),)
