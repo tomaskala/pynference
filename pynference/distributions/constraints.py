@@ -168,6 +168,13 @@ class NonPositiveInteger(IntegerInterval):
         return "non_positive_integer"
 
 
+class ZeroOneInteger(IntegerInterval):
+    def __init__(self):
+        super().__init__(lower=0, upper=1, include_lower=True, include_upper=True)
+
+    def __str__(self) -> str:
+        return "binary"
+
 real = Real()
 real_vector = RealVector()
 positive = Positive()
@@ -182,7 +189,7 @@ positive_integer = PositiveInteger()
 non_negative_integer = NonNegativeInteger()
 negative_integer = NegativeInteger()
 non_positive_integer = NonPositiveInteger()
-zero_one_integer = IntegerInterval(0, 1, include_lower=True, include_upper=True)
+zero_one_integer = ZeroOneInteger()
 
 
 __all__ = [
