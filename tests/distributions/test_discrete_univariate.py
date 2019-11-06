@@ -306,7 +306,7 @@ class TestFirstTwoMoments:
         Poisson: (
             generate(random_state, shape=(), positive="rate"),
             generate(random_state, shape=(2,), positive="rate"),
-            generate(random_state, shape=(2, 2), positive="rate"),
+            generate(random_state, shape=(2, 3), positive="rate"),
         ),
     }
 
@@ -440,3 +440,109 @@ class TestParameterConstraints:
             Poisson(rate=-1.0)
             Poisson(rate=0.0)
 
+
+class TestSamplingShapes:
+    random_state = check_random_state(123)
+
+    distributions = {
+        Bernoulli: (
+            generate(random_state, shape=(), zero_one="p"),
+            generate(random_state, shape=(2,), zero_one="p"),
+            generate(random_state, shape=(2, 3), zero_one="p"),
+        ),
+        Binomial: (
+            generate(random_state, shape=(), integral="n", zero_one="p"),
+            generate(random_state, shape=(2,), integral="n", zero_one="p"),
+            generate(random_state, shape=(2, 3), integral="n", zero_one="p"),
+        ),
+        Dirac: (
+            generate(random_state, shape=(), real="x"),
+            generate(random_state, shape=(2,), real="x"),
+            generate(random_state, shape=(2, 3), real="x"),
+        ),
+        DiscreteUniform: (
+            generate(
+                random_state, shape=(), integral_lower="lower", integral_upper="upper"
+            ),
+            generate(
+                random_state, shape=(2,), integral_lower="lower", integral_upper="upper"
+            ),
+            generate(
+                random_state,
+                shape=(2, 3),
+                integral_lower="lower",
+                integral_upper="upper",
+            ),
+        ),
+        Geometric: (
+            generate(random_state, shape=(), zero_one="p"),
+            generate(random_state, shape=(2,), zero_one="p"),
+            generate(random_state, shape=(2, 3), zero_one="p"),
+        ),
+        NegativeBinomial: (
+            generate(random_state, shape=(), positive="r", zero_one="p"),
+            generate(random_state, shape=(2,), positive="r", zero_one="p"),
+            generate(random_state, shape=(2, 3), positive="r", zero_one="p"),
+        ),
+        Poisson: (
+            generate(random_state, shape=(), positive="rate"),
+            generate(random_state, shape=(2,), positive="rate"),
+            generate(random_state, shape=(2, 3), positive="rate"),
+        ),
+    }
+
+    def test_sampling_shapes_0d(self):
+        batch_shapes = [(), (2,), (2, 3)]
+
+        for distribution_cls, parameter_set in self.distributions.items():
+            for i, parameters in enumerate(parameter_set):
+                distribution = distribution_cls(**parameters)
+
+                samples = distribution.sample(
+                    sample_shape=(), random_state=self.random_state
+                )
+                assert (
+                    samples.shape == batch_shapes[i]
+                ), f"sampling shape of {distribution}"
+
+    def test_sampling_shapes_1d(self):
+        batch_shapes = [(), (2,), (2, 3)]
+
+        for distribution_cls, parameter_set in self.distributions.items():
+            for i, parameters in enumerate(parameter_set):
+                distribution = distribution_cls(**parameters)
+
+                samples = distribution.sample(
+                    sample_shape=(100,), random_state=self.random_state
+                )
+                assert (
+                    samples.shape == (100,) + batch_shapes[i]
+                ), f"sampling shape of {distribution}"
+
+    def test_sampling_shapes_2d(self):
+        batch_shapes = [(), (2,), (2, 3)]
+
+        for distribution_cls, parameter_set in self.distributions.items():
+            for i, parameters in enumerate(parameter_set):
+                distribution = distribution_cls(**parameters)
+
+                samples = distribution.sample(
+                    sample_shape=(10, 10), random_state=self.random_state
+                )
+                assert (
+                    samples.shape == (10, 10) + batch_shapes[i]
+                ), f"sampling shape of {distribution}"
+
+    def test_sampling_shapes_3d(self):
+        batch_shapes = [(), (2,), (2, 3)]
+
+        for distribution_cls, parameter_set in self.distributions.items():
+            for i, parameters in enumerate(parameter_set):
+                distribution = distribution_cls(**parameters)
+
+                samples = distribution.sample(
+                    sample_shape=(10, 10, 2), random_state=self.random_state
+                )
+                assert (
+                    samples.shape == (10, 10, 2) + batch_shapes[i]
+                ), f"sampling shape of {distribution}"
