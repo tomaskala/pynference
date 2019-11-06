@@ -105,6 +105,14 @@ class NonPositive(Interval):
         return "non_positive"
 
 
+class ZeroOne(Interval):
+    def __init__(self):
+        super().__init__(lower=0.0, upper=1.0)
+
+    def __str__(self) -> str:
+        return "zero_one"
+
+
 class Integer(Constraint):
     def __call__(self, x: float) -> np.ndarray:
         return np.equal(np.mod(x, 1), 0)
@@ -166,7 +174,7 @@ positive = Positive()
 non_negative = NonNegative()
 negative = Negative()
 non_positive = NonPositive()
-zero_one = Interval(0.0, 1.0)
+zero_one = ZeroOne()
 interval = Interval
 integer = Integer()
 integer_interval = IntegerInterval

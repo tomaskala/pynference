@@ -9,6 +9,7 @@ from pynference.distributions.constraints import (
     Constraint,
     integer,
     integer_interval,
+    positive_integer,
     non_negative_integer,
     positive,
     real,
@@ -75,7 +76,7 @@ class Bernoulli(ExponentialFamily):
 
 
 class Binomial(ExponentialFamily):
-    _constraints: Dict[str, Constraint] = {"n": non_negative_integer, "p": zero_one}
+    _constraints: Dict[str, Constraint] = {"n": positive_integer, "p": zero_one}
 
     def __init__(
         self,

@@ -1,8 +1,9 @@
 from typing import Dict, List, Optional, Union
 
 import numpy as np
+import pytest
 import scipy.stats as stats
-from pytest import approx
+from pytest import approx, raises
 
 from pynference.constants import Parameter, Shape
 from pynference.distributions import (
@@ -194,10 +195,10 @@ class TestBroadcasting:
                     fst_params["upper"] = np.ceil(fst_params["upper"]).astype(int)
                     snd_params["upper"] = np.ceil(snd_params["upper"]).astype(int)
 
-                # Hack to make all `n` parameter integral.
+                # Hack to make all `n` parameter positive integers.
                 if "n" in fst_params and "n" in snd_params:
-                    fst_params["n"] = fst_params["n"].astype(int)
-                    snd_params["n"] = snd_params["n"].astype(int)
+                    fst_params["n"] = fst_params["n"].astype(int) + 1
+                    snd_params["n"] = snd_params["n"].astype(int) + 1
 
                 fst = distribution_cls(**fst_params)
                 snd = distribution_cls(**snd_params)
@@ -375,3 +376,67 @@ class TestLogProb:
             assert distribution.log_prob(samples) == approx(
                 scipy_distribution.logpmf(samples), rel=self.rtol, abs=self.atol
             ), f"log_prob of {distribution}"
+
+
+class TestParameterConstraints:
+    def test_bernoulli(self):
+        with raises(ValueError, match=r".*zero_one.*"):
+            Bernoulli(p=-1.0)
+            Bernoulli(p=0.0)
+            Bernoulli(p=1.0)
+            Bernoulli(p=2.0)
+
+    def test_binomial(self):
+        with raises(ValueError, match=r".*positive_integer.*"):
+            Binomial(n=-1, p=0.5)
+            Binomial(n=0, p=0.5)
+            Binomial(n=-1.5, p=0.5)
+            Binomial(n=3.1, p=0.5)
+            Binomial(n=10.0, p=0.5)
+
+        with raises(ValueError, match=r".*zero_one.*"):
+            Binomial(n=10, p=-1.0)
+            Binomial(n=10, p=0.0)
+            Binomial(n=10, p=1.0)
+            Binomial(n=10, p=2.0)
+
+    def test_dirac(self):
+        with raises(ValueError, match=r".*real.*"):
+            Dirac(x=np.nan)
+            Dirac(x=-np.inf)
+            Dirac(x=np.inf)
+
+    @pytest.mark.filterwarnings("ignore", category=RuntimeWarning)
+    def test_discrete_uniform(self):
+        with raises(ValueError, match=r".*integer.*"):
+            DiscreteUniform(lower=-10.0, upper=10.0)
+            DiscreteUniform(lower=-10.5, upper=10.5)
+
+        with raises(ValueError, match=r".*strictly lower.*"):
+            DiscreteUniform(lower=-10, upper=-20)
+            DiscreteUniform(lower=10, upper=10)
+            DiscreteUniform(lower=20, upper=10)
+
+    def test_geometric(self):
+        with raises(ValueError, match=r".*zero_one.*"):
+            Geometric(p=-1.0)
+            Geometric(p=0.0)
+            Geometric(p=1.0)
+            Geometric(p=2.0)
+
+    def test_negative_binomial(self):
+        with raises(ValueError, match=r".*positive.*"):
+            NegativeBinomial(r=-1.0, p=0.5)
+            NegativeBinomial(r=0.0, p=0.5)
+
+        with raises(ValueError, match=r".*zero_one.*"):
+            NegativeBinomial(r=10, p=-1.0)
+            NegativeBinomial(r=10, p=0.0)
+            NegativeBinomial(r=10, p=1.0)
+            NegativeBinomial(r=10, p=2.0)
+
+    def test_poisson(self):
+        with raises(ValueError, match=r".*positive.*"):
+            Poisson(rate=-1.0)
+            Poisson(rate=0.0)
+
