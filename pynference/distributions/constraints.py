@@ -175,6 +175,7 @@ class ZeroOneInteger(IntegerInterval):
     def __str__(self) -> str:
         return "binary"
 
+
 real = Real()
 real_vector = RealVector()
 positive = Positive()
