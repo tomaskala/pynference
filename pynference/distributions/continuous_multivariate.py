@@ -30,8 +30,11 @@ class Dirichlet(ExponentialFamily):
         check_parameters: bool = True,
         check_support: bool = True,
     ):
-        batch_shape = np.shape(concentration[:-1])
-        rv_shape = np.shape(concentration[-1])
+        if np.ndim(concentration) < 1:
+            raise ValueError("The concentration parameter must be at least 1-dimensional.")
+
+        batch_shape = concentration.shape[:-1]
+        rv_shape = concentration.shape[-1:]
 
         self.concentration = concentration
         self.concentration_sum = np.sum(concentration, axis=-1, keepdims=True)
