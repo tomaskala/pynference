@@ -4,11 +4,11 @@ from pytest import approx
 from scipy.special import factorial
 
 from pynference.distributions.utils import (
+    arraywise_diagonal,
     broadcast_shapes,
     log_binomial_coefficient,
     promote_shapes,
     sum_last,
-    arraywise_diagonal,
 )
 
 
@@ -159,7 +159,9 @@ def test_arraywise_diagonal1():
 
 def test_arraywise_diagonal2():
     batch_single = np.array([[4.0], [5.0], [6.0]])
-    assert arraywise_diagonal(batch_single) == approx(np.array([[[4.0]], [[5.0]], [[6.0]]]), rel=1e-5, abs=1e-5)
+    assert arraywise_diagonal(batch_single) == approx(
+        np.array([[[4.0]], [[5.0]], [[6.0]]]), rel=1e-5, abs=1e-5
+    )
 
 
 def test_arraywise_diagonal3():
@@ -169,61 +171,71 @@ def test_arraywise_diagonal3():
 
 def test_arraywise_diagonal4():
     batch_diagonal = np.arange(6.0).reshape(2, 3) + 1.0
-    expected = np.array([
-        [[1., 0., 0.],
-         [0., 2., 0.],
-         [0., 0., 3.]],
-        [[4., 0., 0.],
-         [0., 5., 0.],
-         [0., 0., 6.]]
-    ])
+    expected = np.array(
+        [
+            [[1.0, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 3.0]],
+            [[4.0, 0.0, 0.0], [0.0, 5.0, 0.0], [0.0, 0.0, 6.0]],
+        ]
+    )
     assert arraywise_diagonal(batch_diagonal) == approx(expected, rel=1e-5, abs=1e-5)
 
 
 def test_arraywise_diagonal5():
-    arange = np.arange(8.)
-    ones = np.ones(shape=(8,4))
+    arange = np.arange(8.0)
+    ones = np.ones(shape=(8, 4))
     large_diagonal = arange.reshape(-1, 1) * ones
 
-    expected = np.array([
-           [[0., 0., 0., 0.],
-            [0., 0., 0., 0.],
-            [0., 0., 0., 0.],
-            [0., 0., 0., 0.]],
-
-           [[1., 0., 0., 0.],
-            [0., 1., 0., 0.],
-            [0., 0., 1., 0.],
-            [0., 0., 0., 1.]],
-
-           [[2., 0., 0., 0.],
-            [0., 2., 0., 0.],
-            [0., 0., 2., 0.],
-            [0., 0., 0., 2.]],
-
-           [[3., 0., 0., 0.],
-            [0., 3., 0., 0.],
-            [0., 0., 3., 0.],
-            [0., 0., 0., 3.]],
-
-           [[4., 0., 0., 0.],
-            [0., 4., 0., 0.],
-            [0., 0., 4., 0.],
-            [0., 0., 0., 4.]],
-
-           [[5., 0., 0., 0.],
-            [0., 5., 0., 0.],
-            [0., 0., 5., 0.],
-            [0., 0., 0., 5.]],
-
-           [[6., 0., 0., 0.],
-            [0., 6., 0., 0.],
-            [0., 0., 6., 0.],
-            [0., 0., 0., 6.]],
-
-           [[7., 0., 0., 0.],
-            [0., 7., 0., 0.],
-            [0., 0., 7., 0.],
-            [0., 0., 0., 7.]]])
+    expected = np.array(
+        [
+            [
+                [0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0],
+            ],
+            [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+            [
+                [2.0, 0.0, 0.0, 0.0],
+                [0.0, 2.0, 0.0, 0.0],
+                [0.0, 0.0, 2.0, 0.0],
+                [0.0, 0.0, 0.0, 2.0],
+            ],
+            [
+                [3.0, 0.0, 0.0, 0.0],
+                [0.0, 3.0, 0.0, 0.0],
+                [0.0, 0.0, 3.0, 0.0],
+                [0.0, 0.0, 0.0, 3.0],
+            ],
+            [
+                [4.0, 0.0, 0.0, 0.0],
+                [0.0, 4.0, 0.0, 0.0],
+                [0.0, 0.0, 4.0, 0.0],
+                [0.0, 0.0, 0.0, 4.0],
+            ],
+            [
+                [5.0, 0.0, 0.0, 0.0],
+                [0.0, 5.0, 0.0, 0.0],
+                [0.0, 0.0, 5.0, 0.0],
+                [0.0, 0.0, 0.0, 5.0],
+            ],
+            [
+                [6.0, 0.0, 0.0, 0.0],
+                [0.0, 6.0, 0.0, 0.0],
+                [0.0, 0.0, 6.0, 0.0],
+                [0.0, 0.0, 0.0, 6.0],
+            ],
+            [
+                [7.0, 0.0, 0.0, 0.0],
+                [0.0, 7.0, 0.0, 0.0],
+                [0.0, 0.0, 7.0, 0.0],
+                [0.0, 0.0, 0.0, 7.0],
+            ],
+        ]
+    )
 
     assert arraywise_diagonal(large_diagonal) == approx(expected, rel=1e-5, abs=1e-5)
