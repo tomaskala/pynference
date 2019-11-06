@@ -49,9 +49,6 @@ class Beta(ExponentialFamily):
             check_support=check_support,
         )
 
-        self._gamma1 = Gamma(self.shape1, 1.0)
-        self._gamma2 = Gamma(self.shape2, 1.0)
-
     @property
     def mean(self) -> Parameter:
         return self.shape1 / (self.shape1 + self.shape2)
@@ -71,8 +68,8 @@ class Beta(ExponentialFamily):
         )
 
     def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        x = self._gamma1.sample(sample_shape, random_state)
-        y = self._gamma2.sample(sample_shape, random_state)
+        x = random_state.standard_gamma(self.shape1, sample_shape + self.batch_shape)
+        y = random_state.standard_gamma(self.shape2, sample_shape + self.batch_shape)
         return x / (x + y)
 
     @property
