@@ -58,3 +58,8 @@ def arraywise_diagonal(diagonals: np.ndarray) -> np.ndarray:
     out[..., diag_indices, diag_indices] = diagonals
 
     return out
+
+
+def replicate_along_last_axis(array: np.ndarray, last_dim: Shape) -> np.ndarray:
+    expanded = array[..., np.newaxis]
+    return np.broadcast_to(expanded, expanded.shape[:-1] + last_dim)

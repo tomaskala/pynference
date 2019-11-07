@@ -8,6 +8,7 @@ from pynference.distributions.utils import (
     broadcast_shapes,
     log_binomial_coefficient,
     promote_shapes,
+    replicate_along_last_axis,
     sum_last,
 )
 
@@ -239,3 +240,37 @@ def test_arraywise_diagonal5():
     )
 
     assert arraywise_diagonal(large_diagonal) == approx(expected, rel=1e-5, abs=1e-5)
+
+
+def test_replicate_along_last_axis1():
+    array = np.array([1.0])
+    new_last_shape = (4,)
+    replicated = replicate_along_last_axis(array, new_last_shape)
+    expected = np.array([[1.0, 1.0, 1.0, 1.0]])
+
+    assert replicated == approx(expected, rel=1e-5, abs=1e-5)
+
+
+def test_replicate_along_last_axis2():
+    array = np.array([1.0, 2.0, 3.0])
+    new_last_shape = (4,)
+    replicated = replicate_along_last_axis(array, new_last_shape)
+    expected = np.array(
+        [[1.0, 1.0, 1.0, 1.0], [2.0, 2.0, 2.0, 2.0], [3.0, 3.0, 3.0, 3.0]]
+    )
+
+    assert replicated == approx(expected, rel=1e-5, abs=1e-5)
+
+
+def test_replicate_along_last_axis3():
+    array = np.array([[1.0, 2.0], [3.0, 4.0]])
+    new_last_shape = (4,)
+    replicated = replicate_along_last_axis(array, new_last_shape)
+    expected = np.array(
+        [
+            [[1.0, 1.0, 1.0, 1.0], [2.0, 2.0, 2.0, 2.0]],
+            [[3.0, 3.0, 3.0, 3.0], [4.0, 4.0, 4.0, 4.0]],
+        ]
+    )
+
+    assert replicated == approx(expected, rel=1e-5, abs=1e-5)
