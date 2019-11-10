@@ -311,7 +311,13 @@ class MultivariateNormal(ExponentialFamily):
         return np.power(2.0 * np.pi, -self.rv_shape[0] / 2.0)
 
     def sufficient_statistic(self, x: Variate) -> Tuple[ArrayLike, ...]:
-        return x, np.outer(x, x)
+        if np.isscalar(x):
+            x = np.expand_dims(x, axis=-1)
+
+        batch_outer = np.matmul(
+            x[..., np.newaxis], np.swapaxes(x[..., np.newaxis], -2, -1)
+        )
+        return x, batch_outer
 
 
 class MultivariateT(Distribution):
