@@ -2,7 +2,7 @@ from enum import Enum, auto
 from typing import Dict, Tuple
 
 import numpy as np
-import scipy.linalg as la
+import numpy.linalg as la  # Not SciPy, NumPy works for batches of matrices.
 from numpy.random import RandomState
 from scipy.special import gammaln
 
