@@ -4,6 +4,7 @@ from typing import Dict, Tuple
 import numpy as np
 import numpy.linalg as la  # Not SciPy, NumPy works for batches of matrices.
 from numpy.random import RandomState
+from scipy.linalg import solve_triangular
 from scipy.special import gammaln
 
 from pynference.constants import ArrayLike, Parameter, Shape, Variate
@@ -33,6 +34,8 @@ from pynference.distributions.utils import (
 # TODO: mean: scalar/vector/matrix, variance_diag & precision_diag: vector/matrix
 # TODO: mean: scalar/vector/matrix, covariance_matrix & precision_matrix & cholesky_triu: matrix & matrices
 # TODO: Are all the np.broadcast_to necessary?
+# TODO: Replace np.matmul by @ if they are equivalent.
+# TODO: Test the new constraints, including those from discrete distributions.
 
 
 class Dirichlet(ExponentialFamily):
@@ -279,11 +282,84 @@ class MultivariateNormal(ExponentialFamily):
 
     def _log_prob(self, x: Variate) -> ArrayLike:
         if self._scale_type == ScaleType.SCALAR:
-            pass
+            half_log_det = self._half_log_det_scalar()
+            mahalanobis_squared = self._mahalanobis_squared_scalar(x - self._mean)
         elif self._scale_type == ScaleType.VECTOR:
-            pass
+            half_log_det = self._half_log_det_vector()
+            mahalanobis_squared = self._mahalanobis_squared_vector(x - self._mean)
         else:
-            pass
+            half_log_det = self._half_log_det_matrix()
+            mahalanobis_squared = self._mahalanobis_squared_matrix(x - self._mean)
+
+        normalizer = half_log_det + 0.5 * self.rv_shape[0] * np.log(2.0 * np.pi)
+        return -0.5 * mahalanobis_squared - normalizer
+
+    def _half_log_det_scalar(self):
+        return -0.5 * self.rv_dim * np.log(self._precision)
+
+    def _half_log_det_vector(self):
+        return -0.5 * np.sum(np.log(self._precision_diag), axis=-1)
+
+    def _half_log_det_matrix(self):
+        return np.sum(
+            np.log(np.diagonal(self._cholesky_tril, axis1=-2, axis2=-1)), axis=-1
+        )
+
+    def _mahalanobis_squared_scalar(self, centered_x: Variate):
+        return self._precision * np.sum(np.square(centered_x), axis=-1)
+
+    def _mahalanobis_squared_vector(self, centered_x: Variate):
+        return np.sum(self._precision_diag * np.square(centered_x), axis=-1)
+
+    def _mahalanobis_squared_matrix(self, centered_x: Variate):
+        # Source: https://github.com/pyro-ppl/numpyro/blob/master/numpyro/distributions/continuous.py.
+        # This procedure handles the case:
+        # self._cholesky_tril.shape = (i, 1, n, n), centered_x.shape = (i, j, n),
+        # because we do not want to broadcast self._cholesky_tril to the shape (i, j, n, n).
+
+        # Assume that self._cholesky_tril.shape = (i, 1, n, n), centered_x.shape = (..., i, j, n),
+        # we are going to make centered_x have shape (..., 1, j,  i, 1, n) to apply batched tril_solve.
+        sample_ndim = (
+            np.ndim(centered_x) - np.ndim(self._cholesky_tril) + 1
+        )  # size of sample_shape
+        out_shape = np.shape(centered_x)[:-1]  # shape of output
+        # Reshape centered_x with the shape (..., 1, i, j, 1, n).
+        centered_x_new_shape = out_shape[:sample_ndim]
+
+        for (sL, sx) in zip(self._cholesky_tril.shape[:-2], out_shape[sample_ndim:]):
+            centered_x_new_shape += (sx // sL, sL)
+
+        centered_x_new_shape += (-1,)
+        centered_x = np.reshape(centered_x, centered_x_new_shape)
+        # Permute centered_x to make it have shape (..., 1, j, i, 1, n).
+        permute_dims = (
+            tuple(range(sample_ndim))
+            + tuple(range(sample_ndim, centered_x.ndim - 1, 2))
+            + tuple(range(sample_ndim + 1, centered_x.ndim - 1, 2))
+            + (centered_x.ndim - 1,)
+        )
+        centered_x = np.transpose(centered_x, permute_dims)
+
+        # Reshape to (-1, i, 1, n).
+        xt = np.reshape(centered_x, (-1,) + self._cholesky_tril.shape[:-1])
+        # Permute to (i, 1, n, -1).
+        xt = np.moveaxis(xt, 0, -1)
+        solved_triangular = solve_triangular(
+            self._cholesky_tril, xt, lower=True
+        )  # shape: (i, 1, n, -1)
+        M = np.sum(solved_triangular ** 2, axis=-2)  # shape: (i, 1, -1)
+        # Permute back to (-1, i, 1).
+        M = np.moveaxis(M, -1, 0)
+        # Reshape back to (..., 1, j, i, 1).
+        M = np.reshape(M, centered_x.shape[:-1])
+        # Permute back to (..., 1, i, j, 1).
+        permute_inv_dims = tuple(range(sample_ndim))
+
+        for i in range(self._cholesky_tril.ndim - 2):
+            permute_inv_dims += (sample_ndim + i, len(out_shape) + i)
+
+        M = np.transpose(M, permute_inv_dims)
+        return np.reshape(M, out_shape)
 
     def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
         epsilon = random_state.standard_normal(
@@ -302,16 +378,21 @@ class MultivariateNormal(ExponentialFamily):
     @property
     def natural_parameter(self) -> Tuple[Parameter, ...]:
         precision = self.precision_matrix
-        return np.matmul(precision, self.mean), -0.5 * precision
+        return np.matmul(precision, self._mean), -0.5 * precision
 
     @property
     def log_normalizer(self) -> Parameter:
         if self._scale_type == ScaleType.SCALAR:
-            pass
+            half_log_det = self._half_log_det_scalar()
+            mahalanobis_squared = self._mahalanobis_squared_scalar(self._mean)
         elif self._scale_type == ScaleType.VECTOR:
-            pass
+            half_log_det = self._half_log_det_vector()
+            mahalanobis_squared = self._mahalanobis_squared_vector(self._mean)
         else:
-            pass
+            half_log_det = self._half_log_det_matrix()
+            mahalanobis_squared = self._mahalanobis_squared_matrix(self._mean)
+
+        return 0.5 * mahalanobis_squared + half_log_det
 
     def base_measure(self, x: Variate) -> ArrayLike:
         return np.power(2.0 * np.pi, -self.rv_shape[0] / 2.0)
