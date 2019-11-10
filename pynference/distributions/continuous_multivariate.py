@@ -301,11 +301,17 @@ class MultivariateNormal(ExponentialFamily):
 
     @property
     def natural_parameter(self) -> Tuple[Parameter, ...]:
-        pass
+        precision = self.precision_matrix
+        return np.matmul(precision, self.mean), -0.5 * precision
 
     @property
     def log_normalizer(self) -> Parameter:
-        pass
+        if self._scale_type == ScaleType.SCALAR:
+            pass
+        elif self._scale_type == ScaleType.VECTOR:
+            pass
+        else:
+            pass
 
     def base_measure(self, x: Variate) -> ArrayLike:
         return np.power(2.0 * np.pi, -self.rv_shape[0] / 2.0)
