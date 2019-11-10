@@ -170,6 +170,9 @@ class MultivariateNormal(ExponentialFamily):
 
             if variance is not None:
                 precision = np.reciprocal(variance)
+                self._std = np.sqrt(variance)
+            else:
+                self._std = np.reciprocal(np.sqrt(precision))
 
             batch_shape = broadcast_shapes(np.shape(mean)[:-1], np.shape(precision))
             rv_shape = np.shape(mean)[-1:]
@@ -181,6 +184,9 @@ class MultivariateNormal(ExponentialFamily):
 
             if variance_diag is not None:
                 precision_diag = np.reciprocal(variance_diag)
+                self._std_diag = np.sqrt(variance_diag)
+            else:
+                self._std_diag = np.reciprocal(np.sqrt(precision_diag))
 
             mean, precision_diag = promote_shapes(mean, precision_diag)
 
@@ -280,12 +286,18 @@ class MultivariateNormal(ExponentialFamily):
             pass
 
     def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
+        epsilon = random_state.standard_normal(
+            sample_shape + self.batch_shape + self.rv_shape
+        )
+
         if self._scale_type == ScaleType.SCALAR:
-            pass
+            return self._mean + self._std * epsilon
         elif self._scale_type == ScaleType.VECTOR:
-            pass
+            return self._mean + self._std_diag * epsilon
         else:
-            pass
+            return self._mean + np.squeeze(
+                np.matmul(self._cholesky_tril, epsilon[..., np.newaxis]), axis=-1
+            )
 
     @property
     def natural_parameter(self) -> Tuple[Parameter, ...]:
