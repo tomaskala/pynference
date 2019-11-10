@@ -210,22 +210,24 @@ class MultivariateNormal(ExponentialFamily):
         return self._mean
 
     @property
-    def variance(self) -> Parameter:  # TODO: Return variance matrix diagonal.
+    def variance(self) -> Parameter:
         if self._scale_type == ScaleType.SCALAR:
-            pass
+            variance = np.reciprocal(self._precision)
+            return variance
         elif self._scale_type == ScaleType.VECTOR:
-            pass
+            variance_diag = np.reciprocal(self._precision_diag)
+            return variance_diag
         else:
-            pass
+            return np.sum(np.square(self._cholesky_tril), axis=-1)
 
     @property
-    def precision(self) -> Parameter:  # TODO: Return precision matrix diagonal.
+    def precision(self) -> Parameter:
         if self._scale_type == ScaleType.SCALAR:
-            pass
+            return self._precision
         elif self._scale_type == ScaleType.VECTOR:
-            pass
+            return self._precision_diag
         else:
-            pass
+            return np.reciprocal(np.sum(np.square(self._cholesky_tril), axis=-1))
 
     @property
     def covariance_matrix(self) -> Parameter:
