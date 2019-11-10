@@ -36,6 +36,7 @@ from pynference.distributions.utils import (
 # TODO: Are all the np.broadcast_to necessary?
 # TODO: Replace np.matmul by @ if they are equivalent.
 # TODO: Test the new constraints, including those from discrete distributions.
+# TODO: MVN natural parameter is not very memory-efficient now.
 
 
 class Dirichlet(ExponentialFamily):
