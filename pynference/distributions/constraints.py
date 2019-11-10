@@ -2,6 +2,7 @@ import abc
 from typing import Union
 
 import numpy as np
+import numpy.linalg as la  # Not SciPy, NumPy works for batches of matrices.
 
 from pynference.constants import ArrayLike
 
@@ -18,14 +19,6 @@ class Real(Constraint):
 
     def __str__(self) -> str:
         return "real"
-
-
-class RealVector(Constraint):
-    def __call__(self, x: np.ndarray) -> np.ndarray:
-        return np.all(np.isfinite(x), axis=-1)
-
-    def __str__(self) -> str:
-        return "real_vector"
 
 
 class Interval(Constraint):
@@ -187,8 +180,73 @@ class Simplex(Constraint):
         return "simplex"
 
 
+class RealVector(Constraint):
+    def __call__(self, x: np.ndarray) -> np.ndarray:
+        return np.all(np.isfinite(x), axis=-1)
+
+    def __str__(self) -> str:
+        return "real_vector"
+
+
+class PositiveVector(Constraint):
+    def __call__(self, x: np.ndarray) -> np.ndarray:
+        return np.all(x > 0, axis=-1)
+
+    def __str__(self) -> str:
+        return "positive_vector"
+
+
+class NonNegativeVector(Constraint):
+    def __call__(self, x: np.ndarray) -> np.ndarray:
+        return np.all(x >= 0, axis=-1)
+
+    def __str__(self) -> str:
+        return "non_negative_vector"
+
+
+class NegativeVector(Constraint):
+    def __call__(self, x: np.ndarray) -> np.ndarray:
+        return np.all(x < 0, axis=-1)
+
+    def __str__(self) -> str:
+        return "negative_vector"
+
+
+class NonPositiveVector(Constraint):
+    def __call__(self, x: np.ndarray) -> np.ndarray:
+        return np.all(x <= 0, axis=-1)
+
+    def __str__(self) -> str:
+        return "non_positive_vector"
+
+
+class PositiveDefinite(Constraint):
+    def __call__(self, x: np.ndarray) -> np.ndarray:
+        symmetric = np.all(np.all(x == np.swapaxes(x, -2, -1), axis=-1), axis=-1)
+        positive = la.eigvalsh(x)[..., 0] > 0.0  # Smallest eigval > 0.
+        return symmetric & positive
+
+    def __str__(self) -> str:
+        return "positive_definite"
+
+
+class LowerCholesky(Constraint):
+    def __call__(self, x: np.ndarray) -> np.ndarray:
+        tril = np.tril(x)
+        lower_triangular = np.all(np.reshape(tril == x, x.shape[:-2] + (-1,)), axis=-1)
+        positive_diagonal = np.all(np.diagonal(x, axis1=-2, axis2=-1) > 0, axis=-1)
+        return lower_triangular & positive_diagonal
+
+    def __str__(self) -> str:
+        return "lower_cholesky"
+
+
 real = Real()
 real_vector = RealVector()
+positive_vector = PositiveVector()
+non_negative_vector = NonNegativeVector()
+negative_vector = NegativeVector()
+non_positive_vector = NonPositiveVector()
 positive = Positive()
 non_negative = NonNegative()
 negative = Negative()
@@ -203,11 +261,12 @@ negative_integer = NegativeInteger()
 non_positive_integer = NonPositiveInteger()
 zero_one_integer = ZeroOneInteger()
 simplex = Simplex()
+positive_definite = PositiveDefinite()
+lower_cholesky = LowerCholesky()
 
 
 __all__ = [
     "real",
-    "real_vector",
     "positive",
     "non_negative",
     "negative",
@@ -222,4 +281,11 @@ __all__ = [
     "non_positive_integer",
     "zero_one_integer",
     "simplex",
+    "real_vector",
+    "positive_vector",
+    "non_negative_vector",
+    "negative_vector",
+    "non_positive_vector",
+    "positive_definite",
+    "lower_cholesky",
 ]

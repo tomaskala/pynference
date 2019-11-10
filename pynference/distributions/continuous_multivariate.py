@@ -7,7 +7,15 @@ from numpy.random import RandomState
 from scipy.special import gammaln
 
 from pynference.constants import ArrayLike, Parameter, Shape, Variate
-from pynference.distributions.constraints import Constraint, positive, simplex
+from pynference.distributions.constraints import (
+    Constraint,
+    lower_cholesky,
+    positive,
+    positive_definite,
+    positive_vector,
+    real_vector,
+    simplex,
+)
 from pynference.distributions.distribution import (
     Distribution,
     ExponentialFamily,
@@ -113,8 +121,17 @@ class ScaleType(Enum):
 
 
 class MultivariateNormal(ExponentialFamily):
-    _constraints: Dict[str, Constraint] = {}
-    _support: Constraint = None
+    _constraints: Dict[str, Constraint] = {
+        "mean": real_vector,
+        "variance": positive,
+        "precision": positive,
+        "variance_diag": positive_vector,
+        "precision_diag": positive_vector,
+        "covariance_matrix": positive_definite,
+        "precision_matrix": positive_definite,
+        "cholesky_tril": lower_cholesky,
+    }
+    _support: Constraint = real_vector
 
     def __init__(
         self,
