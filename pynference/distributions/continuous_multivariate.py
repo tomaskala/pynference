@@ -40,7 +40,7 @@ from pynference.distributions.utils import (
 
 
 class Dirichlet(ExponentialFamily):
-    _constraints: Dict[str, Constraint] = {"concentration": positive}
+    _constraints: Dict[str, Constraint] = {"concentration": positive_vector}
     _support: Constraint = simplex
 
     def __init__(
