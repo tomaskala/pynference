@@ -174,7 +174,7 @@ class Simplex(Constraint):
 
     def __call__(self, x: Union[float, np.ndarray]) -> np.ndarray:
         x_sum = np.sum(x, axis=-1)
-        return np.all(x > 0.0, axis=-1) & (x_sum <= 1.0) & (x_sum > 1.0 - self.eps)
+        return np.all(x > 0.0, axis=-1) & (np.abs(x_sum - 1.0) < self.eps)
 
     def __str__(self) -> str:
         return "simplex"
