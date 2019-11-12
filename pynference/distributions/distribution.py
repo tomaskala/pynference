@@ -55,7 +55,9 @@ class Distribution(abc.ABC):
         pass
 
     def log_prob(self, x: Variate) -> ArrayLike:
-        self._validate_input(x)
+        if self.check_support:
+            self._validate_input(x)
+
         return self._log_prob(x)
 
     @abc.abstractmethod
@@ -71,8 +73,8 @@ class Distribution(abc.ABC):
         pass
 
     def _validate_input(self, x: Variate):
-        if self.check_support and not np.all(self.support(x)):
-            raise ValueError(f"The parameter {x} lies outside the support.")
+        if not np.all(self.support(x)):
+            raise ValueError(f"The variate {x} lies outside the support.")
 
 
 class ExponentialFamily(Distribution):
