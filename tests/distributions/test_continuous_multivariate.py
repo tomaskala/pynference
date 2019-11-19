@@ -290,8 +290,16 @@ class TestLogProb:
             samples = distribution.sample(
                 sample_shape=(self.n_samples,), random_state=self.random_state
             )
+
+            if distribution_cls is Dirichlet:
+                # For some reason, the SciPy Dirichlet distribution expects
+                # the variates in a reversed shape.
+                scipy_result = scipy_distribution.logpdf(samples.T)
+            else:
+                scipy_result = scipy_distribution.logpdf(samples)
+
             assert distribution.log_prob(samples) == approx(
-                scipy_distribution.logpdf(samples), rel=self.rtol, abs=self.atol
+                scipy_result, rel=self.rtol, abs=self.atol
             ), f"log_prob of {distribution}"
 
 
