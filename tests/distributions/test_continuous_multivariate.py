@@ -5,7 +5,7 @@ import scipy.stats as stats
 from pytest import approx, raises
 
 from pynference.constants import Parameter, Shape
-from pynference.distributions import Dirichlet
+from pynference.distributions import Dirichlet, MultivariateNormal
 from pynference.utils import check_random_state
 
 
@@ -110,6 +110,7 @@ def generate(
     return parameters
 
 
+# TODO: Allow for more disjoint parameter combinations.
 class TestBroadcasting:
     random_state = check_random_state(123)
 
@@ -181,6 +182,29 @@ class TestExponentialFamilies:
         Dirichlet: generate(
             random_state, dim=5, shape=(), positive_vector="concentration"
         ),
+        MultivariateNormal: [
+            generate(
+                random_state, dim=5, shape=(), real_vector="mean", positive_vector="variance"
+            ),
+            generate(
+                random_state, dim=5, shape=(), real_vector="mean", positive="precision"
+            ),
+            #generate(
+                #random_state, dim=5, shape=(), real_vector="mean", positive="variance_diag"
+            #),
+            #generate(
+                #random_state, dim=5, shape=(), real_vector="mean", positive_vector="precision_diag"
+            #),
+            #generate(
+                #random_state, dim=5, shape=(), real_vector="mean", positive_definite_matrix="covariance_matrix"
+            #),
+            #generate(
+                #random_state, dim=5, shape=(), real_vector="mean", positive_definite_matrix="precision_matrix"
+            #),
+            #generate(
+                #random_state, dim=5, shape=(), real_vector="mean", lower_triangular_matrix="cholesky_tril"
+            #),
+        ]
     }
 
     n_samples = 20000
@@ -188,38 +212,46 @@ class TestExponentialFamilies:
     rtol = 1e-6
 
     def test_base_measure_positive_within_support(self):
-        for distribution_cls, parameters in self.distributions.items():
-            distribution = distribution_cls(**parameters)
+        for distribution_cls, p in self.distributions.items():
+            if not isinstance(p, list):
+                p = [p]
 
-            samples = distribution.sample(
-                sample_shape=(self.n_samples,), random_state=self.random_state
-            )
+            for parameters in p:
+                distribution = distribution_cls(**parameters)
 
-            assert np.all(
-                distribution.base_measure(samples) > 0
-            ), f"base measure of {distribution}"
+                samples = distribution.sample(
+                    sample_shape=(self.n_samples,), random_state=self.random_state
+                )
+
+                assert np.all(
+                    distribution.base_measure(samples) > 0
+                ), f"base measure of {distribution}"
 
     def test_log_probs_equal(self):
-        for distribution_cls, parameters in self.distributions.items():
-            distribution = distribution_cls(**parameters)
+        for distribution_cls, p in self.distributions.items():
+            if not isinstance(p, list):
+                p = [p]
 
-            samples = distribution.sample(
-                sample_shape=(self.n_samples,), random_state=self.random_state
-            )
+            for parameters in p:
+                distribution = distribution_cls(**parameters)
 
-            h_x = distribution.base_measure(samples)
-            eta = distribution.natural_parameter
-            t_x = distribution.sufficient_statistic(samples)
-            a_eta = distribution.log_normalizer
+                samples = distribution.sample(
+                    sample_shape=(self.n_samples,), random_state=self.random_state
+                )
 
-            # TODO: Write like this (using matmul instead of dot and reversing
-            # TODO: arguments) in other tests as well.
-            dot_product = sum(np.matmul(t, e) for e, t in zip(eta, t_x))
-            expected_log_prob = np.log(h_x) + dot_product - a_eta
+                h_x = distribution.base_measure(samples)
+                eta = distribution.natural_parameter
+                t_x = distribution.sufficient_statistic(samples)
+                a_eta = distribution.log_normalizer
 
-            assert distribution.log_prob(samples) == approx(
-                expected_log_prob, rel=self.rtol, abs=self.atol
-            ), f"log_prob of {distribution}"
+                # TODO: Write like this (using matmul instead of dot and reversing
+                # TODO: arguments) in other tests as well.
+                dot_product = sum(np.matmul(t, e) for e, t in zip(eta, t_x))
+                expected_log_prob = np.log(h_x) + dot_product - a_eta
+
+                assert distribution.log_prob(samples) == approx(
+                    expected_log_prob, rel=self.rtol, abs=self.atol
+                ), f"log_prob of {distribution}"
 
 
 class TestFirstTwoMoments:

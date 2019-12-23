@@ -296,7 +296,7 @@ class MultivariateNormal(ExponentialFamily):
         return -0.5 * mahalanobis_squared - normalizer
 
     def _half_log_det_scalar(self):
-        return -0.5 * self.rv_dim * np.log(self._precision)
+        return -0.5 * self.rv_shape[0] * np.log(self._precision)
 
     def _half_log_det_vector(self):
         return -0.5 * np.sum(np.log(self._precision_diag), axis=-1)
