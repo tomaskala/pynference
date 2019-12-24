@@ -192,7 +192,13 @@ class _MVNScalar(ExponentialFamily):
     @property
     def natural_parameter(self) -> Tuple[Parameter, ...]:
         precision = self.precision_matrix
-        return np.matmul(precision, self._mean), -0.5 * precision
+
+        # The matrix is vectorized so that the Frobenius product can be written
+        # as an ordinary dot product.
+        return (
+            np.matmul(precision, self._mean),
+            (-0.5 * precision).reshape(self.rv_shape[0] * self.rv_shape[0]),
+        )
 
     @property
     def log_normalizer(self) -> Parameter:
@@ -211,7 +217,10 @@ class _MVNScalar(ExponentialFamily):
         batch_outer = np.matmul(
             x[..., np.newaxis], np.swapaxes(x[..., np.newaxis], -2, -1)
         )
-        return x, batch_outer
+
+        # The matrix is vectorized so that the Frobenius product can be written
+        # as an ordinary dot product.
+        return x, batch_outer.reshape(-1, self.rv_shape[0] * self.rv_shape[0])
 
 
 class _MVNVector(ExponentialFamily):
@@ -287,7 +296,13 @@ class _MVNVector(ExponentialFamily):
     @property
     def natural_parameter(self) -> Tuple[Parameter, ...]:
         precision = self.precision_matrix
-        return np.matmul(precision, self._mean), -0.5 * precision
+
+        # The matrix is vectorized so that the Frobenius product can be written
+        # as an ordinary dot product.
+        return (
+            np.matmul(precision, self._mean),
+            (-0.5 * precision).reshape(self.rv_shape[0] * self.rv_shape[0]),
+        )
 
     @property
     def log_normalizer(self) -> Parameter:
@@ -306,7 +321,10 @@ class _MVNVector(ExponentialFamily):
         batch_outer = np.matmul(
             x[..., np.newaxis], np.swapaxes(x[..., np.newaxis], -2, -1)
         )
-        return x, batch_outer
+
+        # The matrix is vectorized so that the Frobenius product can be written
+        # as an ordinary dot product.
+        return x, batch_outer.reshape(-1, self.rv_shape[0] * self.rv_shape[0])
 
 
 class _MVNMatrix(ExponentialFamily):
@@ -429,7 +447,13 @@ class _MVNMatrix(ExponentialFamily):
     @property
     def natural_parameter(self) -> Tuple[Parameter, ...]:
         precision = self.precision_matrix
-        return np.matmul(precision, self._mean), -0.5 * precision
+
+        # The matrix is vectorized so that the Frobenius product can be written
+        # as an ordinary dot product.
+        return (
+            np.matmul(precision, self._mean),
+            (-0.5 * precision).reshape(self.rv_shape[0] * self.rv_shape[0]),
+        )
 
     @property
     def log_normalizer(self) -> Parameter:
@@ -448,7 +472,10 @@ class _MVNMatrix(ExponentialFamily):
         batch_outer = np.matmul(
             x[..., np.newaxis], np.swapaxes(x[..., np.newaxis], -2, -1)
         )
-        return x, batch_outer
+
+        # The matrix is vectorized so that the Frobenius product can be written
+        # as an ordinary dot product.
+        return x, batch_outer.reshape(-1, self.rv_shape[0] * self.rv_shape[0])
 
 
 # TODO: Check constraints manually.
@@ -484,6 +511,8 @@ def MultivariateNormal(
         mean = np.expand_dims(mean, axis=-1)
 
     if variance is not None or precision is not None:
+        # mean ... batch of vectors (B*, d)
+        # variance ... batch of scalars (B*,)
         if variance is not None:
             precision = np.reciprocal(variance)
             std = np.sqrt(variance)
@@ -494,7 +523,7 @@ def MultivariateNormal(
         rv_shape = np.shape(mean)[-1:]
 
         mean = np.broadcast_to(mean, batch_shape + rv_shape)
-        precision = np.broadcast_to(precision, batch_shape + rv_shape)
+        precision = np.broadcast_to(precision, batch_shape)
 
         return _MVNScalar(
             mean=mean,
@@ -506,6 +535,8 @@ def MultivariateNormal(
             check_support=check_support,
         )
     elif variance_diag is not None or precision_diag is not None:
+        # mean ... batch of vectors
+        # variance ... batch of vectors
         if variance_diag is not None:
             precision_diag = np.reciprocal(variance_diag)
             std_diag = np.sqrt(variance_diag)
@@ -532,6 +563,8 @@ def MultivariateNormal(
             check_support=check_support,
         )
     else:
+        # mean ... batch of vectors
+        # variance ... batch of matrices
         mean = mean[..., np.newaxis]
 
         if covariance_matrix is not None:

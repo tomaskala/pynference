@@ -177,22 +177,18 @@ class TestExponentialFamilies:
     random_state = check_random_state(123)
 
     distributions = {
-        Dirichlet: generate(
-            random_state, dim=5, shape=(), positive_vector="concentration"
-        ),
+        # Dirichlet: generate(
+        # random_state, dim=5, shape=(), positive_vector="concentration"
+        # ),
         MultivariateNormal: [
             generate(
-                random_state,
-                dim=5,
-                shape=(),
-                real_vector="mean",
-                positive_vector="variance",
+                random_state, dim=5, shape=(), real_vector="mean", positive="variance"
             ),
             generate(
                 random_state, dim=5, shape=(), real_vector="mean", positive="precision"
             ),
             # generate(
-            # random_state, dim=5, shape=(), real_vector="mean", positive="variance_diag"
+            # random_state, dim=5, shape=(), real_vector="mean", positive_vector="variance_diag"
             # ),
             # generate(
             # random_state, dim=5, shape=(), real_vector="mean", positive_vector="precision_diag"
@@ -206,7 +202,7 @@ class TestExponentialFamilies:
             # generate(
             # random_state, dim=5, shape=(), real_vector="mean", lower_triangular_matrix="cholesky_tril"
             # ),
-        ],
+        ]
     }
 
     n_samples = 20000
@@ -245,6 +241,15 @@ class TestExponentialFamilies:
                 eta = distribution.natural_parameter
                 t_x = distribution.sufficient_statistic(samples)
                 a_eta = distribution.log_normalizer
+
+                print("Natural parameter")
+                print([np.shape(e) for e in eta])
+                print("Sufficient statistic")
+                print([np.shape(t) for t in t_x])
+
+                # eta shapes: (5,), (5, 5)
+                # t_x shapes: (20000, 5), (20000, 5, 5)
+                # needed: matmul such that it results in (20000,), (20000,)
 
                 # TODO: Write like this (using matmul instead of dot and reversing
                 # TODO: arguments) in other tests as well.
