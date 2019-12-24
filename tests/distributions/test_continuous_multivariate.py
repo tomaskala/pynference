@@ -114,9 +114,7 @@ def generate(
 class TestBroadcasting:
     random_state = check_random_state(123)
 
-    distributions = {
-        Dirichlet: ["concentration"],
-    }
+    distributions = {Dirichlet: ["concentration"]}
 
     n_samples = 100
     atol = 1e-6
@@ -184,27 +182,31 @@ class TestExponentialFamilies:
         ),
         MultivariateNormal: [
             generate(
-                random_state, dim=5, shape=(), real_vector="mean", positive_vector="variance"
+                random_state,
+                dim=5,
+                shape=(),
+                real_vector="mean",
+                positive_vector="variance",
             ),
             generate(
                 random_state, dim=5, shape=(), real_vector="mean", positive="precision"
             ),
-            #generate(
-                #random_state, dim=5, shape=(), real_vector="mean", positive="variance_diag"
-            #),
-            #generate(
-                #random_state, dim=5, shape=(), real_vector="mean", positive_vector="precision_diag"
-            #),
-            #generate(
-                #random_state, dim=5, shape=(), real_vector="mean", positive_definite_matrix="covariance_matrix"
-            #),
-            #generate(
-                #random_state, dim=5, shape=(), real_vector="mean", positive_definite_matrix="precision_matrix"
-            #),
-            #generate(
-                #random_state, dim=5, shape=(), real_vector="mean", lower_triangular_matrix="cholesky_tril"
-            #),
-        ]
+            # generate(
+            # random_state, dim=5, shape=(), real_vector="mean", positive="variance_diag"
+            # ),
+            # generate(
+            # random_state, dim=5, shape=(), real_vector="mean", positive_vector="precision_diag"
+            # ),
+            # generate(
+            # random_state, dim=5, shape=(), real_vector="mean", positive_definite_matrix="covariance_matrix"
+            # ),
+            # generate(
+            # random_state, dim=5, shape=(), real_vector="mean", positive_definite_matrix="precision_matrix"
+            # ),
+            # generate(
+            # random_state, dim=5, shape=(), real_vector="mean", lower_triangular_matrix="cholesky_tril"
+            # ),
+        ],
     }
 
     n_samples = 20000
@@ -269,7 +271,7 @@ class TestFirstTwoMoments:
             generate(
                 random_state, dim=10, shape=(2, 3), positive_vector="concentration"
             ),
-        ),
+        )
     }
 
     n_samples = 200000
@@ -300,12 +302,10 @@ class TestLogProb:
     distributions = {
         Dirichlet: generate(
             random_state, dim=5, shape=(), positive_vector="concentration"
-        ),
+        )
     }
 
-    dist2scipy = {
-        Dirichlet: lambda dist: stats.dirichlet(alpha=dist.concentration),
-    }
+    dist2scipy = {Dirichlet: lambda dist: stats.dirichlet(alpha=dist.concentration)}
 
     n_samples = 100
     atol = 1e-6
@@ -385,7 +385,7 @@ class TestSamplingShapes:
                 ),
                 10,
             ),
-        ),
+        )
     }
 
     def test_sampling_shapes_0d(self):
