@@ -118,7 +118,11 @@ def cholesky_inverse(matrix: np.ndarray) -> np.ndarray:
 
 
 class _MVNScalar(ExponentialFamily):
-    _constraints: Dict[str, Constraint] = {"mean": real_vector, "precision": positive}
+    _constraints: Dict[str, Constraint] = {
+        "mean": real_vector,
+        "precision": positive,
+        "std": positive,
+    }
     _support: Constraint = real_vector
 
     def __init__(
@@ -214,6 +218,7 @@ class _MVNVector(ExponentialFamily):
     _constraints: Dict[str, Constraint] = {
         "mean": real_vector,
         "precision_diag": positive_vector,
+        "std_diag": positive_vector,
     }
     _support: Constraint = real_vector
 
