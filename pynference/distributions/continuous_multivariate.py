@@ -114,7 +114,7 @@ def cholesky_inverse(matrix: np.ndarray) -> np.ndarray:
         la.cholesky(matrix[..., ::-1, ::-1])[..., ::-1, ::-1], -2, -1
     )
     identity = np.broadcast_to(np.identity(matrix.shape[-1]), tril_inv.shape)
-    return la.solve_triangular(tril_inv, identity, lower=True)
+    return solve_triangular(tril_inv, identity, lower=True)
 
 
 class _MVNScalar(ExponentialFamily):
