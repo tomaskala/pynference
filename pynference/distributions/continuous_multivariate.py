@@ -3,6 +3,7 @@ from typing import Dict, Tuple
 import numpy as np
 import numpy.linalg as la  # Not SciPy, NumPy works for batches of matrices.
 from numpy.random import RandomState
+from scipy.linalg import solve_triangular
 from scipy.special import gammaln
 
 from pynference.constants import ArrayLike, Parameter, Shape, Variate
@@ -107,12 +108,16 @@ class InverseWishart(TransformedDistribution):
     pass
 
 
-def cholesky_inverse(matrix: np.ndarray) -> np.ndarray:
+def cholesky_inverse(matrix: np.ndarray, batch_shape) -> np.ndarray:
     tril_inv = np.swapaxes(
         la.cholesky(matrix[..., ::-1, ::-1])[..., ::-1, ::-1], -2, -1
     )
     identity = np.broadcast_to(np.identity(matrix.shape[-1]), tril_inv.shape)
-    return la.solve(tril_inv, identity)
+
+    if batch_shape == ():
+        return solve_triangular(tril_inv, identity, lower=True)
+    else:
+        return la.solve(tril_inv, identity)
 
 
 class _MVNScalar(ExponentialFamily):
@@ -433,7 +438,16 @@ class _MVNMatrix(ExponentialFamily):
         xt = np.reshape(centered_x, (-1,) + self._cholesky_tril.shape[:-1])
         # Permute to (i, 1, n, -1).
         xt = np.moveaxis(xt, 0, -1)
-        solved_triangular = la.solve(self._cholesky_tril, xt)  # shape: (i, 1, n, -1)
+
+        if self.batch_shape == ():
+            solved_triangular = solve_triangular(
+                self._cholesky_tril, xt, lower=True
+            )  # shape: (i, 1, n, -1)
+        else:
+            solved_triangular = la.solve(
+                self._cholesky_tril, xt
+            )  # shape: (i, 1, n, -1)
+
         M = np.sum(solved_triangular ** 2, axis=-2)  # shape: (i, 1, -1)
         # Permute back to (-1, i, 1).
         M = np.moveaxis(M, -1, 0)
@@ -599,17 +613,26 @@ def MultivariateNormal(
         if covariance_matrix is not None:
             mean, covariance_matrix = promote_shapes(mean, covariance_matrix)
             cholesky_tril = la.cholesky(covariance_matrix)
+
+            batch_shape = broadcast_shapes(
+                np.shape(mean)[:-2], np.shape(cholesky_tril)[:-2]
+            )
         elif precision_matrix is not None:
             mean, precision_matrix = promote_shapes(mean, precision_matrix)
-            cholesky_tril = cholesky_inverse(precision_matrix)
+
+            batch_shape = broadcast_shapes(
+                np.shape(mean)[:-2], np.shape(precision_matrix)[:-2]
+            )
+
+            cholesky_tril = cholesky_inverse(precision_matrix, batch_shape)
         else:
             mean, cholesky_tril = promote_shapes(mean, cholesky_tril)
 
-        batch_shape = broadcast_shapes(
-            np.shape(mean)[:-2], np.shape(cholesky_tril)[:-2]
-        )
-        rv_shape = np.shape(cholesky_tril)[-1:]
+            batch_shape = broadcast_shapes(
+                np.shape(mean)[:-2], np.shape(cholesky_tril)[:-2]
+            )
 
+        rv_shape = np.shape(cholesky_tril)[-1:]
         mean = np.broadcast_to(np.squeeze(mean, axis=-1), batch_shape + rv_shape)
 
         return _MVNMatrix(
