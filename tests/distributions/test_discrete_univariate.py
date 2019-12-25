@@ -223,7 +223,7 @@ class TestExponentialFamilies:
         Poisson: generate(random_state, shape=(), positive="rate"),
     }
 
-    n_samples = 20000
+    n_samples = 100
     atol = 1e-6
     rtol = 1e-6
 
