@@ -183,12 +183,26 @@ class TestExponentialFamilies:
     random_state = check_random_state(123)
 
     distributions = {
-        Dirichlet: generate(
-            random_state, dim=5, shape=(), positive_vector="concentration"
-        ),
+        Dirichlet: [
+            generate(random_state, dim=5, shape=(), positive_vector="concentration"),
+            generate(random_state, dim=5, shape=(4,), positive_vector="concentration"),
+            generate(
+                random_state, dim=5, shape=(4, 3), positive_vector="concentration"
+            ),
+        ],
         MultivariateNormal: [
             generate(
                 random_state, dim=5, shape=(), real_vector="mean", positive="variance"
+            ),
+            generate(
+                random_state, dim=5, shape=(4,), real_vector="mean", positive="variance"
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(4, 3),
+                real_vector="mean",
+                positive="variance",
             ),
             generate(
                 random_state, dim=5, shape=(), real_vector="mean", positive="precision"
@@ -196,7 +210,35 @@ class TestExponentialFamilies:
             generate(
                 random_state,
                 dim=5,
+                shape=(4,),
+                real_vector="mean",
+                positive="precision",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(4, 3),
+                real_vector="mean",
+                positive="precision",
+            ),
+            generate(
+                random_state,
+                dim=5,
                 shape=(),
+                real_vector="mean",
+                positive_vector="variance_diag",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(4,),
+                real_vector="mean",
+                positive_vector="variance_diag",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(4, 3),
                 real_vector="mean",
                 positive_vector="variance_diag",
             ),
@@ -210,7 +252,35 @@ class TestExponentialFamilies:
             generate(
                 random_state,
                 dim=5,
+                shape=(4,),
+                real_vector="mean",
+                positive_vector="precision_diag",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(4, 3),
+                real_vector="mean",
+                positive_vector="precision_diag",
+            ),
+            generate(
+                random_state,
+                dim=5,
                 shape=(),
+                real_vector="mean",
+                positive_definite_matrix="covariance_matrix",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(4,),
+                real_vector="mean",
+                positive_definite_matrix="covariance_matrix",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(4, 3),
                 real_vector="mean",
                 positive_definite_matrix="covariance_matrix",
             ),
@@ -224,16 +294,44 @@ class TestExponentialFamilies:
             generate(
                 random_state,
                 dim=5,
+                shape=(4,),
+                real_vector="mean",
+                positive_definite_matrix="precision_matrix",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(4, 3),
+                real_vector="mean",
+                positive_definite_matrix="precision_matrix",
+            ),
+            generate(
+                random_state,
+                dim=5,
                 shape=(),
+                real_vector="mean",
+                lower_triangular_matrix="cholesky_tril",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(4,),
+                real_vector="mean",
+                lower_triangular_matrix="cholesky_tril",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(4, 3),
                 real_vector="mean",
                 lower_triangular_matrix="cholesky_tril",
             ),
         ],
     }
 
-    n_samples = 20000
-    atol = 1e-6
-    rtol = 1e-6
+    n_samples = 5000
+    atol = 1e-2
+    rtol = 1e-2
 
     def test_base_measure_positive_within_support(self):
         for distribution_cls, p in self.distributions.items():
@@ -268,9 +366,13 @@ class TestExponentialFamilies:
                 t_x = distribution.sufficient_statistic(samples)
                 a_eta = distribution.log_normalizer
 
-                # TODO: Write like this (using matmul instead of dot and reversing
-                # TODO: arguments) in other tests as well.
-                dot_product = sum(np.matmul(t, e) for e, t in zip(eta, t_x))
+                print("Natural parameter")
+                print([np.shape(e) for e in eta])
+                print("Sufficient statistic")
+                print([np.shape(t) for t in t_x])
+
+                # TODO: Write like this (using elementwise multiplication and sum) in the other tests as well.
+                dot_product = sum(np.sum(e * t, axis=-1) for e, t in zip(eta, t_x))
                 expected_log_prob = np.log(h_x) + dot_product - a_eta
 
                 assert distribution.log_prob(samples) == approx(

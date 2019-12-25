@@ -3,7 +3,6 @@ from typing import Dict, Tuple
 import numpy as np
 import numpy.linalg as la  # Not SciPy, NumPy works for batches of matrices.
 from numpy.random import RandomState
-from scipy.linalg import solve_triangular
 from scipy.special import gammaln
 
 from pynference.constants import ArrayLike, Parameter, Shape, Variate
@@ -33,7 +32,7 @@ from pynference.distributions.utils import (
 # TODO: mean: scalar/vector/matrix, variance_diag & precision_diag: vector/matrix
 # TODO: mean: scalar/vector/matrix, covariance_matrix & precision_matrix & cholesky_triu: matrix & matrices
 # TODO: Are all the np.broadcast_to necessary?
-# TODO: Replace np.matmul by @ if they are equivalent.
+# TODO: Replace np.matmul by @.
 # TODO: Test the new constraints, including those from discrete distributions.
 # TODO: MVN natural parameter is not very memory-efficient now.
 
@@ -109,12 +108,11 @@ class InverseWishart(TransformedDistribution):
 
 
 def cholesky_inverse(matrix: np.ndarray) -> np.ndarray:
-    # https://nbviewer.jupyter.org/gist/fehiepsi/5ef8e09e61604f10607380467eb82006#Precision-to-scale_tril
     tril_inv = np.swapaxes(
         la.cholesky(matrix[..., ::-1, ::-1])[..., ::-1, ::-1], -2, -1
     )
     identity = np.broadcast_to(np.identity(matrix.shape[-1]), tril_inv.shape)
-    return solve_triangular(tril_inv, identity, lower=True)
+    return la.solve(tril_inv, identity)
 
 
 class _MVNScalar(ExponentialFamily):
@@ -187,7 +185,7 @@ class _MVNScalar(ExponentialFamily):
         epsilon = random_state.standard_normal(
             sample_shape + self.batch_shape + self.rv_shape
         )
-        return self._mean + self._std * epsilon
+        return self._mean + self._std[..., np.newaxis] * epsilon
 
     @property
     def natural_parameter(self) -> Tuple[Parameter, ...]:
@@ -196,8 +194,10 @@ class _MVNScalar(ExponentialFamily):
         # The matrix is vectorized so that the Frobenius product can be written
         # as an ordinary dot product.
         return (
-            np.matmul(precision, self._mean),
-            (-0.5 * precision).reshape(self.rv_shape[0] * self.rv_shape[0]),
+            np.sum(precision * self._mean[..., np.newaxis], axis=-1),
+            (-0.5 * precision).reshape(
+                self.batch_shape + (self.rv_shape[0] * self.rv_shape[0],)
+            ),
         )
 
     @property
@@ -220,7 +220,12 @@ class _MVNScalar(ExponentialFamily):
 
         # The matrix is vectorized so that the Frobenius product can be written
         # as an ordinary dot product.
-        return x, batch_outer.reshape(-1, self.rv_shape[0] * self.rv_shape[0])
+        return (
+            x,
+            batch_outer.reshape(
+                (-1,) + self.batch_shape + (self.rv_shape[0] * self.rv_shape[0],)
+            ),
+        )
 
 
 class _MVNVector(ExponentialFamily):
@@ -300,8 +305,10 @@ class _MVNVector(ExponentialFamily):
         # The matrix is vectorized so that the Frobenius product can be written
         # as an ordinary dot product.
         return (
-            np.matmul(precision, self._mean),
-            (-0.5 * precision).reshape(self.rv_shape[0] * self.rv_shape[0]),
+            np.sum(precision * self._mean[..., np.newaxis], axis=-1),
+            (-0.5 * precision).reshape(
+                self.batch_shape + (self.rv_shape[0] * self.rv_shape[0],)
+            ),
         )
 
     @property
@@ -324,7 +331,12 @@ class _MVNVector(ExponentialFamily):
 
         # The matrix is vectorized so that the Frobenius product can be written
         # as an ordinary dot product.
-        return x, batch_outer.reshape(-1, self.rv_shape[0] * self.rv_shape[0])
+        return (
+            x,
+            batch_outer.reshape(
+                (-1,) + self.batch_shape + (self.rv_shape[0] * self.rv_shape[0],)
+            ),
+        )
 
 
 class _MVNMatrix(ExponentialFamily):
@@ -367,12 +379,14 @@ class _MVNMatrix(ExponentialFamily):
 
     @property
     def covariance_matrix(self) -> Parameter:
-        return self._cholesky_tril @ self._cholesky_tril.T
+        cholesky_tril_T = np.swapaxes(self._cholesky_tril, -1, -2)
+        return self._cholesky_tril @ cholesky_tril_T
 
     @property
     def precision_matrix(self) -> Parameter:
         cholesky_tril_inv = la.inv(self._cholesky_tril)
-        return cholesky_tril_inv.T @ cholesky_tril_inv
+        cholesky_tril_inv_T = np.swapaxes(cholesky_tril_inv, -1, -2)
+        return cholesky_tril_inv_T @ cholesky_tril_inv
 
     def _log_prob(self, x: Variate) -> ArrayLike:
         half_log_det = self._half_log_det()
@@ -419,9 +433,7 @@ class _MVNMatrix(ExponentialFamily):
         xt = np.reshape(centered_x, (-1,) + self._cholesky_tril.shape[:-1])
         # Permute to (i, 1, n, -1).
         xt = np.moveaxis(xt, 0, -1)
-        solved_triangular = solve_triangular(
-            self._cholesky_tril, xt, lower=True
-        )  # shape: (i, 1, n, -1)
+        solved_triangular = la.solve(self._cholesky_tril, xt)  # shape: (i, 1, n, -1)
         M = np.sum(solved_triangular ** 2, axis=-2)  # shape: (i, 1, -1)
         # Permute back to (-1, i, 1).
         M = np.moveaxis(M, -1, 0)
@@ -445,14 +457,32 @@ class _MVNMatrix(ExponentialFamily):
         )
 
     @property
-    def natural_parameter(self) -> Tuple[Parameter, ...]:
+    def _natural_parameter(self) -> Tuple[Parameter, ...]:
         precision = self.precision_matrix
 
         # The matrix is vectorized so that the Frobenius product can be written
         # as an ordinary dot product.
         return (
-            np.matmul(precision, self._mean),
-            (-0.5 * precision).reshape(self.rv_shape[0] * self.rv_shape[0]),
+            np.sum(precision * self._mean[..., np.newaxis], axis=-1),
+            (-0.5 * precision).reshape(
+                self.batch_shape + (self.rv_shape[0] * self.rv_shape[0],)
+            ),
+        )
+
+    @property
+    def natural_parameter(self) -> Tuple[Parameter, ...]:
+        precision = self.precision_matrix
+        covariance = self.covariance_matrix
+        precision_mean = la.solve(covariance, self._mean)
+
+        # The matrix is vectorized so that the Frobenius product can be written
+        # as an ordinary dot product.
+        return (
+            # np.matmul(precision, self._mean),
+            precision_mean,
+            (-0.5 * precision).reshape(
+                self.batch_shape + (self.rv_shape[0] * self.rv_shape[0],)
+            ),
         )
 
     @property
@@ -475,7 +505,12 @@ class _MVNMatrix(ExponentialFamily):
 
         # The matrix is vectorized so that the Frobenius product can be written
         # as an ordinary dot product.
-        return x, batch_outer.reshape(-1, self.rv_shape[0] * self.rv_shape[0])
+        return (
+            x,
+            batch_outer.reshape(
+                (-1,) + self.batch_shape + (self.rv_shape[0] * self.rv_shape[0],)
+            ),
+        )
 
 
 # TODO: Check constraints manually.
@@ -511,8 +546,6 @@ def MultivariateNormal(
         mean = np.expand_dims(mean, axis=-1)
 
     if variance is not None or precision is not None:
-        # mean ... batch of vectors (B*, d)
-        # variance ... batch of scalars (B*,)
         if variance is not None:
             precision = np.reciprocal(variance)
             std = np.sqrt(variance)
@@ -535,8 +568,6 @@ def MultivariateNormal(
             check_support=check_support,
         )
     elif variance_diag is not None or precision_diag is not None:
-        # mean ... batch of vectors
-        # variance ... batch of vectors
         if variance_diag is not None:
             precision_diag = np.reciprocal(variance_diag)
             std_diag = np.sqrt(variance_diag)
@@ -563,8 +594,6 @@ def MultivariateNormal(
             check_support=check_support,
         )
     else:
-        # mean ... batch of vectors
-        # variance ... batch of matrices
         mean = mean[..., np.newaxis]
 
         if covariance_matrix is not None:
