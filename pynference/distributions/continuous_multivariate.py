@@ -28,10 +28,6 @@ from pynference.distributions.utils import (
     replicate_along_last_axis,
 )
 
-# TODO: Thoroughly test all cases of the multivariate normal distribution.
-# TODO: mean: scalar/vector/matrix, variance & precision: scalar/vector/matrix
-# TODO: mean: scalar/vector/matrix, variance_diag & precision_diag: vector/matrix
-# TODO: mean: scalar/vector/matrix, covariance_matrix & precision_matrix & cholesky_triu: matrix & matrices
 # TODO: Are all the np.broadcast_to necessary?
 # TODO: Replace np.matmul by @.
 # TODO: Test the new constraints, including those from discrete distributions.
