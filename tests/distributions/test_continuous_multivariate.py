@@ -116,67 +116,309 @@ def generate(
     return parameters
 
 
-# TODO: Allow for more disjoint parameter combinations.
 class TestBroadcasting:
     random_state = check_random_state(123)
-
-    distributions = {Dirichlet: ["concentration"]}
 
     n_samples = 100
     atol = 1e-6
     rtol = 1e-6
 
-    def test_broadcasting(self):
-        for distribution_cls, params in self.distributions.items():
-            # Try setting each parameter to X and the others to aranges.
-            # X == one distribution gets [[1.0]], the other [[1.0, 1.0], [1.0, 1.0]].
-            fst_params = {}
-            snd_params = {}
+    def test_dirichlet(self):
+        fst = Dirichlet(concentration=np.array([[1.0, 1.0], [1.0, 1.0]]))
+        snd = Dirichlet(concentration=np.array(1.0).reshape(1, 1))
 
-            for p1 in params:
-                fst_params[p1] = np.full(shape=(2, 2), fill_value=1.0)
-                snd_params[p1] = np.array(1.0).reshape(1, 1)
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
 
-                for p2 in params:
-                    if p1 == p2:
-                        continue
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
 
-                    fst_params[p2] = np.arange(2, 6, dtype=float).reshape(2, 2)
-                    snd_params[p2] = np.arange(2, 6, dtype=float).reshape(2, 2)
+    def test_mvn_scalar1(self):
+        # scalar, scalar
+        fst = MultivariateNormal(mean=1.0, variance=np.array([1.0]))
+        snd = MultivariateNormal(mean=np.array(1.0).reshape(1, 1), variance=1.0)
 
-                # Hack to make all lower bounds < upper bounds.
-                if (
-                    "lower" in fst_params
-                    and "upper" in fst_params
-                    and "lower" in snd_params
-                    and "upper" in snd_params
-                ):
-                    if np.all(fst_params["lower"] >= fst_params["upper"]):
-                        fst_params["lower"], fst_params["upper"] = (
-                            fst_params["upper"],
-                            fst_params["lower"],
-                        )
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
 
-                        fst_params["upper"] += 1.0
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == snd.batch_shape == (1,)
+        assert fst.rv_shape == snd.rv_shape == (1,)
 
-                    if np.all(snd_params["lower"] >= snd_params["upper"]):
-                        snd_params["lower"], snd_params["upper"] = (
-                            snd_params["upper"],
-                            snd_params["lower"],
-                        )
+        # scalar, vector
+        fst = MultivariateNormal(mean=1.0, variance=np.ones(shape=(2, 2)))
+        snd = MultivariateNormal(mean=1.0, variance=np.ones(shape=(1, 2)))
 
-                        snd_params["upper"] += 1.0
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
 
-                fst = distribution_cls(**fst_params)
-                snd = distribution_cls(**snd_params)
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (1, 2)
+        assert fst.rv_shape == snd.rv_shape == (1,)
 
-                samples = fst.sample(
-                    sample_shape=(self.n_samples,), random_state=self.random_state
-                )
+        # scalar, matrix
+        fst = MultivariateNormal(mean=1.0, variance=np.ones(shape=(2, 2, 2)))
+        snd = MultivariateNormal(mean=1.0, variance=np.ones(shape=(1, 1, 2)))
 
-                assert fst.log_prob(samples) == approx(
-                    snd.log_prob(samples), rel=self.rtol, abs=self.atol
-                ), f"log_prob of {fst}"
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2, 2)
+        assert snd.batch_shape == (1, 1, 2)
+        assert fst.rv_shape == snd.rv_shape == (1,)
+
+        # vector, scalar
+        fst = MultivariateNormal(mean=np.ones(shape=(2, 2)), variance=1.0)
+        snd = MultivariateNormal(mean=np.ones(shape=(1, 2)), variance=1.0)
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2,)
+        assert snd.batch_shape == (1,)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # vector, vector
+        fst = MultivariateNormal(mean=np.ones(shape=(2, 2)), variance=np.ones(shape=(2, 2)))
+        snd = MultivariateNormal(mean=np.ones(shape=(1, 2)), variance=np.ones(shape=(2, 2)))
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # vector, matrix
+        fst = MultivariateNormal(mean=np.ones(shape=(2, 2)), variance=np.ones(shape=(2, 2, 2)))
+        snd = MultivariateNormal(mean=np.ones(shape=(1, 2)), variance=np.ones(shape=(2, 2, 2)))
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2, 2)
+        assert snd.batch_shape == (2, 2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # matrix, scalar
+        fst = MultivariateNormal(mean=np.ones(shape=(2, 2, 2)), variance=1.0)
+        snd = MultivariateNormal(mean=np.ones(shape=(1, 1, 2)), variance=1.0)
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (1, 1)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # matrix, vector
+        fst = MultivariateNormal(mean=np.ones(shape=(2, 2, 2)), variance=np.ones(shape=(2, 2)))
+        snd = MultivariateNormal(mean=np.ones(shape=(1, 1, 2)), variance=np.ones(shape=(2, 2)))
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # matrix, matrix
+        fst = MultivariateNormal(mean=np.ones(shape=(2, 2, 2)), variance=np.ones(shape=(2, 2, 2)))
+        snd = MultivariateNormal(mean=np.ones(shape=(1, 1, 2)), variance=np.ones(shape=(2, 2, 2)))
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2, 2)
+        assert snd.batch_shape == (2, 2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+    def test_mvn_scalar2(self):
+        # scalar, scalar
+        fst = MultivariateNormal(mean=1.0, precision=np.array([1.0]))
+        snd = MultivariateNormal(mean=np.array(1.0).reshape(1, 1), precision=1.0)
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == snd.batch_shape == (1,)
+        assert fst.rv_shape == snd.rv_shape == (1,)
+
+        # scalar, vector
+        fst = MultivariateNormal(mean=1.0, precision=np.ones(shape=(2, 2)))
+        snd = MultivariateNormal(mean=1.0, precision=np.ones(shape=(1, 2)))
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (1, 2)
+        assert fst.rv_shape == snd.rv_shape == (1,)
+
+        # scalar, matrix
+        fst = MultivariateNormal(mean=1.0, precision=np.ones(shape=(2, 2, 2)))
+        snd = MultivariateNormal(mean=1.0, precision=np.ones(shape=(1, 1, 2)))
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2, 2)
+        assert snd.batch_shape == (1, 1, 2)
+        assert fst.rv_shape == snd.rv_shape == (1,)
+
+        # vector, scalar
+        fst = MultivariateNormal(mean=np.ones(shape=(2, 2)), precision=1.0)
+        snd = MultivariateNormal(mean=np.ones(shape=(1, 2)), precision=1.0)
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2,)
+        assert snd.batch_shape == (1,)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # vector, vector
+        fst = MultivariateNormal(mean=np.ones(shape=(2, 2)), precision=np.ones(shape=(2, 2)))
+        snd = MultivariateNormal(mean=np.ones(shape=(1, 2)), precision=np.ones(shape=(2, 2)))
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # vector, matrix
+        fst = MultivariateNormal(mean=np.ones(shape=(2, 2)), precision=np.ones(shape=(2, 2, 2)))
+        snd = MultivariateNormal(mean=np.ones(shape=(1, 2)), precision=np.ones(shape=(2, 2, 2)))
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2, 2)
+        assert snd.batch_shape == (2, 2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # matrix, scalar
+        fst = MultivariateNormal(mean=np.ones(shape=(2, 2, 2)), precision=1.0)
+        snd = MultivariateNormal(mean=np.ones(shape=(1, 1, 2)), precision=1.0)
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (1, 1)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # matrix, vector
+        fst = MultivariateNormal(mean=np.ones(shape=(2, 2, 2)), precision=np.ones(shape=(2, 2)))
+        snd = MultivariateNormal(mean=np.ones(shape=(1, 1, 2)), precision=np.ones(shape=(2, 2)))
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # matrix, matrix
+        fst = MultivariateNormal(mean=np.ones(shape=(2, 2, 2)), precision=np.ones(shape=(2, 2, 2)))
+        snd = MultivariateNormal(mean=np.ones(shape=(1, 1, 2)), precision=np.ones(shape=(2, 2, 2)))
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2, 2)
+        assert snd.batch_shape == (2, 2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+    def test_mvn_vector1(self):
+        pass
+
+    def test_mvn_vector2(self):
+        pass
+
+    def test_mvn_matrix1(self):
+        pass
+
+    def test_mvn_matrix2(self):
+        pass
+
+    def test_mvn_matrix3(self):
+        pass
 
 
 class TestExponentialFamilies:
@@ -329,7 +571,7 @@ class TestExponentialFamilies:
         ],
     }
 
-    n_samples = 5000
+    n_samples = 100
     atol = 1e-2
     rtol = 1e-2
 
