@@ -29,7 +29,6 @@ from pynference.distributions.utils import (
 )
 
 # TODO: Are all the np.broadcast_to necessary?
-# TODO: Replace np.matmul by @.
 # TODO: Test the new constraints, including those from discrete distributions.
 # TODO: MVN natural parameter is not very memory-efficient now.
 
@@ -217,9 +216,7 @@ class _MVNScalar(ExponentialFamily):
         if np.isscalar(x):
             x = np.expand_dims(x, axis=-1)
 
-        batch_outer = np.matmul(
-            x[..., np.newaxis], np.swapaxes(x[..., np.newaxis], -2, -1)
-        )
+        batch_outer = x[..., np.newaxis] @ np.swapaxes(x[..., np.newaxis], -2, -1)
 
         # The matrix is vectorized so that the Frobenius product can be written
         # as an ordinary dot product.
@@ -328,9 +325,7 @@ class _MVNVector(ExponentialFamily):
         if np.isscalar(x):
             x = np.expand_dims(x, axis=-1)
 
-        batch_outer = np.matmul(
-            x[..., np.newaxis], np.swapaxes(x[..., np.newaxis], -2, -1)
-        )
+        batch_outer = x[..., np.newaxis] @ np.swapaxes(x[..., np.newaxis], -2, -1)
 
         # The matrix is vectorized so that the Frobenius product can be written
         # as an ordinary dot product.
@@ -465,7 +460,7 @@ class _MVNMatrix(ExponentialFamily):
             sample_shape + self.batch_shape + self.rv_shape
         )
         return self._mean + np.squeeze(
-            np.matmul(self._cholesky_tril, epsilon[..., np.newaxis]), axis=-1
+            self._cholesky_tril @ epsilon[..., np.newaxis], axis=-1
         )
 
     @property
@@ -490,7 +485,6 @@ class _MVNMatrix(ExponentialFamily):
         # The matrix is vectorized so that the Frobenius product can be written
         # as an ordinary dot product.
         return (
-            # np.matmul(precision, self._mean),
             precision_mean,
             (-0.5 * precision).reshape(
                 self.batch_shape + (self.rv_shape[0] * self.rv_shape[0],)
@@ -511,9 +505,7 @@ class _MVNMatrix(ExponentialFamily):
         if np.isscalar(x):
             x = np.expand_dims(x, axis=-1)
 
-        batch_outer = np.matmul(
-            x[..., np.newaxis], np.swapaxes(x[..., np.newaxis], -2, -1)
-        )
+        batch_outer = x[..., np.newaxis] @ np.swapaxes(x[..., np.newaxis], -2, -1)
 
         # The matrix is vectorized so that the Frobenius product can be written
         # as an ordinary dot product.
