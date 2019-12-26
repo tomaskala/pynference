@@ -1,6 +1,7 @@
 from typing import Dict, List, Optional, Union
 
 import numpy as np
+import numpy.linalg as la
 import scipy.stats as stats
 from pytest import approx, raises
 
@@ -1493,6 +1494,7 @@ class TestLogProb:
 
             if distribution_cls not in self.dist2scipy:
                 continue
+
             scipy_distribution = self.dist2scipy[distribution_cls](distribution)
 
             samples = distribution.sample(
@@ -1509,6 +1511,159 @@ class TestLogProb:
             assert distribution.log_prob(samples) == approx(
                 scipy_result, rel=self.rtol, abs=self.atol
             ), f"log_prob of {distribution}"
+
+    def test_log_prob_mvn_scalar1(self):
+        params = generate(
+            self.random_state, dim=5, shape=(), real_vector="mean", positive="variance"
+        )
+
+        distribution = MultivariateNormal(**params)
+        scipy_distribution = stats.multivariate_normal(
+            mean=params["mean"], cov=params["variance"]
+        )
+
+        samples = distribution.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+        scipy_result = scipy_distribution.logpdf(samples)
+
+        assert distribution.log_prob(samples) == approx(
+            scipy_result, rel=self.rtol, abs=self.atol
+        ), f"log_prob of {distribution}"
+
+    def test_log_prob_mvn_scalar2(self):
+        params = generate(
+            self.random_state, dim=5, shape=(), real_vector="mean", positive="precision"
+        )
+
+        distribution = MultivariateNormal(**params)
+        scipy_distribution = stats.multivariate_normal(
+            mean=params["mean"], cov=1.0 / params["precision"]
+        )
+
+        samples = distribution.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+        scipy_result = scipy_distribution.logpdf(samples)
+
+        assert distribution.log_prob(samples) == approx(
+            scipy_result, rel=self.rtol, abs=self.atol
+        ), f"log_prob of {distribution}"
+
+    def test_log_prob_mvn_vector1(self):
+        params = generate(
+            self.random_state,
+            dim=5,
+            shape=(),
+            real_vector="mean",
+            positive_vector="variance_diag",
+        )
+
+        distribution = MultivariateNormal(**params)
+        scipy_distribution = stats.multivariate_normal(
+            mean=params["mean"], cov=np.diag(params["variance_diag"])
+        )
+
+        samples = distribution.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+        scipy_result = scipy_distribution.logpdf(samples)
+
+        assert distribution.log_prob(samples) == approx(
+            scipy_result, rel=self.rtol, abs=self.atol
+        ), f"log_prob of {distribution}"
+
+    def test_log_prob_mvn_vector2(self):
+        params = generate(
+            self.random_state,
+            dim=5,
+            shape=(),
+            real_vector="mean",
+            positive_vector="precision_diag",
+        )
+
+        distribution = MultivariateNormal(**params)
+        scipy_distribution = stats.multivariate_normal(
+            mean=params["mean"], cov=np.diag(np.reciprocal(params["precision_diag"]))
+        )
+
+        samples = distribution.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+        scipy_result = scipy_distribution.logpdf(samples)
+
+        assert distribution.log_prob(samples) == approx(
+            scipy_result, rel=self.rtol, abs=self.atol
+        ), f"log_prob of {distribution}"
+
+    def test_log_prob_mvn_matrix1(self):
+        params = generate(
+            self.random_state,
+            dim=5,
+            shape=(),
+            real_vector="mean",
+            positive_definite_matrix="covariance_matrix",
+        )
+
+        distribution = MultivariateNormal(**params)
+        scipy_distribution = stats.multivariate_normal(
+            mean=params["mean"], cov=params["covariance_matrix"]
+        )
+
+        samples = distribution.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+        scipy_result = scipy_distribution.logpdf(samples)
+
+        assert distribution.log_prob(samples) == approx(
+            scipy_result, rel=self.rtol, abs=self.atol
+        ), f"log_prob of {distribution}"
+
+    def test_log_prob_mvn_matrix2(self):
+        params = generate(
+            self.random_state,
+            dim=5,
+            shape=(),
+            real_vector="mean",
+            positive_definite_matrix="precision_matrix",
+        )
+
+        distribution = MultivariateNormal(**params)
+        scipy_distribution = stats.multivariate_normal(
+            mean=params["mean"], cov=la.inv(params["precision_matrix"])
+        )
+
+        samples = distribution.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+        scipy_result = scipy_distribution.logpdf(samples)
+
+        assert distribution.log_prob(samples) == approx(
+            scipy_result, rel=self.rtol, abs=self.atol
+        ), f"log_prob of {distribution}"
+
+    def test_log_prob_mvn_matrix3(self):
+        params = generate(
+            self.random_state,
+            dim=5,
+            shape=(),
+            real_vector="mean",
+            lower_triangular_matrix="cholesky_tril",
+        )
+
+        distribution = MultivariateNormal(**params)
+        scipy_distribution = stats.multivariate_normal(
+            mean=params["mean"], cov=params["cholesky_tril"] @ params["cholesky_tril"].T
+        )
+
+        samples = distribution.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+        scipy_result = scipy_distribution.logpdf(samples)
+
+        assert distribution.log_prob(samples) == approx(
+            scipy_result, rel=self.rtol, abs=self.atol
+        ), f"log_prob of {distribution}"
 
 
 class TestParameterConstraints:
