@@ -208,7 +208,7 @@ class TestExponentialFamilies:
             t_x = distribution.sufficient_statistic(samples)
             a_eta = distribution.log_normalizer
 
-            dot_product = sum(np.dot(e, t) for e, t in zip(eta, t_x))
+            dot_product = sum(e * t for e, t in zip(eta, t_x))
             expected_log_prob = np.log(h_x) + dot_product - a_eta
 
             assert distribution.log_prob(samples) == approx(

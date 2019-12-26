@@ -1214,7 +1214,6 @@ class TestExponentialFamilies:
                 t_x = distribution.sufficient_statistic(samples)
                 a_eta = distribution.log_normalizer
 
-                # TODO: Write like this (using elementwise multiplication and sum) in the other tests as well.
                 dot_product = sum(np.sum(e * t, axis=-1) for e, t in zip(eta, t_x))
                 expected_log_prob = np.log(h_x) + dot_product - a_eta
 
