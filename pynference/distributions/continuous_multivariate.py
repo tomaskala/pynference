@@ -28,7 +28,6 @@ from pynference.distributions.utils import (
     replicate_along_last_axis,
 )
 
-# TODO: Are all the np.broadcast_to necessary?
 # TODO: Test the new constraints, including those from discrete distributions.
 # TODO: MVN natural parameter is not very memory-efficient now.
 
@@ -607,9 +606,6 @@ def MultivariateNormal(
         )
         rv_shape = np.shape(precision_diag)[-1:]
 
-        mean = np.broadcast_to(mean, batch_shape + rv_shape)
-        precision_diag = np.broadcast_to(precision_diag, batch_shape + rv_shape)
-
         return _MVNVector(
             mean=mean,
             precision_diag=precision_diag,
@@ -658,7 +654,7 @@ def MultivariateNormal(
             )
 
         rv_shape = np.shape(cholesky_tril)[-1:]
-        mean = np.broadcast_to(np.squeeze(mean, axis=-1), batch_shape + rv_shape)
+        mean = np.squeeze(mean, axis=-1)
 
         return _MVNMatrix(
             mean=mean,
