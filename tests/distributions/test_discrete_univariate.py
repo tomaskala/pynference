@@ -382,62 +382,85 @@ class TestParameterConstraints:
     def test_bernoulli(self):
         with raises(ValueError, match=r".*zero_one.*"):
             Bernoulli(p=-1.0)
+        with raises(ValueError, match=r".*zero_one.*"):
             Bernoulli(p=0.0)
+        with raises(ValueError, match=r".*zero_one.*"):
             Bernoulli(p=1.0)
+        with raises(ValueError, match=r".*zero_one.*"):
             Bernoulli(p=2.0)
 
     def test_binomial(self):
         with raises(ValueError, match=r".*positive_integer.*"):
             Binomial(n=-1, p=0.5)
+        with raises(ValueError, match=r".*positive_integer.*"):
             Binomial(n=0, p=0.5)
+        with raises(ValueError, match=r".*positive_integer.*"):
             Binomial(n=-1.5, p=0.5)
+        with raises(ValueError, match=r".*positive_integer.*"):
             Binomial(n=3.1, p=0.5)
-            Binomial(n=10.0, p=0.5)
+        with raises(ValueError, match=r".*positive_integer.*"):
+            Binomial(n=10.000001, p=0.5)
 
         with raises(ValueError, match=r".*zero_one.*"):
             Binomial(n=10, p=-1.0)
+        with raises(ValueError, match=r".*zero_one.*"):
             Binomial(n=10, p=0.0)
+        with raises(ValueError, match=r".*zero_one.*"):
             Binomial(n=10, p=1.0)
+        with raises(ValueError, match=r".*zero_one.*"):
             Binomial(n=10, p=2.0)
 
     def test_dirac(self):
         with raises(ValueError, match=r".*real.*"):
             Dirac(x=np.nan)
+        with raises(ValueError, match=r".*real.*"):
             Dirac(x=-np.inf)
+        with raises(ValueError, match=r".*real.*"):
             Dirac(x=np.inf)
 
     @pytest.mark.filterwarnings("ignore", category=RuntimeWarning)
     def test_discrete_uniform(self):
         with raises(ValueError, match=r".*integer.*"):
-            DiscreteUniform(lower=-10.0, upper=10.0)
+            DiscreteUniform(lower=-10.0, upper=10.000001)
+        with raises(ValueError, match=r".*integer.*"):
             DiscreteUniform(lower=-10.5, upper=10.5)
 
         with raises(ValueError, match=r".*strictly lower.*"):
             DiscreteUniform(lower=-10, upper=-20)
+        with raises(ValueError, match=r".*strictly lower.*"):
             DiscreteUniform(lower=10, upper=10)
+        with raises(ValueError, match=r".*strictly lower.*"):
             DiscreteUniform(lower=20, upper=10)
 
     def test_geometric(self):
         with raises(ValueError, match=r".*zero_one.*"):
             Geometric(p=-1.0)
+        with raises(ValueError, match=r".*zero_one.*"):
             Geometric(p=0.0)
+        with raises(ValueError, match=r".*zero_one.*"):
             Geometric(p=1.0)
+        with raises(ValueError, match=r".*zero_one.*"):
             Geometric(p=2.0)
 
     def test_negative_binomial(self):
         with raises(ValueError, match=r".*positive.*"):
             NegativeBinomial(r=-1.0, p=0.5)
+        with raises(ValueError, match=r".*positive.*"):
             NegativeBinomial(r=0.0, p=0.5)
 
         with raises(ValueError, match=r".*zero_one.*"):
             NegativeBinomial(r=10, p=-1.0)
+        with raises(ValueError, match=r".*zero_one.*"):
             NegativeBinomial(r=10, p=0.0)
+        with raises(ValueError, match=r".*zero_one.*"):
             NegativeBinomial(r=10, p=1.0)
+        with raises(ValueError, match=r".*zero_one.*"):
             NegativeBinomial(r=10, p=2.0)
 
     def test_poisson(self):
         with raises(ValueError, match=r".*positive.*"):
             Poisson(rate=-1.0)
+        with raises(ValueError, match=r".*positive.*"):
             Poisson(rate=0.0)
 
 

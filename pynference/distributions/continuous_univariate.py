@@ -451,15 +451,25 @@ class Normal(ExponentialFamily):
                 "Provide exactly one of the variance, precision or standard deviation parameters."
             )
 
-        elif precision is not None:
-            variance = np.reciprocal(precision)
-        else:
-            variance = np.square(std)
+        self._mean = mean
 
-        batch_shape = broadcast_shapes(np.shape(mean), np.shape(variance))
+        if variance is not None:
+            self._variance = variance
+            self._precision = np.reciprocal(self._variance)
+            self._std = np.sqrt(self._variance)
+        elif precision is not None:
+            self._precision = precision
+            self._variance = np.reciprocal(self._precision)
+            self._std = np.sqrt(self._variance)
+        elif std is not None:
+            self._std = std
+            self._variance = np.square(self._std)
+            self._precision = np.reciprocal(self._variance)
+
+        batch_shape = broadcast_shapes(np.shape(self._mean), np.shape(self._variance))
         rv_shape = ()
 
-        self._mean, self._variance = promote_shapes(mean, variance)
+        self._mean, self._variance, self._precision, self._std = promote_shapes(self._mean, self._variance, self._precision, self._std)
 
         super().__init__(
             batch_shape=batch_shape,
@@ -467,9 +477,6 @@ class Normal(ExponentialFamily):
             check_parameters=check_parameters,
             check_support=check_support,
         )
-
-        self._std = np.sqrt(self._variance)
-        self._precision = np.reciprocal(self._variance)
 
     @property
     def mean(self) -> Parameter:
