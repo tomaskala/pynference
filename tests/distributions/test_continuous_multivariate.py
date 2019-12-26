@@ -39,10 +39,10 @@ def generate(
         "real_vector_high": 10.0,
         "positive_vector_low": 0.001,
         "positive_vector_high": 10.0,
-        "positive_definite_matrix_low": 0.001,
-        "positive_definite_matrix_high": 10.0,
+        "positive_definite_matrix_low": 0.1,
+        "positive_definite_matrix_high": 5.0,
         "lower_triangular_matrix_low": 1.0,
-        "lower_triangular_matrix_high": 3.0,
+        "lower_triangular_matrix_high": 2.0,
     }
 
     limits = {**limits_default, **limits}
@@ -1237,15 +1237,155 @@ class TestFirstTwoMoments:
             generate(
                 random_state, dim=10, shape=(2, 3), positive_vector="concentration"
             ),
-        )
+        ),
+        MultivariateNormal: (
+            generate(
+                random_state, dim=5, shape=(), real_vector="mean", positive="variance"
+            ),
+            generate(
+                random_state, dim=5, shape=(2,), real_vector="mean", positive="variance"
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2, 3),
+                real_vector="mean",
+                positive="variance",
+            ),
+            generate(
+                random_state, dim=5, shape=(), real_vector="mean", positive="precision"
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2,),
+                real_vector="mean",
+                positive="precision",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2, 3),
+                real_vector="mean",
+                positive="precision",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(),
+                real_vector="mean",
+                positive_vector="variance_diag",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2,),
+                real_vector="mean",
+                positive_vector="variance_diag",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2, 3),
+                real_vector="mean",
+                positive_vector="variance_diag",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(),
+                real_vector="mean",
+                positive_vector="precision_diag",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2,),
+                real_vector="mean",
+                positive_vector="precision_diag",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2, 3),
+                real_vector="mean",
+                positive_vector="precision_diag",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(),
+                real_vector="mean",
+                positive_definite_matrix="covariance_matrix",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2,),
+                real_vector="mean",
+                positive_definite_matrix="covariance_matrix",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2, 3),
+                real_vector="mean",
+                positive_definite_matrix="covariance_matrix",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(),
+                real_vector="mean",
+                positive_definite_matrix="precision_matrix",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2,),
+                real_vector="mean",
+                positive_definite_matrix="precision_matrix",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2, 3),
+                real_vector="mean",
+                positive_definite_matrix="precision_matrix",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(),
+                real_vector="mean",
+                lower_triangular_matrix="cholesky_tril",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2,),
+                real_vector="mean",
+                lower_triangular_matrix="cholesky_tril",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2, 3),
+                real_vector="mean",
+                lower_triangular_matrix="cholesky_tril",
+            ),
+        ),
     }
 
     n_samples = 200000
-    atol = 1e-4
+    atol = 1e-2
     rtol = 0.75
 
     def test_mean_and_variance(self):
         for distribution_cls, parameter_set in self.distributions.items():
+            if distribution_cls == MultivariateNormal:
+                continue
+
             for i, parameters in enumerate(parameter_set):
                 distribution = distribution_cls(**parameters)
 
@@ -1260,6 +1400,76 @@ class TestFirstTwoMoments:
                 assert np.var(samples, axis=0) == approx(
                     distribution.variance, rel=self.rtol, abs=self.atol
                 ), f"variance of {distribution}"
+
+    def _batch_covariance_matrix(self, samples: np.ndarray) -> np.ndarray:
+        centered = samples - np.mean(samples, axis=0, keepdims=True)
+        batch_outer = np.einsum("j...i, i...k", np.swapaxes(centered, 0, -1), centered)
+        return batch_outer / (samples.shape[0] - 1)
+
+    def _multidimensional_diag(self, x):
+        return x[..., np.arange(x.shape[-1]), np.arange(x.shape[-1])]
+
+    def test_mean_and_variance_mvn(self):
+        from pynference.distributions.continuous_multivariate import (
+            _MVNScalar,
+            _MVNVector,
+            _MVNMatrix,
+        )
+
+        parameter_set = self.distributions[MultivariateNormal]
+
+        for i, parameters in enumerate(parameter_set):
+            distribution = MultivariateNormal(**parameters)
+
+            samples = distribution.sample(
+                sample_shape=(self.n_samples,), random_state=self.random_state
+            )
+
+            true_mean = distribution.mean
+            empirical_mean = np.mean(samples, axis=0)
+
+            assert empirical_mean == approx(
+                true_mean, rel=self.rtol, abs=self.atol
+            ), f"mean of {distribution}"
+
+            if type(distribution) is _MVNScalar:
+                true_variance = distribution.variance
+                empirical_variance = np.mean(np.var(samples, axis=0), axis=-1)
+
+                assert empirical_variance == approx(
+                    true_variance, rel=self.rtol, abs=self.atol
+                ), f"variance of {distribution}"
+            elif type(distribution) is _MVNVector:
+                true_variance = distribution.variance
+                empirical_variance = np.var(samples, axis=0)
+
+                assert empirical_variance == approx(
+                    true_variance, rel=self.rtol, abs=self.atol
+                ), f"variance of {distribution}"
+
+                true_covariance = distribution.covariance_matrix
+
+                assert empirical_variance == approx(
+                    self._multidimensional_diag(true_covariance),
+                    rel=self.rtol,
+                    abs=self.atol,
+                ), f"variance of {distribution}"
+            elif type(distribution) is _MVNMatrix:
+                true_covariance = distribution.covariance_matrix
+                empirical_covariance = self._batch_covariance_matrix(samples)
+
+                assert empirical_covariance == approx(
+                    true_covariance, rel=self.rtol, abs=self.atol
+                ), f"covariance of {distribution}"
+
+                true_variance = distribution.variance
+                empirical_variance = self._multidimensional_diag(empirical_covariance)
+
+                assert empirical_variance == approx(
+                    true_variance, rel=self.rtol, abs=self.atol
+                ), f"variance of {distribution}"
+            else:
+                raise ValueError("This should never happen")
 
 
 class TestLogProb:
