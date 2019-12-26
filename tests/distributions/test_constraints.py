@@ -368,3 +368,188 @@ def test_nonpositive_outside_integer():
     assert not nonpositive(x)
     assert not nonpositive(y)
     assert not nonpositive(z)
+
+
+def test_simplex_within():
+    simplex = constraints.Simplex()
+
+    x = np.arange(1, 10, dtype=float)
+    x /= np.sum(x)
+
+    y = np.linspace(0.01, 1.0, 20)
+    y /= np.sum(y)
+
+    assert simplex(x)
+    assert simplex(y)
+
+
+def test_simplex_outside():
+    simplex = constraints.Simplex()
+
+    x = np.linspace(0.0, 1.0, 20)
+    x /= np.sum(x)
+
+    y = np.linspace(0.0, 1.0, 20)
+    y /= np.sum(x)
+    y[0] = -0.0001
+
+    z = np.linspace(0.0, 0.5, 25)
+
+    assert not simplex(x)
+    assert not simplex(y)
+    assert not simplex(z)
+
+
+def test_positive_vector_within():
+    positive_vector = constraints.PositiveVector()
+
+    x = np.array([0.1, 1.0, 2.0])
+    y = np.array([1, 2, 3])
+
+    assert positive_vector(x)
+    assert positive_vector(y)
+
+
+def test_positive_vector_outside():
+    positive_vector = constraints.PositiveVector()
+
+    x = np.array([-0.00001, 10.0])
+    y = np.array([2.0, 0.0])
+    z = np.array([-np.inf, 10.0, 23.0])
+
+    assert not positive_vector(x)
+    assert not positive_vector(y)
+    assert not positive_vector(z)
+
+
+def test_non_negative_vector_within():
+    non_negative_vector = constraints.NonNegativeVector()
+
+    x = np.array([0.1, 1.0, 2.0])
+    y = np.array([1, 2, 3])
+    z = np.array([2.0, 0.0])
+
+    assert non_negative_vector(x)
+    assert non_negative_vector(y)
+    assert non_negative_vector(z)
+
+
+def test_non_negative_vector_outside():
+    non_negative_vector = constraints.NonNegativeVector()
+
+    x = np.array([-0.00001, 10.0])
+    y = np.array([-np.inf, 10.0, 23.0])
+
+    assert not non_negative_vector(x)
+    assert not non_negative_vector(y)
+
+
+def test_negative_vector_within():
+    negative_vector = constraints.NegativeVector()
+
+    x = np.array([-0.1, -1.0, -2.0])
+    y = np.array([-1, -2, -3])
+
+    assert negative_vector(x)
+    assert negative_vector(y)
+
+
+def test_negative_vector_outside():
+    negative_vector = constraints.NegativeVector()
+
+    x = np.array([0.00001, -10.0])
+    y = np.array([-2.0, 0.0])
+    z = np.array([np.inf, -10.0, -23.0])
+
+    assert not negative_vector(x)
+    assert not negative_vector(y)
+    assert not negative_vector(z)
+
+
+def test_non_positive_vector_within():
+    non_positive_vector = constraints.NonPositiveVector()
+
+    x = np.array([-0.1, -1.0, -2.0])
+    y = np.array([-1, -2, -3])
+    z = np.array([-2.0, 0.0])
+
+    assert non_positive_vector(x)
+    assert non_positive_vector(y)
+    assert non_positive_vector(z)
+
+
+def test_non_positive_vector_outside():
+    non_positive_vector = constraints.NonPositiveVector()
+
+    x = np.array([0.00001, -10.0])
+    y = np.array([np.inf, -10.0, -23.0])
+
+    assert not non_positive_vector(x)
+    assert not non_positive_vector(y)
+
+
+def test_positive_definite_within():
+    positive_definite = constraints.PositiveDefinite()
+
+    x = np.array([[1.0, 0.0, 3.0], [3.0, 2.0, 0.0], [1.0, 1.0, 1.0]])
+    x = x.T @ x
+
+    y = np.array([[1.0, 6.0, 0.0], [6.0, 7.0, 2.0], [0.0, 2.0, 3.0]])
+    y = y.T @ y
+
+    assert positive_definite(x)
+    assert positive_definite(y)
+
+
+def test_positive_definite_outside():
+    positive_definite = constraints.PositiveDefinite()
+
+    x = np.arange(1, 10, dtype=float).reshape(3, 3)
+    y = np.eye(4)
+    y[1, 1] = -0.01
+
+    assert not positive_definite(x)
+    assert not positive_definite(y)
+
+
+def test_lower_cholesky_within():
+    lower_cholesky = constraints.LowerCholesky()
+
+    x = np.array([[1.0, 0.0, 0.0], [2.0, 3.0, 0.0], [4.0, 2.0, 1.0]])
+
+    y = np.eye(4)
+
+    z = np.array(
+        [
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 5.0, 0.0, 0.0],
+            [9.9, 2.1, 3.1, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ]
+    )
+
+    assert lower_cholesky(x)
+    assert lower_cholesky(y)
+    assert lower_cholesky(z)
+
+
+def test_lower_cholesky_outside():
+    lower_cholesky = constraints.LowerCholesky()
+
+    x = np.array([[1.0, 1.0, 0.0], [2.0, -3.0, 0.0], [4.0, 2.0, 1.0]])
+
+    y = np.eye(4)
+    y[2, 2] = -0.01
+
+    z = np.array(
+        [
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 5.0, 0.0, 2.0],
+            [9.9, 2.1, 3.1, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ]
+    )
+
+    assert not lower_cholesky(x)
+    assert not lower_cholesky(y)
+    assert not lower_cholesky(z)

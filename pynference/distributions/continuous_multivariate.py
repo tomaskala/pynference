@@ -28,7 +28,6 @@ from pynference.distributions.utils import (
     replicate_along_last_axis,
 )
 
-# TODO: Test the new constraints, including those from discrete distributions.
 # TODO: MVN natural parameter is not very memory-efficient now.
 
 
