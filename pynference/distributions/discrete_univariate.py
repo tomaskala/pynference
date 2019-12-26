@@ -35,14 +35,14 @@ class Bernoulli(ExponentialFamily):
         batch_shape = np.shape(p)
         rv_shape = ()
 
-        self.p = p
-
         super().__init__(
             batch_shape=batch_shape,
             rv_shape=rv_shape,
             check_parameters=check_parameters,
             check_support=check_support,
         )
+
+        self.p = p
 
     @property
     def mean(self) -> Parameter:
@@ -88,14 +88,14 @@ class Binomial(ExponentialFamily):
         batch_shape = broadcast_shapes(np.shape(n), np.shape(p))
         rv_shape = ()
 
-        self.n, self.p = promote_shapes(n, p)
-
         super().__init__(
             batch_shape=batch_shape,
             rv_shape=rv_shape,
             check_parameters=check_parameters,
             check_support=check_support,
         )
+
+        self.n, self.p = promote_shapes(n, p)
 
     @property
     def support(self) -> Constraint:
@@ -151,14 +151,14 @@ class Dirac(Distribution):
         batch_shape = np.shape(x)[:batch_dim]
         rv_shape = np.shape(x)[batch_dim:]
 
-        self.x = x
-
         super().__init__(
             batch_shape=batch_shape,
             rv_shape=rv_shape,
             check_parameters=check_parameters,
             check_support=check_support,
         )
+
+        self.x = x
 
     @property
     def mean(self) -> Parameter:
@@ -190,19 +190,19 @@ class DiscreteUniform(Distribution):
         batch_shape = broadcast_shapes(np.shape(lower), np.shape(upper))
         rv_shape = ()
 
-        self.lower, self.upper = promote_shapes(lower, upper)
-
-        if not np.all(self.lower < self.upper):
-            raise ValueError(
-                "All the lower bounds must be strictly lower than the upper bounds."
-            )
-
         super().__init__(
             batch_shape=batch_shape,
             rv_shape=rv_shape,
             check_parameters=check_parameters,
             check_support=check_support,
         )
+
+        self.lower, self.upper = promote_shapes(lower, upper)
+
+        if not np.all(self.lower < self.upper):
+            raise ValueError(
+                "All the lower bounds must be strictly lower than the upper bounds."
+            )
 
     @property
     def support(self) -> Constraint:
@@ -240,14 +240,14 @@ class Geometric(ExponentialFamily):
         batch_shape = np.shape(p)
         rv_shape = ()
 
-        self.p = p
-
         super().__init__(
             batch_shape=batch_shape,
             rv_shape=rv_shape,
             check_parameters=check_parameters,
             check_support=check_support,
         )
+
+        self.p = p
 
     @property
     def mean(self) -> Parameter:
@@ -294,14 +294,14 @@ class NegativeBinomial(ExponentialFamily):
         batch_shape = broadcast_shapes(np.shape(r), np.shape(p))
         rv_shape = ()
 
-        self.r, self.p = promote_shapes(r, p)
-
         super().__init__(
             batch_shape=batch_shape,
             rv_shape=rv_shape,
             check_parameters=check_parameters,
             check_support=check_support,
         )
+
+        self.r, self.p = promote_shapes(r, p)
 
     @property
     def mean(self) -> Parameter:
@@ -348,14 +348,14 @@ class Poisson(ExponentialFamily):
         batch_shape = np.shape(rate)
         rv_shape = ()
 
-        self.rate = rate
-
         super().__init__(
             batch_shape=batch_shape,
             rv_shape=rv_shape,
             check_parameters=check_parameters,
             check_support=check_support,
         )
+
+        self.rate = rate
 
     @property
     def mean(self) -> Parameter:

@@ -24,21 +24,23 @@ class Distribution(abc.ABC):
     ):
         self.batch_shape = batch_shape
         self.rv_shape = rv_shape
+        self.check_parameters = check_parameters
         self.check_support = check_support
 
-        if check_parameters:
-            for parameter, constraint in self._constraints.items():
-                if parameter not in self.__dict__:
-                    # Useful for cases when the distribution can be parameterized in multiple ways,
-                    # e.g. the Gaussian distribution in terms of variance or precision.
-                    continue
+    def __setattr__(self, name, value):
+        if (
+            hasattr(self, "check_parameters")
+            and self.check_parameters
+            and name in self._constraints
+        ):
+            constraint = self._constraints[name]
 
-                parameter_value = getattr(self, parameter)
+            if not np.all(constraint(value)):
+                raise ValueError(
+                    f"Invalid value for {name}: {value}. The parameter must satisfy the constraint '{constraint}'."
+                )
 
-                if not np.all(constraint(parameter_value)):
-                    raise ValueError(
-                        f"Invalid value for {parameter}: {parameter_value}. The parameter must satisfy the constraint '{constraint}'."
-                    )
+        super().__setattr__(name, value)
 
     @property
     def support(self) -> Constraint:

@@ -40,14 +40,14 @@ class Beta(ExponentialFamily):
         batch_shape = broadcast_shapes(np.shape(shape1), np.shape(shape2))
         rv_shape = ()
 
-        self.shape1, self.shape2 = promote_shapes(shape1, shape2)
-
         super().__init__(
             batch_shape=batch_shape,
             rv_shape=rv_shape,
             check_parameters=check_parameters,
             check_support=check_support,
         )
+
+        self.shape1, self.shape2 = promote_shapes(shape1, shape2)
 
     @property
     def mean(self) -> Parameter:
@@ -101,14 +101,14 @@ class Cauchy(Distribution):
         batch_shape = broadcast_shapes(np.shape(loc), np.shape(scale))
         rv_shape = ()
 
-        self.loc, self.scale = promote_shapes(loc, scale)
-
         super().__init__(
             batch_shape=batch_shape,
             rv_shape=rv_shape,
             check_parameters=check_parameters,
             check_support=check_support,
         )
+
+        self.loc, self.scale = promote_shapes(loc, scale)
 
     @property
     def mean(self) -> Parameter:
@@ -137,14 +137,14 @@ class Exponential(ExponentialFamily):
         batch_shape = np.shape(rate)
         rv_shape = ()
 
-        self.rate = rate
-
         super().__init__(
             batch_shape=batch_shape,
             rv_shape=rv_shape,
             check_parameters=check_parameters,
             check_support=check_support,
         )
+
+        self.rate = rate
 
     @property
     def mean(self) -> Parameter:
@@ -190,14 +190,14 @@ class Gamma(ExponentialFamily):
         batch_shape = broadcast_shapes(np.shape(shape), np.shape(rate))
         rv_shape = ()
 
-        self.shape, self.rate = promote_shapes(shape, rate)
-
         super().__init__(
             batch_shape=batch_shape,
             rv_shape=rv_shape,
             check_parameters=check_parameters,
             check_support=check_support,
         )
+
+        self.shape, self.rate = promote_shapes(shape, rate)
 
     @property
     def mean(self) -> Parameter:
@@ -250,15 +250,15 @@ class InverseGamma(TransformedDistribution, ExponentialFamily):
         )
         transformation = PowerTransformation(power=-1.0)
 
-        self.shape = base_distribution.shape
-        self.scale = base_distribution.rate
-
         super().__init__(
             base_distribution=base_distribution,
             transformation=transformation,
             check_parameters=check_parameters,
             check_support=check_support,
         )
+
+        self.shape = base_distribution.shape
+        self.scale = base_distribution.rate
 
     @property
     def mean(self) -> Parameter:
@@ -301,14 +301,14 @@ class Laplace(Distribution):
         batch_shape = broadcast_shapes(np.shape(loc), np.shape(scale))
         rv_shape = ()
 
-        self.loc, self.scale = promote_shapes(loc, scale)
-
         super().__init__(
             batch_shape=batch_shape,
             rv_shape=rv_shape,
             check_parameters=check_parameters,
             check_support=check_support,
         )
+
+        self.loc, self.scale = promote_shapes(loc, scale)
 
     @property
     def mean(self) -> Parameter:
@@ -342,14 +342,14 @@ class Logistic(Distribution):
         batch_shape = broadcast_shapes(np.shape(loc), np.shape(scale))
         rv_shape = ()
 
-        self.loc, self.scale = promote_shapes(loc, scale)
-
         super().__init__(
             batch_shape=batch_shape,
             rv_shape=rv_shape,
             check_parameters=check_parameters,
             check_support=check_support,
         )
+
+        self.loc, self.scale = promote_shapes(loc, scale)
 
     @property
     def mean(self) -> Parameter:
@@ -390,15 +390,15 @@ class LogNormal(TransformedDistribution, ExponentialFamily):
         )
         transformation = ExpTransformation()
 
-        self.loc = base_distribution.loc
-        self.scale = base_distribution.scale
-
         super().__init__(
             base_distribution=base_distribution,
             transformation=transformation,
             check_parameters=check_parameters,
             check_support=check_support,
         )
+
+        self.loc = base_distribution.loc
+        self.scale = base_distribution.scale
 
     @property
     def mean(self) -> Parameter:
@@ -451,25 +451,14 @@ class Normal(ExponentialFamily):
                 "Provide exactly one of the variance, precision or standard deviation parameters."
             )
 
-        self._mean = mean
-
         if variance is not None:
-            self._variance = variance
-            self._precision = np.reciprocal(self._variance)
-            self._std = np.sqrt(self._variance)
+            batch_shape = broadcast_shapes(np.shape(mean), np.shape(variance))
         elif precision is not None:
-            self._precision = precision
-            self._variance = np.reciprocal(self._precision)
-            self._std = np.sqrt(self._variance)
-        elif std is not None:
-            self._std = std
-            self._variance = np.square(self._std)
-            self._precision = np.reciprocal(self._variance)
+            batch_shape = broadcast_shapes(np.shape(mean), np.shape(precision))
+        else:
+            batch_shape = broadcast_shapes(np.shape(mean), np.shape(std))
 
-        batch_shape = broadcast_shapes(np.shape(self._mean), np.shape(self._variance))
         rv_shape = ()
-
-        self._mean, self._variance, self._precision, self._std = promote_shapes(self._mean, self._variance, self._precision, self._std)
 
         super().__init__(
             batch_shape=batch_shape,
@@ -477,6 +466,19 @@ class Normal(ExponentialFamily):
             check_parameters=check_parameters,
             check_support=check_support,
         )
+
+        if variance is not None:
+            self._mean, self._variance = promote_shapes(mean, variance)
+            self._precision = np.reciprocal(self._variance)
+            self._std = np.sqrt(self._variance)
+        elif precision is not None:
+            self._mean, self._precision = promote_shapes(mean, precision)
+            self._variance = np.reciprocal(self._precision)
+            self._std = np.sqrt(self._variance)
+        else:
+            self._mean, self._std = promote_shapes(mean, std)
+            self._variance = np.square(self._std)
+            self._precision = np.reciprocal(self._variance)
 
     @property
     def mean(self) -> Parameter:
@@ -535,16 +537,12 @@ class Pareto(TransformedDistribution):
         check_parameters: bool = True,
         check_support: bool = True,
     ):
-        self.scale, self.shape = promote_shapes(scale, shape)
-
         base_distribution = Exponential(
-            rate=self.shape,
-            check_parameters=check_parameters,
-            check_support=check_support,
+            rate=shape, check_parameters=check_parameters, check_support=check_support
         )
         transformation = [
             ExpTransformation(),
-            AffineTransformation(loc=0.0, scale=self.scale),
+            AffineTransformation(loc=0.0, scale=scale),
         ]
 
         super().__init__(
@@ -553,6 +551,8 @@ class Pareto(TransformedDistribution):
             check_parameters=check_parameters,
             check_support=check_support,
         )
+
+        self.scale, self.shape = promote_shapes(scale, shape)
 
     @property
     def mean(self) -> Parameter:
@@ -590,15 +590,15 @@ class T(Distribution):
         batch_shape = broadcast_shapes(np.shape(df), np.shape(loc), np.shape(scale))
         rv_shape = ()
 
-        self.df = np.broadcast_to(df, batch_shape)
-        self.loc, self.scale = promote_shapes(loc, scale)
-
         super().__init__(
             batch_shape=batch_shape,
             rv_shape=rv_shape,
             check_parameters=check_parameters,
             check_support=check_support,
         )
+
+        self.df = np.broadcast_to(df, batch_shape)
+        self.loc, self.scale = promote_shapes(loc, scale)
 
     @property
     def mean(self) -> Parameter:
@@ -647,25 +647,25 @@ class TruncatedNormal(Distribution):
         check_parameters: bool = True,
         check_support: bool = True,
     ):
+        if not np.all(lower < upper):
+            raise ValueError(
+                "All the lower bounds must be strictly lower than the upper bounds."
+            )
+
         batch_shape = broadcast_shapes(
             np.shape(loc), np.shape(scale), np.shape(lower), np.shape(upper)
         )
         rv_shape = ()
-
-        self.loc, self.scale, self.lower, self.upper = promote_shapes(
-            loc, scale, lower, upper
-        )
-
-        if not np.all(self.lower < self.upper):
-            raise ValueError(
-                "All the lower bounds must be strictly lower than the upper bounds."
-            )
 
         super().__init__(
             batch_shape=batch_shape,
             rv_shape=rv_shape,
             check_parameters=check_parameters,
             check_support=check_support,
+        )
+
+        self.loc, self.scale, self.lower, self.upper = promote_shapes(
+            loc, scale, lower, upper
         )
 
         self._alpha = (self.lower - self.loc) / self.scale
@@ -754,23 +754,19 @@ class Uniform(TransformedDistribution):
         check_parameters: bool = True,
         check_support: bool = True,
     ):
-        batch_shape = broadcast_shapes(np.shape(lower), np.shape(upper))
-
-        self.lower, self.upper = promote_shapes(lower, upper)
-
-        if not np.all(self.lower < self.upper):
+        if not np.all(lower < upper):
             raise ValueError(
                 "All the lower bounds must be strictly lower than the upper bounds."
             )
+
+        batch_shape = broadcast_shapes(np.shape(lower), np.shape(upper))
 
         base_distribution = _StandardUniform(
             batch_shape=batch_shape,
             check_parameters=check_parameters,
             check_support=check_support,
         )
-        transformation = AffineTransformation(
-            loc=self.lower, scale=self.upper - self.lower
-        )
+        transformation = AffineTransformation(loc=lower, scale=upper - lower)
 
         super().__init__(
             base_distribution=base_distribution,
@@ -778,6 +774,8 @@ class Uniform(TransformedDistribution):
             check_parameters=check_parameters,
             check_support=check_support,
         )
+
+        self.lower, self.upper = promote_shapes(lower, upper)
 
     @property
     def support(self) -> Constraint:

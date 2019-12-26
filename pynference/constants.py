@@ -6,10 +6,10 @@ import numpy as np
 ArrayLike = Union[float, np.ndarray]
 
 # Parameters of probability distributions.
-Parameter = Union[float, np.ndarray]
+Parameter = np.ndarray
 
 # Return type of distribution sampling.
-Variate = Union[float, np.ndarray]
+Variate = np.ndarray
 
 # Either an empty tuple (scalar) or a tuple of dimensions (array).
 Shape = Tuple[int, ...]

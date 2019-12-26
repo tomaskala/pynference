@@ -52,15 +52,15 @@ class Dirichlet(ExponentialFamily):
         batch_shape = np.shape(concentration)[:-1]
         rv_shape = np.shape(concentration)[-1:]
 
-        self.concentration = concentration
-        self.concentration_sum = np.sum(concentration, axis=-1, keepdims=True)
-
         super().__init__(
             batch_shape=batch_shape,
             rv_shape=rv_shape,
             check_parameters=check_parameters,
             check_support=check_support,
         )
+
+        self.concentration = concentration
+        self.concentration_sum = np.sum(concentration, axis=-1, keepdims=True)
 
     @property
     def mean(self) -> Parameter:
@@ -136,16 +136,16 @@ class _MVNScalar(ExponentialFamily):
         check_parameters: bool = True,
         check_support: bool = True,
     ):
-        self._mean = mean
-        self._precision = precision
-        self._std = std
-
         super().__init__(
             batch_shape=batch_shape,
             rv_shape=rv_shape,
             check_parameters=check_parameters,
             check_support=check_support,
         )
+
+        self._mean = mean
+        self._precision = precision
+        self._std = std
 
     @property
     def mean(self) -> Parameter:
@@ -249,16 +249,16 @@ class _MVNVector(ExponentialFamily):
         check_parameters: bool = True,
         check_support: bool = True,
     ):
-        self._mean = mean
-        self._precision_diag = precision_diag
-        self._std_diag = std_diag
-
         super().__init__(
             batch_shape=batch_shape,
             rv_shape=rv_shape,
             check_parameters=check_parameters,
             check_support=check_support,
         )
+
+        self._mean = mean
+        self._precision_diag = precision_diag
+        self._std_diag = std_diag
 
     @property
     def mean(self) -> Parameter:
@@ -358,15 +358,15 @@ class _MVNMatrix(ExponentialFamily):
         check_parameters: bool = True,
         check_support: bool = True,
     ):
-        self._mean = mean
-        self._cholesky_tril = cholesky_tril
-
         super().__init__(
             batch_shape=batch_shape,
             rv_shape=rv_shape,
             check_parameters=check_parameters,
             check_support=check_support,
         )
+
+        self._mean = mean
+        self._cholesky_tril = cholesky_tril
 
     @property
     def mean(self) -> Parameter:
@@ -528,14 +528,15 @@ class _MVNMatrix(ExponentialFamily):
 # Manually checking constraints within the `MultivariateNormal` function
 # since it cannot refer to the `Distribution` ABC before initializing one.
 # We need to check the parameters before calculating the Cholesky factors.
-def _check_constraint(constraint: Constraint, parameter: str, parameter_value: Parameter):
+def _check_constraint(
+    constraint: Constraint, parameter: str, parameter_value: Parameter
+):
     if not np.all(constraint(parameter_value)):
         raise ValueError(
             f"Invalid value for {parameter}: {parameter_value}. The parameter must satisfy the constraint '{constraint}'."
         )
 
 
-# TODO: Check constraints manually.
 def MultivariateNormal(
     mean: Parameter,
     variance: Parameter = None,
@@ -631,7 +632,9 @@ def MultivariateNormal(
 
         if covariance_matrix is not None:
             if check_parameters:
-                _check_constraint(positive_definite, "covariance_matrix", covariance_matrix)
+                _check_constraint(
+                    positive_definite, "covariance_matrix", covariance_matrix
+                )
 
             mean, covariance_matrix = promote_shapes(mean, covariance_matrix)
             cholesky_tril = la.cholesky(covariance_matrix)
@@ -641,7 +644,9 @@ def MultivariateNormal(
             )
         elif precision_matrix is not None:
             if check_parameters:
-                _check_constraint(positive_definite, "precision_matrix", precision_matrix)
+                _check_constraint(
+                    positive_definite, "precision_matrix", precision_matrix
+                )
 
             mean, precision_matrix = promote_shapes(mean, precision_matrix)
 
@@ -671,13 +676,6 @@ def MultivariateNormal(
             check_parameters=check_parameters,
             check_support=check_support,
         )
-
-    super().__init__(
-        batch_shape=batch_shape,
-        rv_shape=rv_shape,
-        check_parameters=check_parameters,
-        check_support=check_support,
-    )
 
 
 class MultivariateT(Distribution):
