@@ -105,22 +105,24 @@ class InverseWishart(TransformedDistribution):
 
 
 def cholesky_inverse(matrix: np.ndarray, batch_shape) -> np.ndarray:
-    tril_inv = np.swapaxes(
-        la.cholesky(matrix[..., ::-1, ::-1])[..., ::-1, ::-1], -2, -1
-    )
-    identity = np.broadcast_to(np.identity(matrix.shape[-1]), tril_inv.shape)
-
     if batch_shape == ():
+        tril_inv = np.swapaxes(
+            la.cholesky(matrix[..., ::-1, ::-1])[..., ::-1, ::-1], -2, -1
+        )
+        identity = np.broadcast_to(np.identity(matrix.shape[-1]), tril_inv.shape)
+
         return solve_triangular(tril_inv, identity, lower=True)
     else:
-        return la.solve(tril_inv, identity)
+        identity = np.broadcast_to(np.identity(matrix.shape[-1]), matrix.shape)
+        inv = la.solve(matrix, identity)
+        return la.cholesky(inv)
 
 
 class _MVNScalar(ExponentialFamily):
     _constraints: Dict[str, Constraint] = {
-        "mean": real_vector,
-        "precision": positive,
-        "std": positive,
+        "_mean": real_vector,
+        "_precision": positive,
+        "_std": positive,
     }
     _support: Constraint = real_vector
 
@@ -231,9 +233,9 @@ class _MVNScalar(ExponentialFamily):
 
 class _MVNVector(ExponentialFamily):
     _constraints: Dict[str, Constraint] = {
-        "mean": real_vector,
-        "precision_diag": positive_vector,
-        "std_diag": positive_vector,
+        "_mean": real_vector,
+        "_precision_diag": positive_vector,
+        "_std_diag": positive_vector,
     }
     _support: Constraint = real_vector
 
@@ -342,8 +344,8 @@ class _MVNVector(ExponentialFamily):
 
 class _MVNMatrix(ExponentialFamily):
     _constraints: Dict[str, Constraint] = {
-        "mean": real_vector,
-        "cholesky_tril": lower_cholesky,
+        "_mean": real_vector,
+        "_cholesky_tril": lower_cholesky,
     }
     _support: Constraint = real_vector
 
@@ -523,6 +525,16 @@ class _MVNMatrix(ExponentialFamily):
         )
 
 
+# Manually checking constraints within the `MultivariateNormal` function
+# since it cannot refer to the `Distribution` ABC before initializing one.
+# We need to check the parameters before calculating the Cholesky factors.
+def _check_constraint(constraint: Constraint, parameter: str, parameter_value: Parameter):
+    if not np.all(constraint(parameter_value)):
+        raise ValueError(
+            f"Invalid value for {parameter}: {parameter_value}. The parameter must satisfy the constraint '{constraint}'."
+        )
+
+
 # TODO: Check constraints manually.
 def MultivariateNormal(
     mean: Parameter,
@@ -557,9 +569,14 @@ def MultivariateNormal(
 
     if variance is not None or precision is not None:
         if variance is not None:
+            if check_parameters:
+                _check_constraint(positive, "variance", variance)
+
             precision = np.reciprocal(variance)
             std = np.sqrt(variance)
         else:
+            if check_parameters:
+                _check_constraint(positive, "precision", precision)
             std = np.reciprocal(np.sqrt(precision))
 
         batch_shape = broadcast_shapes(np.shape(mean)[:-1], np.shape(precision))
@@ -579,9 +596,15 @@ def MultivariateNormal(
         )
     elif variance_diag is not None or precision_diag is not None:
         if variance_diag is not None:
+            if check_parameters:
+                _check_constraint(positive_vector, "variance_diag", variance_diag)
+
             precision_diag = np.reciprocal(variance_diag)
             std_diag = np.sqrt(variance_diag)
         else:
+            if check_parameters:
+                _check_constraint(positive_vector, "precision_diag", precision_diag)
+
             std_diag = np.reciprocal(np.sqrt(precision_diag))
 
         mean, precision_diag = promote_shapes(mean, precision_diag)
@@ -607,6 +630,9 @@ def MultivariateNormal(
         mean = mean[..., np.newaxis]
 
         if covariance_matrix is not None:
+            if check_parameters:
+                _check_constraint(positive_definite, "covariance_matrix", covariance_matrix)
+
             mean, covariance_matrix = promote_shapes(mean, covariance_matrix)
             cholesky_tril = la.cholesky(covariance_matrix)
 
@@ -614,6 +640,9 @@ def MultivariateNormal(
                 np.shape(mean)[:-2], np.shape(cholesky_tril)[:-2]
             )
         elif precision_matrix is not None:
+            if check_parameters:
+                _check_constraint(positive_definite, "precision_matrix", precision_matrix)
+
             mean, precision_matrix = promote_shapes(mean, precision_matrix)
 
             batch_shape = broadcast_shapes(
@@ -622,6 +651,9 @@ def MultivariateNormal(
 
             cholesky_tril = cholesky_inverse(precision_matrix, batch_shape)
         else:
+            if check_parameters:
+                _check_constraint(lower_cholesky, "cholesky_tril", cholesky_tril)
+
             mean, cholesky_tril = promote_shapes(mean, cholesky_tril)
 
             batch_shape = broadcast_shapes(

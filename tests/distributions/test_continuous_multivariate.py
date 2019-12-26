@@ -1670,9 +1670,69 @@ class TestParameterConstraints:
     def test_dirichlet(self):
         with raises(ValueError, match=r".*positive_vector.*"):
             Dirichlet(concentration=np.array([1.0, 2.0, 0.0]))
+        with raises(ValueError, match=r".*positive_vector.*"):
             Dirichlet(concentration=np.array([1.0, -2.0, 3.0]))
-            Dirichlet(concentration=np.array([0.00001, 0.1, 10.0, 100.0, 5.0]))
-            Dirichlet(concentration=np.array([1.0, 2.0, np.nan, 2.1]))
+        with raises(ValueError, match=r".*positive_vector.*"):
+            Dirichlet(concentration=np.array([0.00001, 0.1, 10.0, 100.0, 0.0]))
+        with raises(ValueError, match=r".*positive_vector.*"):
+            Dirichlet(concentration=np.array([1.0, 2.0, -0.00001, 2.1]))
+
+    def test_mvn(self):
+        with raises(ValueError, match=r"r.*real_vector.*"):
+            MultivariateNormal(mean=np.array([1.0, np.nan]), variance=1.0)
+        with raises(ValueError, match=r"r.*real_vector.*"):
+            MultivariateNormal(mean=np.array([np.inf, 2.0]), variance=1.0)
+        with raises(ValueError, match=r"r.*real_vector.*"):
+            MultivariateNormal(mean=np.array([3.0, 4.0, -np.inf]), variance=1.0)
+
+        with raises(ValueError, match=r".*positive.*"):
+            MultivariateNormal(mean=np.array([1.0, 2.0, 3.0]), variance=0.0)
+        with raises(ValueError, match=r".*positive.*"):
+            MultivariateNormal(mean=np.array([1.0, 2.0, 3.0]), variance=-1.0)
+        with raises(ValueError, match=r".*positive.*"):
+            MultivariateNormal(mean=np.array([1.0, 2.0, 3.0]), precision=0.0)
+        with raises(ValueError, match=r".*positive.*"):
+            MultivariateNormal(mean=np.array([1.0, 2.0, 3.0]), precision=-1.0)
+
+        with raises(ValueError, match=r".*positive_vector.*"):
+            MultivariateNormal(
+                mean=np.array([1.0, 2.0, 3.0]), variance_diag=np.array([1.0, 0.0, 2.0])
+            )
+        with raises(ValueError, match=r".*positive_vector.*"):
+            MultivariateNormal(
+                mean=np.array([1.0, 2.0, 3.0]), variance_diag=np.array([1.0, -1.0, 2.0])
+            )
+        with raises(ValueError, match=r".*positive_vector.*"):
+            MultivariateNormal(
+                mean=np.array([1.0, 2.0, 3.0]),
+                precision_diag=np.array([1.0, -1.0, 2.0]),
+            )
+        with raises(ValueError, match=r".*positive_vector.*"):
+            MultivariateNormal(
+                mean=np.array([1.0, 2.0, 3.0]),
+                precision_diag=np.array([1.0, -1.0, 2.0]),
+            )
+
+        cov1 = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
+        cov2 = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, -1.0]])
+        prec1 = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
+        prec2 = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, -1.0]])
+
+        with raises(ValueError, match=r".*positive_definite.*"):
+            MultivariateNormal(mean=np.array([1.0, 2.0, 3.0]), covariance_matrix=cov1)
+        with raises(ValueError, match=r".*positive_definite.*"):
+            MultivariateNormal(mean=np.array([1.0, 2.0, 3.0]), covariance_matrix=cov2)
+        with raises(ValueError, match=r".*positive_definite.*"):
+            MultivariateNormal(mean=np.array([1.0, 2.0, 3.0]), precision_matrix=prec1)
+        with raises(ValueError, match=r".*positive_definite.*"):
+            MultivariateNormal(mean=np.array([1.0, 2.0, 3.0]), precision_matrix=prec2)
+
+        chol1 = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
+        chol2 = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [1.0, 0.0, -1.0]])
+        with raises(ValueError, match=r".*lower_cholesky.*"):
+            MultivariateNormal(mean=np.array([1.0, 2.0, 3.0]), cholesky_tril=chol1)
+        with raises(ValueError, match=r".*lower_cholesky.*"):
+            MultivariateNormal(mean=np.array([1.0, 2.0, 3.0]), cholesky_tril=chol2)
 
 
 class TestSamplingShapes:
