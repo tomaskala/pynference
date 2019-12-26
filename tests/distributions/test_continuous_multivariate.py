@@ -1740,99 +1740,205 @@ class TestSamplingShapes:
 
     distributions = {
         Dirichlet: (
-            (
-                generate(
-                    random_state, dim=5, shape=(), positive_vector="concentration"
-                ),
-                5,
+            generate(random_state, dim=5, shape=(), positive_vector="concentration"),
+            generate(random_state, dim=5, shape=(2,), positive_vector="concentration"),
+            generate(
+                random_state, dim=5, shape=(2, 3), positive_vector="concentration"
             ),
-            (
-                generate(
-                    random_state, dim=5, shape=(2,), positive_vector="concentration"
-                ),
-                5,
+            generate(random_state, dim=10, shape=(), positive_vector="concentration"),
+            generate(random_state, dim=10, shape=(2,), positive_vector="concentration"),
+            generate(
+                random_state, dim=10, shape=(2, 3), positive_vector="concentration"
             ),
-            (
-                generate(
-                    random_state, dim=5, shape=(2, 3), positive_vector="concentration"
-                ),
-                5,
+        ),
+        MultivariateNormal: (
+            generate(
+                random_state, dim=5, shape=(), real_vector="mean", positive="variance"
             ),
-            (
-                generate(
-                    random_state, dim=10, shape=(), positive_vector="concentration"
-                ),
-                10,
+            generate(
+                random_state, dim=5, shape=(2,), real_vector="mean", positive="variance"
             ),
-            (
-                generate(
-                    random_state, dim=10, shape=(2,), positive_vector="concentration"
-                ),
-                10,
+            generate(
+                random_state,
+                dim=5,
+                shape=(2, 3),
+                real_vector="mean",
+                positive="variance",
             ),
-            (
-                generate(
-                    random_state, dim=10, shape=(2, 3), positive_vector="concentration"
-                ),
-                10,
+            generate(
+                random_state, dim=5, shape=(), real_vector="mean", positive="precision"
             ),
-        )
+            generate(
+                random_state,
+                dim=5,
+                shape=(2,),
+                real_vector="mean",
+                positive="precision",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2, 3),
+                real_vector="mean",
+                positive="precision",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(),
+                real_vector="mean",
+                positive_vector="variance_diag",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2,),
+                real_vector="mean",
+                positive_vector="variance_diag",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2, 3),
+                real_vector="mean",
+                positive_vector="variance_diag",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(),
+                real_vector="mean",
+                positive_vector="precision_diag",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2,),
+                real_vector="mean",
+                positive_vector="precision_diag",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2, 3),
+                real_vector="mean",
+                positive_vector="precision_diag",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(),
+                real_vector="mean",
+                positive_definite_matrix="covariance_matrix",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2,),
+                real_vector="mean",
+                positive_definite_matrix="covariance_matrix",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2, 3),
+                real_vector="mean",
+                positive_definite_matrix="covariance_matrix",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(),
+                real_vector="mean",
+                positive_definite_matrix="precision_matrix",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2,),
+                real_vector="mean",
+                positive_definite_matrix="precision_matrix",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2, 3),
+                real_vector="mean",
+                positive_definite_matrix="precision_matrix",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(),
+                real_vector="mean",
+                lower_triangular_matrix="cholesky_tril",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2,),
+                real_vector="mean",
+                lower_triangular_matrix="cholesky_tril",
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2, 3),
+                real_vector="mean",
+                lower_triangular_matrix="cholesky_tril",
+            ),
+        ),
     }
 
     def test_sampling_shapes_0d(self):
-        batch_shapes = [(), (2,), (2, 3), (), (2,), (2, 3)]
-
         for distribution_cls, parameter_set in self.distributions.items():
-            for i, (parameters, dim) in enumerate(parameter_set):
+            for parameters in parameter_set:
                 distribution = distribution_cls(**parameters)
 
                 samples = distribution.sample(
                     sample_shape=(), random_state=self.random_state
                 )
-                assert samples.shape == batch_shapes[i] + (
-                    dim,
+                assert (
+                    samples.shape == distribution.batch_shape + distribution.rv_shape
                 ), f"sampling shape of {distribution}"
 
     def test_sampling_shapes_1d(self):
-        batch_shapes = [(), (2,), (2, 3), (), (2,), (2, 3)]
-
         for distribution_cls, parameter_set in self.distributions.items():
-            for i, (parameters, dim) in enumerate(parameter_set):
+            for parameters in parameter_set:
                 distribution = distribution_cls(**parameters)
 
                 samples = distribution.sample(
                     sample_shape=(100,), random_state=self.random_state
                 )
-                assert samples.shape == (100,) + batch_shapes[i] + (
-                    dim,
+                assert (
+                    samples.shape
+                    == (100,) + distribution.batch_shape + distribution.rv_shape
                 ), f"sampling shape of {distribution}"
 
     def test_sampling_shapes_2d(self):
-        batch_shapes = [(), (2,), (2, 3), (), (2,), (2, 3)]
-
         for distribution_cls, parameter_set in self.distributions.items():
-            for i, (parameters, dim) in enumerate(parameter_set):
+            for parameters in parameter_set:
                 distribution = distribution_cls(**parameters)
 
                 samples = distribution.sample(
                     sample_shape=(10, 10), random_state=self.random_state
                 )
-                assert samples.shape == (10, 10) + batch_shapes[i] + (
-                    dim,
+                assert (
+                    samples.shape
+                    == (10, 10) + distribution.batch_shape + distribution.rv_shape
                 ), f"sampling shape of {distribution}"
 
     def test_sampling_shapes_3d(self):
-        batch_shapes = [(), (2,), (2, 3), (), (2,), (2, 3)]
-
         for distribution_cls, parameter_set in self.distributions.items():
-            for i, (parameters, dim) in enumerate(parameter_set):
+            for parameters in parameter_set:
                 distribution = distribution_cls(**parameters)
 
                 samples = distribution.sample(
                     sample_shape=(10, 10, 2), random_state=self.random_state
                 )
-                assert samples.shape == (10, 10, 2) + batch_shapes[i] + (
-                    dim,
+                assert (
+                    samples.shape
+                    == (10, 10, 2) + distribution.batch_shape + distribution.rv_shape
                 ), f"sampling shape of {distribution}"
 
 
