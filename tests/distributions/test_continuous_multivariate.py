@@ -2792,6 +2792,62 @@ class TestSamplingShapes:
                 lower_triangular_matrix="cholesky_tril",
             ),
         ),
+        MultivariateT: (
+            generate(
+                random_state,
+                dim=5,
+                shape=(),
+                positive="df",
+                real_vector="loc",
+                positive_definite_matrix="scale",
+                positive_low=3.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2,),
+                positive="df",
+                real_vector="loc",
+                positive_definite_matrix="scale",
+                positive_low=3.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2, 3),
+                positive="df",
+                real_vector="loc",
+                positive_definite_matrix="scale",
+                positive_low=3.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(),
+                positive="df",
+                real_vector="loc",
+                lower_triangular_matrix="cholesky_tril",
+                positive_low=3.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2,),
+                positive="df",
+                real_vector="loc",
+                lower_triangular_matrix="cholesky_tril",
+                positive_low=3.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2, 3),
+                positive="df",
+                real_vector="loc",
+                lower_triangular_matrix="cholesky_tril",
+                positive_low=3.0,
+            ),
+        )
     }
 
     def test_sampling_shapes_0d(self):
