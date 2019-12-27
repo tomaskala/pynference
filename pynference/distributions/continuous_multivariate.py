@@ -742,15 +742,22 @@ class MultivariateT(Distribution):
 
     @property
     def mean(self) -> Parameter:
-        return np.where(self.df > 1, self.loc, np.nan)
+        return np.where(self.df[..., np.newaxis] > 1, self.loc, np.nan)
 
     @property
     def variance(self) -> Parameter:
+        df = self.df[..., np.newaxis]
+        variance = np.sum(np.square(self._cholesky_tril), axis=-1) * df / (df - 2.0)
+
+        return np.where(df > 2, variance, np.nan)
+
+    @property
+    def covariance_matrix(self) -> Parameter:
+        df = self.df[..., np.newaxis, np.newaxis]
         scale = self._cholesky_tril @ np.swapaxes(self._cholesky_tril, -2, -1)
-        variance = np.where(
-            self.df > 2, np.square(scale) * self.df / (self.df - 2.0), np.inf
-        )
-        return np.where(self.df > 1, variance, np.nan)
+        covariance = scale * (df / (df - 2.0))
+
+        return np.where(df > 1, covariance, np.nan)
 
     def _log_prob(self, x: Variate) -> ArrayLike:
         p = self.rv_shape[0]
@@ -772,13 +779,14 @@ class MultivariateT(Distribution):
         )
 
     def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        std_norm = random_state.standard_normal(
+        chi2 = random_state.chisquare(df=self.df, size=sample_shape + self.batch_shape)
+        norm = random_state.standard_normal(
             sample_shape + self.batch_shape + self.rv_shape
         )
-        norm = np.squeeze(self._cholesky_tril @ std_norm[..., np.newaxis], axis=-1)
-        chi2 = random_state.chisquare(df=self.df, size=sample_shape + self.batch_shape)
-        epsilon = norm / chi2[..., np.newaxis]
-        return np.sqrt(self.df) * epsilon + self.loc
+
+        return self.loc + np.sqrt(self.df / chi2)[..., np.newaxis] * np.squeeze(
+            self._cholesky_tril @ norm[..., np.newaxis], axis=-1
+        )
 
 
 class Wishart(ExponentialFamily):

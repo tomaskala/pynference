@@ -606,9 +606,7 @@ class T(Distribution):
 
     @property
     def variance(self) -> Parameter:
-        variance = np.where(
-            self.df > 2, np.square(self.scale) * self.df / (self.df - 2.0), np.inf
-        )
+        variance = np.square(self.scale) * self.df / (self.df - 2.0)
         return np.where(self.df > 1, variance, np.nan)
 
     def _log_prob(self, x: Variate) -> ArrayLike:

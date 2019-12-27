@@ -2193,15 +2193,71 @@ class TestFirstTwoMoments:
                 lower_triangular_matrix="cholesky_tril",
             ),
         ),
+        MultivariateT: (
+            generate(
+                random_state,
+                dim=5,
+                shape=(),
+                positive="df",
+                real_vector="loc",
+                positive_definite_matrix="scale",
+                positive_low=3.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2,),
+                positive="df",
+                real_vector="loc",
+                positive_definite_matrix="scale",
+                positive_low=3.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2, 3),
+                positive="df",
+                real_vector="loc",
+                positive_definite_matrix="scale",
+                positive_low=3.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(),
+                positive="df",
+                real_vector="loc",
+                lower_triangular_matrix="cholesky_tril",
+                positive_low=3.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2,),
+                positive="df",
+                real_vector="loc",
+                lower_triangular_matrix="cholesky_tril",
+                positive_low=3.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2, 3),
+                positive="df",
+                real_vector="loc",
+                lower_triangular_matrix="cholesky_tril",
+                positive_low=3.0,
+            ),
+        ),
     }
 
     n_samples = 200000
     atol = 1e-2
-    rtol = 0.75
+    rtol = 1.0
 
     def test_mean_and_variance(self):
         for distribution_cls, parameter_set in self.distributions.items():
-            if distribution_cls == MultivariateNormal:
+            if distribution_cls in (MultivariateNormal, MultivariateT):
                 continue
 
             for i, parameters in enumerate(parameter_set):
@@ -2288,6 +2344,37 @@ class TestFirstTwoMoments:
                 ), f"variance of {distribution}"
             else:
                 raise ValueError("This should never happen")
+
+    def test_mean_and_variance_mvt(self):
+        parameter_set = self.distributions[MultivariateT]
+
+        for i, parameters in enumerate(parameter_set):
+            distribution = MultivariateT(**parameters)
+
+            samples = distribution.sample(
+                sample_shape=(self.n_samples,), random_state=self.random_state
+            )
+
+            true_mean = distribution.mean
+            empirical_mean = np.mean(samples, axis=0)
+
+            assert empirical_mean == approx(
+                true_mean, rel=self.rtol, abs=self.atol
+            ), f"mean of {distribution}"
+
+            true_covariance = distribution.covariance_matrix
+            empirical_covariance = self._batch_covariance_matrix(samples)
+
+            assert empirical_covariance == approx(
+                true_covariance, rel=self.rtol, abs=self.atol
+            ), f"covariance of {distribution}"
+
+            true_variance = distribution.variance
+            empirical_variance = self._multidimensional_diag(empirical_covariance)
+
+            assert empirical_variance == approx(
+                true_variance, rel=self.rtol, abs=self.atol
+            ), f"variance of {distribution}"
 
 
 class TestLogProb:
