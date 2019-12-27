@@ -173,7 +173,7 @@ class _MVNScalar(ExponentialFamily):
     @property
     def natural_parameter(self) -> Tuple[Parameter, ...]:
         warn(
-            "The natural parameter for a scalar*eye covariance matrix is not very efficient."
+            "The natural parameter for a scalar*eye covariance matrix is not very efficient. "
             "Currently, it builds the entire covariance matrix in memory. Consider optimization.",
             RuntimeWarning,
         )
@@ -285,7 +285,7 @@ class _MVNVector(ExponentialFamily):
     @property
     def natural_parameter(self) -> Tuple[Parameter, ...]:
         warn(
-            "The natural parameter for a scalar*eye covariance matrix is not very efficient."
+            "The natural parameter for a scalar*eye covariance matrix is not very efficient. "
             "Currently, it builds the entire covariance matrix in memory. Consider optimization.",
             RuntimeWarning,
         )
@@ -324,6 +324,68 @@ class _MVNVector(ExponentialFamily):
                 (-1,) + self.batch_shape + (self.rv_shape[0] * self.rv_shape[0],)
             ),
         )
+
+
+def _half_log_det(cholesky_tril: np.ndarray):
+    return np.sum(np.log(np.diagonal(cholesky_tril, axis1=-2, axis2=-1)), axis=-1)
+
+
+def _mahalanobis_squared(
+    centered_x: Variate, cholesky_tril: np.ndarray, batch_shape: Shape
+):
+    # Source: https://github.com/pyro-ppl/numpyro/blob/master/numpyro/distributions/continuous.py.
+    # This procedure handles the case:
+    # cholesky_tril.shape = (i, 1, n, n), centered_x.shape = (i, j, n),
+    # because we do not want to broadcast cholesky_tril to the shape (i, j, n, n).
+
+    # Assume that cholesky_tril.shape = (i, 1, n, n), centered_x.shape = (..., i, j, n),
+    # we are going to make centered_x have shape (..., 1, j,  i, 1, n) to apply batched tril_solve.
+    sample_ndim = (
+        np.ndim(centered_x) - np.ndim(cholesky_tril) + 1
+    )  # size of sample_shape
+    out_shape = np.shape(centered_x)[:-1]  # shape of output
+    # Reshape centered_x with the shape (..., 1, i, j, 1, n).
+    centered_x_new_shape = out_shape[:sample_ndim]
+
+    for (sL, sx) in zip(cholesky_tril.shape[:-2], out_shape[sample_ndim:]):
+        centered_x_new_shape += (sx // sL, sL)
+
+    centered_x_new_shape += (-1,)
+    centered_x = np.reshape(centered_x, centered_x_new_shape)
+    # Permute centered_x to make it have shape (..., 1, j, i, 1, n).
+    permute_dims = (
+        tuple(range(sample_ndim))
+        + tuple(range(sample_ndim, centered_x.ndim - 1, 2))
+        + tuple(range(sample_ndim + 1, centered_x.ndim - 1, 2))
+        + (centered_x.ndim - 1,)
+    )
+    centered_x = np.transpose(centered_x, permute_dims)
+
+    # Reshape to (-1, i, 1, n).
+    xt = np.reshape(centered_x, (-1,) + cholesky_tril.shape[:-1])
+    # Permute to (i, 1, n, -1).
+    xt = np.moveaxis(xt, 0, -1)
+
+    if batch_shape == ():
+        solved_triangular = solve_triangular(
+            cholesky_tril, xt, lower=True
+        )  # shape: (i, 1, n, -1)
+    else:
+        solved_triangular = la.solve(cholesky_tril, xt)  # shape: (i, 1, n, -1)
+
+    M = np.sum(solved_triangular ** 2, axis=-2)  # shape: (i, 1, -1)
+    # Permute back to (-1, i, 1).
+    M = np.moveaxis(M, -1, 0)
+    # Reshape back to (..., 1, j, i, 1).
+    M = np.reshape(M, centered_x.shape[:-1])
+    # Permute back to (..., 1, i, j, 1).
+    permute_inv_dims = tuple(range(sample_ndim))
+
+    for i in range(cholesky_tril.ndim - 2):
+        permute_inv_dims += (sample_ndim + i, len(out_shape) + i)
+
+    M = np.transpose(M, permute_inv_dims)
+    return np.reshape(M, out_shape)
 
 
 class _MVNMatrix(ExponentialFamily):
@@ -376,73 +438,13 @@ class _MVNMatrix(ExponentialFamily):
         return self._precision_matrix
 
     def _log_prob(self, x: Variate) -> ArrayLike:
-        half_log_det = self._half_log_det()
-        mahalanobis_squared = self._mahalanobis_squared(x - self._mean)
+        half_log_det = _half_log_det(self._cholesky_tril)
+        mahalanobis_squared = _mahalanobis_squared(
+            x - self._mean, self._cholesky_tril, self.batch_shape
+        )
 
         normalizer = half_log_det + 0.5 * self.rv_shape[0] * np.log(2.0 * np.pi)
         return -0.5 * mahalanobis_squared - normalizer
-
-    def _half_log_det(self):
-        return np.sum(
-            np.log(np.diagonal(self._cholesky_tril, axis1=-2, axis2=-1)), axis=-1
-        )
-
-    def _mahalanobis_squared(self, centered_x: Variate):
-        # Source: https://github.com/pyro-ppl/numpyro/blob/master/numpyro/distributions/continuous.py.
-        # This procedure handles the case:
-        # self._cholesky_tril.shape = (i, 1, n, n), centered_x.shape = (i, j, n),
-        # because we do not want to broadcast self._cholesky_tril to the shape (i, j, n, n).
-
-        # Assume that self._cholesky_tril.shape = (i, 1, n, n), centered_x.shape = (..., i, j, n),
-        # we are going to make centered_x have shape (..., 1, j,  i, 1, n) to apply batched tril_solve.
-        sample_ndim = (
-            np.ndim(centered_x) - np.ndim(self._cholesky_tril) + 1
-        )  # size of sample_shape
-        out_shape = np.shape(centered_x)[:-1]  # shape of output
-        # Reshape centered_x with the shape (..., 1, i, j, 1, n).
-        centered_x_new_shape = out_shape[:sample_ndim]
-
-        for (sL, sx) in zip(self._cholesky_tril.shape[:-2], out_shape[sample_ndim:]):
-            centered_x_new_shape += (sx // sL, sL)
-
-        centered_x_new_shape += (-1,)
-        centered_x = np.reshape(centered_x, centered_x_new_shape)
-        # Permute centered_x to make it have shape (..., 1, j, i, 1, n).
-        permute_dims = (
-            tuple(range(sample_ndim))
-            + tuple(range(sample_ndim, centered_x.ndim - 1, 2))
-            + tuple(range(sample_ndim + 1, centered_x.ndim - 1, 2))
-            + (centered_x.ndim - 1,)
-        )
-        centered_x = np.transpose(centered_x, permute_dims)
-
-        # Reshape to (-1, i, 1, n).
-        xt = np.reshape(centered_x, (-1,) + self._cholesky_tril.shape[:-1])
-        # Permute to (i, 1, n, -1).
-        xt = np.moveaxis(xt, 0, -1)
-
-        if self.batch_shape == ():
-            solved_triangular = solve_triangular(
-                self._cholesky_tril, xt, lower=True
-            )  # shape: (i, 1, n, -1)
-        else:
-            solved_triangular = la.solve(
-                self._cholesky_tril, xt
-            )  # shape: (i, 1, n, -1)
-
-        M = np.sum(solved_triangular ** 2, axis=-2)  # shape: (i, 1, -1)
-        # Permute back to (-1, i, 1).
-        M = np.moveaxis(M, -1, 0)
-        # Reshape back to (..., 1, j, i, 1).
-        M = np.reshape(M, centered_x.shape[:-1])
-        # Permute back to (..., 1, i, j, 1).
-        permute_inv_dims = tuple(range(sample_ndim))
-
-        for i in range(self._cholesky_tril.ndim - 2):
-            permute_inv_dims += (sample_ndim + i, len(out_shape) + i)
-
-        M = np.transpose(M, permute_inv_dims)
-        return np.reshape(M, out_shape)
 
     def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
         epsilon = random_state.standard_normal(
@@ -482,8 +484,10 @@ class _MVNMatrix(ExponentialFamily):
 
     @property
     def log_normalizer(self) -> Parameter:
-        half_log_det = self._half_log_det()
-        mahalanobis_squared = self._mahalanobis_squared(self._mean)
+        half_log_det = _half_log_det(self._cholesky_tril)
+        mahalanobis_squared = _mahalanobis_squared(
+            self._mean, self._cholesky_tril, self.batch_shape
+        )
 
         return 0.5 * mahalanobis_squared + half_log_det
 
@@ -687,25 +691,89 @@ def MultivariateNormal(
 
 
 class MultivariateT(Distribution):
-    _constraints: Dict[str, Constraint] = {}
-    _support: Constraint = None
+    _constraints: Dict[str, Constraint] = {
+        "df": positive,
+        "loc": real_vector,
+        "_cholesky_tril": lower_cholesky,
+    }
+    _support: Constraint = real_vector
 
-    def __init__(self, check_parameters: bool = True, check_support: bool = True):
-        pass
+    def __init__(
+        self,
+        df: Parameter,
+        loc: Parameter,
+        scale: Parameter = None,
+        cholesky_tril: Parameter = None,
+        check_parameters: bool = True,
+        check_support: bool = True,
+    ):
+        if (scale is not None) + (cholesky_tril is not None) != 1:
+            raise ValueError(
+                "Provide either the scale matrix or its lower"
+                "triangular Cholesky decomposition."
+            )
+
+        loc = (loc[..., np.newaxis],)
+
+        if scale is not None:
+            cholesky_tril = la.cholesky(scale)
+
+        loc, cholesky_tril = promote_shapes(loc, cholesky_tril)
+
+        batch_shape = broadcast_shapes(np.shape(loc)[:-2], np.shape(cholesky_tril)[:-2])
+        rv_shape = np.shape(cholesky_tril)[-1:]
+        loc = np.squeeze(loc, axis=-1)
+
+        super().__init__(
+            batch_shape=batch_shape,
+            rv_shape=rv_shape,
+            check_parameters=check_parameters,
+            check_support=check_support,
+        )
+
+        self.df = np.broadcast_to(df, batch_shape)
+        self.loc = loc
+        self._cholesky_tril = cholesky_tril
 
     @property
     def mean(self) -> Parameter:
-        pass
+        return np.where(self.df > 1, self.loc, np.nan)
 
     @property
     def variance(self) -> Parameter:
-        pass
+        scale = self._cholesky_tril @ np.swapaxes(self._cholesky_tril, -2, -1)
+        variance = np.where(
+            self.df > 2, np.square(scale) * self.df / (self.df - 2.0), np.inf
+        )
+        return np.where(self.df > 1, variance, np.nan)
 
     def _log_prob(self, x: Variate) -> ArrayLike:
-        pass
+        p = self.rv_shape[0]
+        half_log_det = _half_log_det(self._cholesky_tril)
+
+        normalizer = (
+            gammaln((self.df + p) / 2.0)
+            - gammaln(self.df / 2.0)
+            - (p / 2.0) * (np.log(self.df) + np.log(np.pi))
+            - half_log_det
+        )
+
+        mahalanobis_squared = _mahalanobis_squared(
+            x - self.loc, self._cholesky_tril, self.batch_shape
+        )
+
+        return normalizer - ((self.df + p) / 2.0) * np.log1p(
+            mahalanobis_squared / self.df
+        )
 
     def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        pass
+        std_norm = random_state.standard_normal(
+            sample_shape + self.batch_shape + self.rv_shape
+        )
+        norm = np.squeeze(self._cholesky_tril @ std_norm[..., np.newaxis], axis=-1)
+        chi2 = random_state.chisquare(df=self.df, size=sample_shape + self.batch_shape)
+        epsilon = norm / chi2
+        return np.sqrt(self.df) * epsilon + self.loc
 
 
 class Wishart(ExponentialFamily):
