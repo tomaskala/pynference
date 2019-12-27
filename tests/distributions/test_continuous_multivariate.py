@@ -2633,10 +2633,40 @@ class TestParameterConstraints:
 
         chol1 = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
         chol2 = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [1.0, 0.0, -1.0]])
+
         with raises(ValueError, match=r".*lower_cholesky.*"):
             MultivariateNormal(mean=np.array([1.0, 2.0, 3.0]), cholesky_tril=chol1)
         with raises(ValueError, match=r".*lower_cholesky.*"):
             MultivariateNormal(mean=np.array([1.0, 2.0, 3.0]), cholesky_tril=chol2)
+
+    def test_mvt(self):
+        with raises(ValueError, match=r"r.*real_vector.*"):
+            MultivariateT(df=4.0, loc=np.array([1.0, np.nan]), scale=np.eye(2))
+        with raises(ValueError, match=r"r.*real_vector.*"):
+            MultivariateT(df=4.0, loc=np.array([np.inf, 2.0]), scale=np.eye(2))
+        with raises(ValueError, match=r"r.*real_vector.*"):
+            MultivariateT(df=4.0, loc=np.array([3.0, 4.0, -np.inf]), scale=np.eye(3))
+
+        with raises(ValueError, match=r".*positive.*"):
+            MultivariateT(df=0.0, loc=np.array([1.0, 2.0, 3.0]), scale=np.eye(3))
+        with raises(ValueError, match=r".*positive.*"):
+            MultivariateT(df=-1.0, loc=np.array([1.0, 2.0, 3.0]), scale=np.eye(3))
+
+        cov1 = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
+        cov2 = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, -1.0]])
+
+        with raises(ValueError, match=r".*positive_definite.*"):
+            MultivariateT(df=4.0, loc=np.array([1.0, 2.0, 3.0]), scale=cov1)
+        with raises(ValueError, match=r".*positive_definite.*"):
+            MultivariateT(df=4.0, loc=np.array([1.0, 2.0, 3.0]), scale=cov2)
+
+        chol1 = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
+        chol2 = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [1.0, 0.0, -1.0]])
+
+        with raises(ValueError, match=r".*lower_cholesky.*"):
+            MultivariateT(df=4.0, loc=np.array([1.0, 2.0, 3.0]), cholesky_tril=chol1)
+        with raises(ValueError, match=r".*lower_cholesky.*"):
+            MultivariateT(df=4.0, loc=np.array([1.0, 2.0, 3.0]), cholesky_tril=chol2)
 
 
 class TestSamplingShapes:
@@ -2847,7 +2877,7 @@ class TestSamplingShapes:
                 lower_triangular_matrix="cholesky_tril",
                 positive_low=3.0,
             ),
-        )
+        ),
     }
 
     def test_sampling_shapes_0d(self):

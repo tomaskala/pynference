@@ -34,13 +34,15 @@ class Distribution(abc.ABC):
             and name in self._constraints
         ):
             constraint = self._constraints[name]
-
-            if not np.all(constraint(value)):
-                raise ValueError(
-                    f"Invalid value for {name}: {value}. The parameter must satisfy the constraint '{constraint}'."
-                )
+            self._check_parameter(constraint, name, value)
 
         super().__setattr__(name, value)
+
+    def _check_parameter(self, constraint, name, value):
+        if not np.all(constraint(value)):
+            raise ValueError(
+                f"Invalid value for {name}: {value}. The parameter must satisfy the constraint '{constraint}'."
+            )
 
     @property
     def support(self) -> Constraint:

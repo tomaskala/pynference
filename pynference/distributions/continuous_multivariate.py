@@ -719,6 +719,9 @@ class MultivariateT(Distribution):
         loc = loc[..., np.newaxis]
 
         if scale is not None:
+            if check_parameters:
+                self._check_parameter(positive_definite, "scale", scale)
+
             cholesky_tril = la.cholesky(scale)
 
         loc, cholesky_tril = promote_shapes(loc, cholesky_tril)
