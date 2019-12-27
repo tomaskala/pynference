@@ -1,4 +1,5 @@
 from typing import Dict, Tuple
+from warnings import warn
 
 import numpy as np
 import numpy.linalg as la  # Not SciPy, NumPy works for batches of matrices.
@@ -27,8 +28,6 @@ from pynference.distributions.utils import (
     promote_shapes,
     replicate_along_last_axis,
 )
-
-# TODO: MVN natural parameter is not very memory-efficient now.
 
 
 class Dirichlet(ExponentialFamily):
@@ -173,6 +172,11 @@ class _MVNScalar(ExponentialFamily):
 
     @property
     def natural_parameter(self) -> Tuple[Parameter, ...]:
+        warn(
+            "The natural parameter for a scalar*eye covariance matrix is not very efficient."
+            "Currently, it builds the entire covariance matrix in memory. Consider optimization.",
+            RuntimeWarning,
+        )
         precision = self.precision_matrix
 
         # The matrix is vectorized so that the Frobenius product can be written
@@ -280,6 +284,11 @@ class _MVNVector(ExponentialFamily):
 
     @property
     def natural_parameter(self) -> Tuple[Parameter, ...]:
+        warn(
+            "The natural parameter for a scalar*eye covariance matrix is not very efficient."
+            "Currently, it builds the entire covariance matrix in memory. Consider optimization.",
+            RuntimeWarning,
+        )
         precision = self.precision_matrix
 
         # The matrix is vectorized so that the Frobenius product can be written
