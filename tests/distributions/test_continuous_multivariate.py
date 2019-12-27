@@ -1029,10 +1029,10 @@ class TestBroadcasting:
     def test_mvt1(self):
         # scalar, scalar, vector
         fst = MultivariateT(
-            df=4.0, loc=1.0, scale=self._multidimensional_eye(shape=(2, 2, 2))
+            df=4.0, loc=1.0, scale_matrix=self._multidimensional_eye(shape=(2, 2, 2))
         )
         snd = MultivariateT(
-            df=4.0, loc=1.0, scale=self._multidimensional_eye(shape=(1, 2, 2))
+            df=4.0, loc=1.0, scale_matrix=self._multidimensional_eye(shape=(1, 2, 2))
         )
 
         samples = fst.sample(
@@ -1048,10 +1048,10 @@ class TestBroadcasting:
 
         # scalar, scalar, matrix
         fst = MultivariateT(
-            df=4.0, loc=1.0, scale=self._multidimensional_eye(shape=(2, 2, 2, 2))
+            df=4.0, loc=1.0, scale_matrix=self._multidimensional_eye(shape=(2, 2, 2, 2))
         )
         snd = MultivariateT(
-            df=4.0, loc=1.0, scale=self._multidimensional_eye(shape=(1, 1, 2, 2))
+            df=4.0, loc=1.0, scale_matrix=self._multidimensional_eye(shape=(1, 1, 2, 2))
         )
 
         samples = fst.sample(
@@ -1069,12 +1069,12 @@ class TestBroadcasting:
         fst = MultivariateT(
             df=4.0,
             loc=np.ones(shape=(2, 2)),
-            scale=self._multidimensional_eye(shape=(2, 2, 2)),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
         )
         snd = MultivariateT(
             df=4.0,
             loc=np.ones(shape=(1, 2)),
-            scale=self._multidimensional_eye(shape=(2, 2, 2)),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
         )
 
         samples = fst.sample(
@@ -1092,12 +1092,12 @@ class TestBroadcasting:
         fst = MultivariateT(
             df=4.0,
             loc=np.ones(shape=(2, 2)),
-            scale=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2, 2)),
         )
         snd = MultivariateT(
             df=4.0,
             loc=np.ones(shape=(1, 2)),
-            scale=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2, 2)),
         )
 
         samples = fst.sample(
@@ -1115,12 +1115,12 @@ class TestBroadcasting:
         fst = MultivariateT(
             df=4.0,
             loc=np.ones(shape=(2, 2, 2)),
-            scale=self._multidimensional_eye(shape=(2, 2, 2)),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
         )
         snd = MultivariateT(
             df=4.0,
             loc=np.ones(shape=(1, 1, 2)),
-            scale=self._multidimensional_eye(shape=(2, 2, 2)),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
         )
 
         samples = fst.sample(
@@ -1138,12 +1138,12 @@ class TestBroadcasting:
         fst = MultivariateT(
             df=4.0,
             loc=np.ones(shape=(2, 2, 2)),
-            scale=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2, 2)),
         )
         snd = MultivariateT(
             df=4.0,
             loc=np.ones(shape=(1, 1, 2)),
-            scale=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2, 2)),
         )
 
         samples = fst.sample(
@@ -1161,12 +1161,12 @@ class TestBroadcasting:
         fst = MultivariateT(
             df=np.array([4.0, 4.0]),
             loc=1.0,
-            scale=self._multidimensional_eye(shape=(2, 2, 2)),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
         )
         snd = MultivariateT(
             df=np.array([4.0, 4.0]),
             loc=1.0,
-            scale=self._multidimensional_eye(shape=(1, 2, 2)),
+            scale_matrix=self._multidimensional_eye(shape=(1, 2, 2)),
         )
 
         samples = fst.sample(
@@ -1184,12 +1184,12 @@ class TestBroadcasting:
         fst = MultivariateT(
             df=np.array([4.0, 4.0]),
             loc=1.0,
-            scale=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2, 2)),
         )
         snd = MultivariateT(
             df=np.array([4.0, 4.0]),
             loc=1.0,
-            scale=self._multidimensional_eye(shape=(1, 1, 2, 2)),
+            scale_matrix=self._multidimensional_eye(shape=(1, 1, 2, 2)),
         )
 
         samples = fst.sample(
@@ -1207,12 +1207,12 @@ class TestBroadcasting:
         fst = MultivariateT(
             df=np.array([4.0, 4.0]),
             loc=np.ones(shape=(2, 2)),
-            scale=self._multidimensional_eye(shape=(2, 2, 2)),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
         )
         snd = MultivariateT(
             df=np.array([4.0, 4.0]),
             loc=np.ones(shape=(1, 2)),
-            scale=self._multidimensional_eye(shape=(2, 2, 2)),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
         )
 
         samples = fst.sample(
@@ -1230,12 +1230,12 @@ class TestBroadcasting:
         fst = MultivariateT(
             df=np.array([4.0, 4.0]),
             loc=np.ones(shape=(2, 2)),
-            scale=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2, 2)),
         )
         snd = MultivariateT(
             df=np.array([4.0, 4.0]),
             loc=np.ones(shape=(1, 2)),
-            scale=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2, 2)),
         )
 
         samples = fst.sample(
@@ -1253,12 +1253,12 @@ class TestBroadcasting:
         fst = MultivariateT(
             df=np.array([4.0, 4.0]),
             loc=np.ones(shape=(2, 2, 2)),
-            scale=self._multidimensional_eye(shape=(2, 2, 2)),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
         )
         snd = MultivariateT(
             df=np.array([4.0, 4.0]),
             loc=np.ones(shape=(1, 1, 2)),
-            scale=self._multidimensional_eye(shape=(2, 2, 2)),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
         )
 
         samples = fst.sample(
@@ -1276,12 +1276,12 @@ class TestBroadcasting:
         fst = MultivariateT(
             df=np.array([4.0, 4.0]),
             loc=np.ones(shape=(2, 2, 2)),
-            scale=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2, 2)),
         )
         snd = MultivariateT(
             df=np.array([4.0, 4.0]),
             loc=np.ones(shape=(1, 1, 2)),
-            scale=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2, 2)),
         )
 
         samples = fst.sample(
@@ -1299,12 +1299,12 @@ class TestBroadcasting:
         fst = MultivariateT(
             df=np.array([[4.0, 4.0], [4.0, 4.0]]),
             loc=1.0,
-            scale=self._multidimensional_eye(shape=(2, 2, 2)),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
         )
         snd = MultivariateT(
             df=np.array([[4.0, 4.0], [4.0, 4.0]]),
             loc=1.0,
-            scale=self._multidimensional_eye(shape=(1, 2, 2)),
+            scale_matrix=self._multidimensional_eye(shape=(1, 2, 2)),
         )
 
         samples = fst.sample(
@@ -1322,12 +1322,12 @@ class TestBroadcasting:
         fst = MultivariateT(
             df=np.array([[4.0, 4.0], [4.0, 4.0]]),
             loc=1.0,
-            scale=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2, 2)),
         )
         snd = MultivariateT(
             df=np.array([[4.0, 4.0], [4.0, 4.0]]),
             loc=1.0,
-            scale=self._multidimensional_eye(shape=(1, 1, 2, 2)),
+            scale_matrix=self._multidimensional_eye(shape=(1, 1, 2, 2)),
         )
 
         samples = fst.sample(
@@ -1345,12 +1345,12 @@ class TestBroadcasting:
         fst = MultivariateT(
             df=np.array([[4.0, 4.0], [4.0, 4.0]]),
             loc=np.ones(shape=(2, 2)),
-            scale=self._multidimensional_eye(shape=(2, 2, 2)),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
         )
         snd = MultivariateT(
             df=np.array([[4.0, 4.0], [4.0, 4.0]]),
             loc=np.ones(shape=(1, 2)),
-            scale=self._multidimensional_eye(shape=(2, 2, 2)),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
         )
 
         samples = fst.sample(
@@ -1368,12 +1368,12 @@ class TestBroadcasting:
         fst = MultivariateT(
             df=np.array([[4.0, 4.0], [4.0, 4.0]]),
             loc=np.ones(shape=(2, 2)),
-            scale=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2, 2)),
         )
         snd = MultivariateT(
             df=np.array([[4.0, 4.0], [4.0, 4.0]]),
             loc=np.ones(shape=(1, 2)),
-            scale=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2, 2)),
         )
 
         samples = fst.sample(
@@ -1391,12 +1391,12 @@ class TestBroadcasting:
         fst = MultivariateT(
             df=np.array([[4.0, 4.0], [4.0, 4.0]]),
             loc=np.ones(shape=(2, 2, 2)),
-            scale=self._multidimensional_eye(shape=(2, 2, 2)),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
         )
         snd = MultivariateT(
             df=np.array([[4.0, 4.0], [4.0, 4.0]]),
             loc=np.ones(shape=(1, 1, 2)),
-            scale=self._multidimensional_eye(shape=(2, 2, 2)),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
         )
 
         samples = fst.sample(
@@ -1414,12 +1414,12 @@ class TestBroadcasting:
         fst = MultivariateT(
             df=np.array([[4.0, 4.0], [4.0, 4.0]]),
             loc=np.ones(shape=(2, 2, 2)),
-            scale=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2, 2)),
         )
         snd = MultivariateT(
             df=np.array([[4.0, 4.0], [4.0, 4.0]]),
             loc=np.ones(shape=(1, 1, 2)),
-            scale=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2, 2)),
         )
 
         samples = fst.sample(
@@ -2200,7 +2200,7 @@ class TestFirstTwoMoments:
                 shape=(),
                 positive="df",
                 real_vector="loc",
-                positive_definite_matrix="scale",
+                positive_definite_matrix="scale_matrix",
                 positive_low=3.0,
             ),
             generate(
@@ -2209,7 +2209,7 @@ class TestFirstTwoMoments:
                 shape=(2,),
                 positive="df",
                 real_vector="loc",
-                positive_definite_matrix="scale",
+                positive_definite_matrix="scale_matrix",
                 positive_low=3.0,
             ),
             generate(
@@ -2218,7 +2218,7 @@ class TestFirstTwoMoments:
                 shape=(2, 3),
                 positive="df",
                 real_vector="loc",
-                positive_definite_matrix="scale",
+                positive_definite_matrix="scale_matrix",
                 positive_low=3.0,
             ),
             generate(
@@ -2639,24 +2639,28 @@ class TestParameterConstraints:
 
     def test_mvt(self):
         with raises(ValueError, match=r"r.*real_vector.*"):
-            MultivariateT(df=4.0, loc=np.array([1.0, np.nan]), scale=np.eye(2))
+            MultivariateT(df=4.0, loc=np.array([1.0, np.nan]), scale_matrix=np.eye(2))
         with raises(ValueError, match=r"r.*real_vector.*"):
-            MultivariateT(df=4.0, loc=np.array([np.inf, 2.0]), scale=np.eye(2))
+            MultivariateT(df=4.0, loc=np.array([np.inf, 2.0]), scale_matrix=np.eye(2))
         with raises(ValueError, match=r"r.*real_vector.*"):
-            MultivariateT(df=4.0, loc=np.array([3.0, 4.0, -np.inf]), scale=np.eye(3))
+            MultivariateT(
+                df=4.0, loc=np.array([3.0, 4.0, -np.inf]), scale_matrix=np.eye(3)
+            )
 
         with raises(ValueError, match=r".*positive.*"):
-            MultivariateT(df=0.0, loc=np.array([1.0, 2.0, 3.0]), scale=np.eye(3))
+            MultivariateT(df=0.0, loc=np.array([1.0, 2.0, 3.0]), scale_matrix=np.eye(3))
         with raises(ValueError, match=r".*positive.*"):
-            MultivariateT(df=-1.0, loc=np.array([1.0, 2.0, 3.0]), scale=np.eye(3))
+            MultivariateT(
+                df=-1.0, loc=np.array([1.0, 2.0, 3.0]), scale_matrix=np.eye(3)
+            )
 
         cov1 = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
         cov2 = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, -1.0]])
 
         with raises(ValueError, match=r".*positive_definite.*"):
-            MultivariateT(df=4.0, loc=np.array([1.0, 2.0, 3.0]), scale=cov1)
+            MultivariateT(df=4.0, loc=np.array([1.0, 2.0, 3.0]), scale_matrix=cov1)
         with raises(ValueError, match=r".*positive_definite.*"):
-            MultivariateT(df=4.0, loc=np.array([1.0, 2.0, 3.0]), scale=cov2)
+            MultivariateT(df=4.0, loc=np.array([1.0, 2.0, 3.0]), scale_matrix=cov2)
 
         chol1 = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
         chol2 = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [1.0, 0.0, -1.0]])
@@ -2827,7 +2831,7 @@ class TestSamplingShapes:
                 shape=(),
                 positive="df",
                 real_vector="loc",
-                positive_definite_matrix="scale",
+                positive_definite_matrix="scale_matrix",
                 positive_low=3.0,
             ),
             generate(
@@ -2836,7 +2840,7 @@ class TestSamplingShapes:
                 shape=(2,),
                 positive="df",
                 real_vector="loc",
-                positive_definite_matrix="scale",
+                positive_definite_matrix="scale_matrix",
                 positive_low=3.0,
             ),
             generate(
@@ -2845,7 +2849,7 @@ class TestSamplingShapes:
                 shape=(2, 3),
                 positive="df",
                 real_vector="loc",
-                positive_definite_matrix="scale",
+                positive_definite_matrix="scale_matrix",
                 positive_low=3.0,
             ),
             generate(

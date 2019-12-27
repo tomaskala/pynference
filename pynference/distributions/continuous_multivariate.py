@@ -702,12 +702,12 @@ class MultivariateT(Distribution):
         self,
         df: Parameter,
         loc: Parameter,
-        scale: Parameter = None,
+        scale_matrix: Parameter = None,
         cholesky_tril: Parameter = None,
         check_parameters: bool = True,
         check_support: bool = True,
     ):
-        if (scale is not None) + (cholesky_tril is not None) != 1:
+        if (scale_matrix is not None) + (cholesky_tril is not None) != 1:
             raise ValueError(
                 "Provide either the scale matrix or its lower"
                 "triangular Cholesky decomposition."
@@ -718,11 +718,11 @@ class MultivariateT(Distribution):
 
         loc = loc[..., np.newaxis]
 
-        if scale is not None:
+        if scale_matrix is not None:
             if check_parameters:
-                self._check_parameter(positive_definite, "scale", scale)
+                self._check_parameter(positive_definite, "scale_matrix", scale_matrix)
 
-            cholesky_tril = la.cholesky(scale)
+            cholesky_tril = la.cholesky(scale_matrix)
 
         loc, cholesky_tril = promote_shapes(loc, cholesky_tril)
 
@@ -757,8 +757,8 @@ class MultivariateT(Distribution):
     @property
     def covariance_matrix(self) -> Parameter:
         df = self.df[..., np.newaxis, np.newaxis]
-        scale = self._cholesky_tril @ np.swapaxes(self._cholesky_tril, -2, -1)
-        covariance = scale * (df / (df - 2.0))
+        scale_matrix = self._cholesky_tril @ np.swapaxes(self._cholesky_tril, -2, -1)
+        covariance = scale_matrix * (df / (df - 2.0))
 
         return np.where(df > 1, covariance, np.nan)
 
