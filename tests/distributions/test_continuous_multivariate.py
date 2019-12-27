@@ -6,7 +6,7 @@ import scipy.stats as stats
 from pytest import approx, raises
 
 from pynference.constants import Parameter, Shape
-from pynference.distributions import Dirichlet, MultivariateNormal
+from pynference.distributions import Dirichlet, MultivariateNormal, MultivariateT
 from pynference.utils import check_random_state
 
 
@@ -1012,6 +1012,824 @@ class TestBroadcasting:
         )
         snd = MultivariateNormal(
             mean=np.ones(shape=(1, 1, 2)),
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+    def test_mvt1(self):
+        # scalar, scalar, vector
+        fst = MultivariateT(
+            df=4.0, loc=1.0, scale=self._multidimensional_eye(shape=(2, 2, 2))
+        )
+        snd = MultivariateT(
+            df=4.0, loc=1.0, scale=self._multidimensional_eye(shape=(1, 2, 2))
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2,)
+        assert snd.batch_shape == (1,)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # scalar, scalar, matrix
+        fst = MultivariateT(
+            df=4.0, loc=1.0, scale=self._multidimensional_eye(shape=(2, 2, 2, 2))
+        )
+        snd = MultivariateT(
+            df=4.0, loc=1.0, scale=self._multidimensional_eye(shape=(1, 1, 2, 2))
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (1, 1)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # scalar, vector, vector
+        fst = MultivariateT(
+            df=4.0,
+            loc=np.ones(shape=(2, 2)),
+            scale=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+        snd = MultivariateT(
+            df=4.0,
+            loc=np.ones(shape=(1, 2)),
+            scale=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2,)
+        assert snd.batch_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # scalar, vector, matrix
+        fst = MultivariateT(
+            df=4.0,
+            loc=np.ones(shape=(2, 2)),
+            scale=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+        snd = MultivariateT(
+            df=4.0,
+            loc=np.ones(shape=(1, 2)),
+            scale=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # scalar, matrix, vector
+        fst = MultivariateT(
+            df=4.0,
+            loc=np.ones(shape=(2, 2, 2)),
+            scale=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+        snd = MultivariateT(
+            df=4.0,
+            loc=np.ones(shape=(1, 1, 2)),
+            scale=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (1, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # scalar, matrix, matrix
+        fst = MultivariateT(
+            df=4.0,
+            loc=np.ones(shape=(2, 2, 2)),
+            scale=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+        snd = MultivariateT(
+            df=4.0,
+            loc=np.ones(shape=(1, 1, 2)),
+            scale=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # vector, scalar, vector
+        fst = MultivariateT(
+            df=np.array([4.0, 4.0]),
+            loc=1.0,
+            scale=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+        snd = MultivariateT(
+            df=np.array([4.0, 4.0]),
+            loc=1.0,
+            scale=self._multidimensional_eye(shape=(1, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2,)
+        assert snd.batch_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # vector, scalar, matrix
+        fst = MultivariateT(
+            df=np.array([4.0, 4.0]),
+            loc=1.0,
+            scale=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+        snd = MultivariateT(
+            df=np.array([4.0, 4.0]),
+            loc=1.0,
+            scale=self._multidimensional_eye(shape=(1, 1, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (1, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # vector, vector, vector
+        fst = MultivariateT(
+            df=np.array([4.0, 4.0]),
+            loc=np.ones(shape=(2, 2)),
+            scale=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+        snd = MultivariateT(
+            df=np.array([4.0, 4.0]),
+            loc=np.ones(shape=(1, 2)),
+            scale=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2,)
+        assert snd.batch_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # vector, vector, matrix
+        fst = MultivariateT(
+            df=np.array([4.0, 4.0]),
+            loc=np.ones(shape=(2, 2)),
+            scale=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+        snd = MultivariateT(
+            df=np.array([4.0, 4.0]),
+            loc=np.ones(shape=(1, 2)),
+            scale=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # vector, matrix, vector
+        fst = MultivariateT(
+            df=np.array([4.0, 4.0]),
+            loc=np.ones(shape=(2, 2, 2)),
+            scale=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+        snd = MultivariateT(
+            df=np.array([4.0, 4.0]),
+            loc=np.ones(shape=(1, 1, 2)),
+            scale=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (1, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # vector, matrix, matrix
+        fst = MultivariateT(
+            df=np.array([4.0, 4.0]),
+            loc=np.ones(shape=(2, 2, 2)),
+            scale=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+        snd = MultivariateT(
+            df=np.array([4.0, 4.0]),
+            loc=np.ones(shape=(1, 1, 2)),
+            scale=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # matrix, scalar, vector
+        fst = MultivariateT(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            loc=1.0,
+            scale=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+        snd = MultivariateT(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            loc=1.0,
+            scale=self._multidimensional_eye(shape=(1, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # matrix, scalar, matrix
+        fst = MultivariateT(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            loc=1.0,
+            scale=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+        snd = MultivariateT(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            loc=1.0,
+            scale=self._multidimensional_eye(shape=(1, 1, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # matrix, vector, vector
+        fst = MultivariateT(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            loc=np.ones(shape=(2, 2)),
+            scale=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+        snd = MultivariateT(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            loc=np.ones(shape=(1, 2)),
+            scale=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # matrix, vector, matrix
+        fst = MultivariateT(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            loc=np.ones(shape=(2, 2)),
+            scale=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+        snd = MultivariateT(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            loc=np.ones(shape=(1, 2)),
+            scale=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # matrix, matrix, vector
+        fst = MultivariateT(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            loc=np.ones(shape=(2, 2, 2)),
+            scale=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+        snd = MultivariateT(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            loc=np.ones(shape=(1, 1, 2)),
+            scale=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # matrix, matrix, matrix
+        fst = MultivariateT(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            loc=np.ones(shape=(2, 2, 2)),
+            scale=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+        snd = MultivariateT(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            loc=np.ones(shape=(1, 1, 2)),
+            scale=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+    def test_mvt2(self):
+        # scalar, scalar, vector
+        fst = MultivariateT(
+            df=4.0, loc=1.0, cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2))
+        )
+        snd = MultivariateT(
+            df=4.0, loc=1.0, cholesky_tril=self._multidimensional_eye(shape=(1, 2, 2))
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2,)
+        assert snd.batch_shape == (1,)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # scalar, scalar, matrix
+        fst = MultivariateT(
+            df=4.0,
+            loc=1.0,
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+        snd = MultivariateT(
+            df=4.0,
+            loc=1.0,
+            cholesky_tril=self._multidimensional_eye(shape=(1, 1, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (1, 1)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # scalar, vector, vector
+        fst = MultivariateT(
+            df=4.0,
+            loc=np.ones(shape=(2, 2)),
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+        snd = MultivariateT(
+            df=4.0,
+            loc=np.ones(shape=(1, 2)),
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2,)
+        assert snd.batch_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # scalar, vector, matrix
+        fst = MultivariateT(
+            df=4.0,
+            loc=np.ones(shape=(2, 2)),
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+        snd = MultivariateT(
+            df=4.0,
+            loc=np.ones(shape=(1, 2)),
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # scalar, matrix, vector
+        fst = MultivariateT(
+            df=4.0,
+            loc=np.ones(shape=(2, 2, 2)),
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+        snd = MultivariateT(
+            df=4.0,
+            loc=np.ones(shape=(1, 1, 2)),
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (1, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # scalar, matrix, matrix
+        fst = MultivariateT(
+            df=4.0,
+            loc=np.ones(shape=(2, 2, 2)),
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+        snd = MultivariateT(
+            df=4.0,
+            loc=np.ones(shape=(1, 1, 2)),
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # vector, scalar, vector
+        fst = MultivariateT(
+            df=np.array([4.0, 4.0]),
+            loc=1.0,
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+        snd = MultivariateT(
+            df=np.array([4.0, 4.0]),
+            loc=1.0,
+            cholesky_tril=self._multidimensional_eye(shape=(1, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2,)
+        assert snd.batch_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # vector, scalar, matrix
+        fst = MultivariateT(
+            df=np.array([4.0, 4.0]),
+            loc=1.0,
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+        snd = MultivariateT(
+            df=np.array([4.0, 4.0]),
+            loc=1.0,
+            cholesky_tril=self._multidimensional_eye(shape=(1, 1, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (1, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # vector, vector, vector
+        fst = MultivariateT(
+            df=np.array([4.0, 4.0]),
+            loc=np.ones(shape=(2, 2)),
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+        snd = MultivariateT(
+            df=np.array([4.0, 4.0]),
+            loc=np.ones(shape=(1, 2)),
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2,)
+        assert snd.batch_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # vector, vector, matrix
+        fst = MultivariateT(
+            df=np.array([4.0, 4.0]),
+            loc=np.ones(shape=(2, 2)),
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+        snd = MultivariateT(
+            df=np.array([4.0, 4.0]),
+            loc=np.ones(shape=(1, 2)),
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # vector, matrix, vector
+        fst = MultivariateT(
+            df=np.array([4.0, 4.0]),
+            loc=np.ones(shape=(2, 2, 2)),
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+        snd = MultivariateT(
+            df=np.array([4.0, 4.0]),
+            loc=np.ones(shape=(1, 1, 2)),
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (1, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # vector, matrix, matrix
+        fst = MultivariateT(
+            df=np.array([4.0, 4.0]),
+            loc=np.ones(shape=(2, 2, 2)),
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+        snd = MultivariateT(
+            df=np.array([4.0, 4.0]),
+            loc=np.ones(shape=(1, 1, 2)),
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # matrix, scalar, vector
+        fst = MultivariateT(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            loc=1.0,
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+        snd = MultivariateT(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            loc=1.0,
+            cholesky_tril=self._multidimensional_eye(shape=(1, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # matrix, scalar, matrix
+        fst = MultivariateT(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            loc=1.0,
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+        snd = MultivariateT(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            loc=1.0,
+            cholesky_tril=self._multidimensional_eye(shape=(1, 1, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # matrix, vector, vector
+        fst = MultivariateT(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            loc=np.ones(shape=(2, 2)),
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+        snd = MultivariateT(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            loc=np.ones(shape=(1, 2)),
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # matrix, vector, matrix
+        fst = MultivariateT(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            loc=np.ones(shape=(2, 2)),
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+        snd = MultivariateT(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            loc=np.ones(shape=(1, 2)),
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # matrix, matrix, vector
+        fst = MultivariateT(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            loc=np.ones(shape=(2, 2, 2)),
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+        snd = MultivariateT(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            loc=np.ones(shape=(1, 1, 2)),
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # matrix, matrix, matrix
+        fst = MultivariateT(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            loc=np.ones(shape=(2, 2, 2)),
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+        snd = MultivariateT(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            loc=np.ones(shape=(1, 1, 2)),
             cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2, 2)),
         )
 

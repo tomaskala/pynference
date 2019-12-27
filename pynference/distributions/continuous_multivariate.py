@@ -713,14 +713,19 @@ class MultivariateT(Distribution):
                 "triangular Cholesky decomposition."
             )
 
-        loc = (loc[..., np.newaxis],)
+        if np.isscalar(loc):
+            loc = np.expand_dims(loc, axis=-1)
+
+        loc = loc[..., np.newaxis]
 
         if scale is not None:
             cholesky_tril = la.cholesky(scale)
 
         loc, cholesky_tril = promote_shapes(loc, cholesky_tril)
 
-        batch_shape = broadcast_shapes(np.shape(loc)[:-2], np.shape(cholesky_tril)[:-2])
+        batch_shape = broadcast_shapes(
+            np.shape(df), np.shape(loc)[:-2], np.shape(cholesky_tril)[:-2]
+        )
         rv_shape = np.shape(cholesky_tril)[-1:]
         loc = np.squeeze(loc, axis=-1)
 
@@ -772,7 +777,7 @@ class MultivariateT(Distribution):
         )
         norm = np.squeeze(self._cholesky_tril @ std_norm[..., np.newaxis], axis=-1)
         chi2 = random_state.chisquare(df=self.df, size=sample_shape + self.batch_shape)
-        epsilon = norm / chi2
+        epsilon = norm / chi2[..., np.newaxis]
         return np.sqrt(self.df) * epsilon + self.loc
 
 
