@@ -2255,25 +2255,23 @@ class TestFirstTwoMoments:
     atol = 1e-2
     rtol = 1.0
 
-    def test_mean_and_variance(self):
-        for distribution_cls, parameter_set in self.distributions.items():
-            if distribution_cls in (MultivariateNormal, MultivariateT):
-                continue
+    def test_mean_and_variance_dirichlet(self):
+        parameter_set = self.distributions[Dirichlet]
 
-            for i, parameters in enumerate(parameter_set):
-                distribution = distribution_cls(**parameters)
+        for i, parameters in enumerate(parameter_set):
+            distribution = Dirichlet(**parameters)
 
-                samples = distribution.sample(
-                    sample_shape=(self.n_samples,), random_state=self.random_state
-                )
+            samples = distribution.sample(
+                sample_shape=(self.n_samples,), random_state=self.random_state
+            )
 
-                assert np.mean(samples, axis=0) == approx(
-                    distribution.mean, rel=self.rtol, abs=self.atol
-                ), f"mean of {distribution}"
+            assert np.mean(samples, axis=0) == approx(
+                distribution.mean, rel=self.rtol, abs=self.atol
+            ), f"mean of {distribution}"
 
-                assert np.var(samples, axis=0) == approx(
-                    distribution.variance, rel=self.rtol, abs=self.atol
-                ), f"variance of {distribution}"
+            assert np.var(samples, axis=0) == approx(
+                distribution.variance, rel=self.rtol, abs=self.atol
+            ), f"variance of {distribution}"
 
     def _batch_covariance_matrix(self, samples: np.ndarray) -> np.ndarray:
         centered = samples - np.mean(samples, axis=0, keepdims=True)
