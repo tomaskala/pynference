@@ -793,6 +793,8 @@ class MultivariateT(Distribution):
 
 
 # TODO: Store the Cholesky factor of the scale matrix to calculate everything efficiently?
+# TODO: log_prob tests
+# TODO: moments tests
 class Wishart(ExponentialFamily):
     _constraints: Dict[str, Constraint] = {
         "df": positive,
