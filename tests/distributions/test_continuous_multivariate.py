@@ -8,6 +8,7 @@ from pytest import approx, raises
 from pynference.constants import Parameter, Shape
 from pynference.distributions import (
     Dirichlet,
+    InverseWishart,
     MultivariateNormal,
     MultivariateT,
     Wishart,
@@ -2799,9 +2800,7 @@ class TestParameterConstraints:
         with raises(ValueError, match=r".*positive.*"):
             Wishart(df=0.0, scale_matrix=np.eye(3))
         with raises(ValueError, match=r".*positive.*"):
-            Wishart(
-                df=-1.0, scale_matrix=np.eye(3)
-            )
+            Wishart(df=-1.0, scale_matrix=np.eye(3))
 
         cov1 = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
         cov2 = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, -1.0]])
@@ -3026,6 +3025,32 @@ class TestSamplingShapes:
                 positive_low=3.0,
             ),
         ),
+        Wishart: (
+            generate(
+                random_state,
+                dim=5,
+                shape=(),
+                positive="df",
+                positive_definite_matrix="scale_matrix",
+                positive_low=6.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2,),
+                positive="df",
+                positive_definite_matrix="scale_matrix",
+                positive_low=6.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2, 3),
+                positive="df",
+                positive_definite_matrix="scale_matrix",
+                positive_low=6.0,
+            ),
+        ),
     }
 
     def test_sampling_shapes_0d(self):
@@ -3036,8 +3061,14 @@ class TestSamplingShapes:
                 samples = distribution.sample(
                     sample_shape=(), random_state=self.random_state
                 )
+
+                rv_shape = distribution.rv_shape
+
+                if distribution_cls in (InverseWishart, Wishart):
+                    rv_shape += distribution.rv_shape
+
                 assert (
-                    samples.shape == distribution.batch_shape + distribution.rv_shape
+                    samples.shape == distribution.batch_shape + rv_shape
                 ), f"sampling shape of {distribution}"
 
     def test_sampling_shapes_1d(self):
@@ -3048,9 +3079,14 @@ class TestSamplingShapes:
                 samples = distribution.sample(
                     sample_shape=(100,), random_state=self.random_state
                 )
+
+                rv_shape = distribution.rv_shape
+
+                if distribution_cls in (InverseWishart, Wishart):
+                    rv_shape += distribution.rv_shape
+
                 assert (
-                    samples.shape
-                    == (100,) + distribution.batch_shape + distribution.rv_shape
+                    samples.shape == (100,) + distribution.batch_shape + rv_shape
                 ), f"sampling shape of {distribution}"
 
     def test_sampling_shapes_2d(self):
@@ -3061,9 +3097,14 @@ class TestSamplingShapes:
                 samples = distribution.sample(
                     sample_shape=(10, 10), random_state=self.random_state
                 )
+
+                rv_shape = distribution.rv_shape
+
+                if distribution_cls in (InverseWishart, Wishart):
+                    rv_shape += distribution.rv_shape
+
                 assert (
-                    samples.shape
-                    == (10, 10) + distribution.batch_shape + distribution.rv_shape
+                    samples.shape == (10, 10) + distribution.batch_shape + rv_shape
                 ), f"sampling shape of {distribution}"
 
     def test_sampling_shapes_3d(self):
@@ -3074,7 +3115,12 @@ class TestSamplingShapes:
                 samples = distribution.sample(
                     sample_shape=(10, 10, 2), random_state=self.random_state
                 )
+
+                rv_shape = distribution.rv_shape
+
+                if distribution_cls in (InverseWishart, Wishart):
+                    rv_shape += distribution.rv_shape
+
                 assert (
-                    samples.shape
-                    == (10, 10, 2) + distribution.batch_shape + distribution.rv_shape
+                    samples.shape == (10, 10, 2) + distribution.batch_shape + rv_shape
                 ), f"sampling shape of {distribution}"
