@@ -818,7 +818,9 @@ class Wishart(ExponentialFamily):
         )
 
         self.df = df
-        self.scale_matrix = scale_matrix
+        self.scale_matrix = np.broadcast_to(
+            scale_matrix, self.batch_shape + (self.rv_shape[0], self.rv_shape[0])
+        )
 
         if not np.all(df > rv_shape[0] - 1):
             raise ValueError(
@@ -838,12 +840,13 @@ class Wishart(ExponentialFamily):
     def _log_prob(self, x: Variate) -> ArrayLike:
         p = self.rv_shape[0]
         _, log_det_scale = la.slogdet(self.scale_matrix)
+        _, log_det_x = la.slogdet(x)
+
+        trace = np.trace(la.solve(self.scale_matrix, x), axis1=-2, axis2=-1)
         normalizer = self.df / 2.0 * (p * np.log(2.0) + log_det_scale) + multigammaln(
             self.df / 2.0, p
         )
 
-        _, log_det_x = la.slogdet(x)
-        trace = np.trace(la.solve(self.scale_matrix, x), axis1=-2, axis2=-1)
         return (self.df - p - 1.0) / 2.0 * log_det_x - trace / 2.0 - normalizer
 
     def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
@@ -882,9 +885,12 @@ class Wishart(ExponentialFamily):
 
     @property
     def natural_parameter(self) -> Tuple[Parameter, ...]:
+        p = self.rv_shape[0]
         return (
-            -0.5 * la.inv(self.scale_matrix),
-            (self.df - self.rv_shape[0] - 1.0) / 2.0,
+            (-0.5 * la.inv(self.scale_matrix)).reshape(
+                self.batch_shape + (self.rv_shape[0] * self.rv_shape[0],)
+            ),
+            np.expand_dims((self.df - p - 1.0) / 2.0, axis=-1),
         )
 
     @property
@@ -900,5 +906,12 @@ class Wishart(ExponentialFamily):
         return 1.0
 
     def sufficient_statistic(self, x: Variate) -> Tuple[ArrayLike, ...]:
+        p = self.rv_shape[0]
         _, log_det = la.slogdet(x)
-        return x, log_det
+
+        return (
+            x.reshape(
+                (-1,) + self.batch_shape + (self.rv_shape[0] * self.rv_shape[0],)
+            ),
+            np.expand_dims(log_det, axis=-1),
+        )

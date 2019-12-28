@@ -1854,66 +1854,28 @@ class TestBroadcasting:
     def test_wishart(self):
         # scalar, vector
         fst = Wishart(df=4.0, scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)))
-        snd = Wishart(df=4.0, scale_matrix=self._multidimensional_eye(shape=(1, 2, 2)))
+        snd = Wishart(
+            df=np.array([4.0, 4.0]),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
 
         samples = fst.sample(
             sample_shape=(self.n_samples,), random_state=self.random_state
         )
 
+        assert fst.batch_shape == (2,)
+        assert snd.batch_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2,)
         assert fst.log_prob(samples) == approx(
             snd.log_prob(samples), rel=self.rtol, abs=self.atol
         )
-        assert fst.batch_shape == (2,)
-        assert snd.batch_shape == (1,)
-        assert fst.rv_shape == snd.rv_shape == (2,)
 
         # scalar, matrix
         fst = Wishart(
             df=4.0, scale_matrix=self._multidimensional_eye(shape=(2, 2, 2, 2))
         )
         snd = Wishart(
-            df=4.0, scale_matrix=self._multidimensional_eye(shape=(1, 1, 2, 2))
-        )
-
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
-
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
-        )
-        assert fst.batch_shape == (2, 2)
-        assert snd.batch_shape == (1, 1)
-        assert fst.rv_shape == snd.rv_shape == (2,)
-
-        # vector, vector
-        fst = Wishart(
-            df=np.array([4.0, 4.0]),
-            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
-        )
-        snd = Wishart(
-            df=np.array([4.0, 4.0]),
-            scale_matrix=self._multidimensional_eye(shape=(1, 2, 2)),
-        )
-
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
-
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
-        )
-        assert fst.batch_shape == (2,)
-        assert snd.batch_shape == (2,)
-        assert fst.rv_shape == snd.rv_shape == (2,)
-
-        # vector, matrix
-        fst = Wishart(
-            df=np.array([4.0, 4.0]),
-            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2, 2)),
-        )
-        snd = Wishart(
-            df=np.array([4.0, 4.0]),
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
             scale_matrix=self._multidimensional_eye(shape=(1, 1, 2, 2)),
         )
 
@@ -1921,12 +1883,51 @@ class TestBroadcasting:
             sample_shape=(self.n_samples,), random_state=self.random_state
         )
 
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
         assert fst.log_prob(samples) == approx(
             snd.log_prob(samples), rel=self.rtol, abs=self.atol
         )
-        assert fst.batch_shape == (2, 2)
-        assert snd.batch_shape == (1, 2)
+
+        # vector, vector
+        fst = Wishart(df=4.0, scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)))
+        snd = Wishart(
+            df=np.array([4.0, 4.0]),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.batch_shape == (2,)
+        assert snd.batch_shape == (2,)
         assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+
+        # vector, matrix
+        fst = Wishart(
+            df=np.array([4.0, 4.0]),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+        snd = Wishart(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            scale_matrix=self._multidimensional_eye(shape=(1, 1, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
 
         # matrix, vector
         fst = Wishart(
@@ -1942,12 +1943,12 @@ class TestBroadcasting:
             sample_shape=(self.n_samples,), random_state=self.random_state
         )
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
-        )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
         assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
 
         # matrix, matrix
         fst = Wishart(
@@ -1963,26 +1964,26 @@ class TestBroadcasting:
             sample_shape=(self.n_samples,), random_state=self.random_state
         )
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
-        )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
         assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
 
 
 class TestExponentialFamilies:
     random_state = check_random_state(123)
 
     distributions = {
-        Dirichlet: [
+        Dirichlet: (
             generate(random_state, dim=5, shape=(), positive_vector="concentration"),
             generate(random_state, dim=5, shape=(4,), positive_vector="concentration"),
             generate(
                 random_state, dim=5, shape=(4, 3), positive_vector="concentration"
             ),
-        ],
-        MultivariateNormal: [
+        ),
+        MultivariateNormal: (
             generate(
                 random_state, dim=5, shape=(), real_vector="mean", positive="variance"
             ),
@@ -2118,7 +2119,33 @@ class TestExponentialFamilies:
                 real_vector="mean",
                 lower_triangular_matrix="cholesky_tril",
             ),
-        ],
+        ),
+        Wishart: (
+            generate(
+                random_state,
+                dim=5,
+                shape=(),
+                positive="df",
+                positive_definite_matrix="scale_matrix",
+                positive_low=6.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2,),
+                positive="df",
+                positive_definite_matrix="scale_matrix",
+                positive_low=6.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2, 3),
+                positive="df",
+                positive_definite_matrix="scale_matrix",
+                positive_low=6.0,
+            ),
+        ),
     }
 
     n_samples = 100
@@ -2127,7 +2154,7 @@ class TestExponentialFamilies:
 
     def test_base_measure_positive_within_support(self):
         for distribution_cls, p in self.distributions.items():
-            if not isinstance(p, list):
+            if not isinstance(p, tuple):
                 p = [p]
 
             for parameters in p:
@@ -2143,7 +2170,7 @@ class TestExponentialFamilies:
 
     def test_log_probs_equal(self):
         for distribution_cls, p in self.distributions.items():
-            if not isinstance(p, list):
+            if not isinstance(p, tuple):
                 p = [p]
 
             for parameters in p:
