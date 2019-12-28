@@ -2795,6 +2795,27 @@ class TestParameterConstraints:
         with raises(ValueError, match=r".*lower_cholesky.*"):
             MultivariateT(df=4.0, loc=np.array([1.0, 2.0, 3.0]), cholesky_tril=chol2)
 
+    def test_wishart(self):
+        with raises(ValueError, match=r".*positive.*"):
+            Wishart(df=0.0, scale_matrix=np.eye(3))
+        with raises(ValueError, match=r".*positive.*"):
+            Wishart(
+                df=-1.0, scale_matrix=np.eye(3)
+            )
+
+        cov1 = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
+        cov2 = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, -1.0]])
+
+        with raises(ValueError, match=r".*positive_definite.*"):
+            Wishart(df=4.0, scale_matrix=cov1)
+        with raises(ValueError, match=r".*positive_definite.*"):
+            Wishart(df=4.0, scale_matrix=cov2)
+
+        with raises(ValueError, match=r".*degrees of freedom.*"):
+            Wishart(df=1.0, scale_matrix=np.eye(4))
+        with raises(ValueError, match=r".*degrees of freedom.*"):
+            Wishart(df=2.0, scale_matrix=np.eye(4))
+
 
 class TestSamplingShapes:
     random_state = check_random_state(123)

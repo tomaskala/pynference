@@ -810,11 +810,6 @@ class Wishart(ExponentialFamily):
         batch_shape = broadcast_shapes(np.shape(df), np.shape(scale_matrix)[:-2])
         rv_shape = np.shape(scale_matrix)[-1:]
 
-        if not np.all(df > rv_shape[0] - 1):
-            raise ValueError(
-                "The degrees of freedom must be at least the dimension of the scale matrix."
-            )
-
         super().__init__(
             batch_shape=batch_shape,
             rv_shape=rv_shape,
@@ -824,6 +819,11 @@ class Wishart(ExponentialFamily):
 
         self.df = df
         self.scale_matrix = scale_matrix
+
+        if not np.all(df > rv_shape[0] - 1):
+            raise ValueError(
+                "The degrees of freedom must be at least the dimension of the scale matrix."
+            )
 
     @property
     def mean(self) -> Parameter:
