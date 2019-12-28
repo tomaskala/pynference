@@ -792,6 +792,7 @@ class MultivariateT(Distribution):
         )
 
 
+# TODO: Store the Cholesky factor of the scale matrix to calculate everything efficiently?
 class Wishart(ExponentialFamily):
     _constraints: Dict[str, Constraint] = {
         "df": positive,
@@ -808,6 +809,11 @@ class Wishart(ExponentialFamily):
     ):
         batch_shape = broadcast_shapes(np.shape(df), np.shape(scale_matrix)[:-2])
         rv_shape = np.shape(scale_matrix)[-1:]
+
+        if not np.all(df > rv_shape[0] - 1):
+            raise ValueError(
+                "The degrees of freedom must be at least the dimension of the scale matrix."
+            )
 
         super().__init__(
             batch_shape=batch_shape,
@@ -837,11 +843,42 @@ class Wishart(ExponentialFamily):
         )
 
         _, log_det_x = la.slogdet(x)
-        trace = la.trace(la.solve(self.scale_matrix, x))
+        trace = np.trace(la.solve(self.scale_matrix, x), axis1=-2, axis2=-1)
         return (self.df - p - 1.0) / 2.0 * log_det_x - trace / 2.0 - normalizer
 
     def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        pass
+        C = la.cholesky(self.scale_matrix)
+        A = self._standard_sample(sample_shape, random_state)
+        CA = C @ A
+        CA_T = np.swapaxes(CA, -2, -1)
+        return CA @ CA_T
+
+    def _standard_sample(
+        self, sample_shape: Shape, random_state: RandomState
+    ) -> Variate:
+        p = self.rv_shape[0]
+        n_tril = p * (p - 1) // 2
+        normal_samples = random_state.standard_normal(
+            sample_shape + self.batch_shape + (n_tril,)
+        )
+
+        # df = self.df - np.arange(p, 0, -1) + 1
+        # chi2 = Gamma(shape=df / 2.0, rate = 0.5, check_parameters=self.check_parameters, check_support=self.check_support)
+        # chi2_samples = chi2.sample(sample_shape=sample_shape, random_state=random_state)
+
+        sample = np.zeros(shape=sample_shape + self.batch_shape + (p, p))
+        sample_batch_idx = tuple(
+            [slice(None, None, None)] * len(sample_shape + self.batch_shape)
+        )
+
+        tril_idx = np.tril_indices(p, k=-1)
+        sample[sample_batch_idx + tril_idx] = normal_samples
+
+        diag_idx = np.diag_indices(p)
+        sample[sample_batch_idx + diag_idx] = 1.0
+        # sample[sample_batch_idx + diag_idx] = np.sqrt(chi2_samples)
+
+        return sample
 
     @property
     def natural_parameter(self) -> Tuple[Parameter, ...]:

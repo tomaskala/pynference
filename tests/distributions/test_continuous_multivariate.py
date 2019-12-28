@@ -6,7 +6,12 @@ import scipy.stats as stats
 from pytest import approx, raises
 
 from pynference.constants import Parameter, Shape
-from pynference.distributions import Dirichlet, MultivariateNormal, MultivariateT
+from pynference.distributions import (
+    Dirichlet,
+    MultivariateNormal,
+    MultivariateT,
+    Wishart,
+)
 from pynference.utils import check_random_state
 
 
@@ -654,7 +659,8 @@ class TestBroadcasting:
 
     def _multidimensional_eye(self, shape):
         out = np.zeros(shape=shape)
-        out[..., np.arange(out.shape[-1]), np.arange(out.shape[-1])] = 1.0
+        shape_idx = tuple([slice(None, None, None)] * len(shape[:-2]))
+        out[shape_idx + np.diag_indices(shape[-1])] = 1.0
         return out
 
     def test_mvn_matrix1(self):
@@ -1831,6 +1837,125 @@ class TestBroadcasting:
             df=np.array([[4.0, 4.0], [4.0, 4.0]]),
             loc=np.ones(shape=(1, 1, 2)),
             cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+    def test_wishart(self):
+        # scalar, vector
+        fst = Wishart(df=4.0, scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)))
+        snd = Wishart(df=4.0, scale_matrix=self._multidimensional_eye(shape=(1, 2, 2)))
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2,)
+        assert snd.batch_shape == (1,)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # scalar, matrix
+        fst = Wishart(
+            df=4.0, scale_matrix=self._multidimensional_eye(shape=(2, 2, 2, 2))
+        )
+        snd = Wishart(
+            df=4.0, scale_matrix=self._multidimensional_eye(shape=(1, 1, 2, 2))
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (1, 1)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # vector, vector
+        fst = Wishart(
+            df=np.array([4.0, 4.0]),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+        snd = Wishart(
+            df=np.array([4.0, 4.0]),
+            scale_matrix=self._multidimensional_eye(shape=(1, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2,)
+        assert snd.batch_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # vector, matrix
+        fst = Wishart(
+            df=np.array([4.0, 4.0]),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+        snd = Wishart(
+            df=np.array([4.0, 4.0]),
+            scale_matrix=self._multidimensional_eye(shape=(1, 1, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (1, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # matrix, vector
+        fst = Wishart(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+        snd = Wishart(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            scale_matrix=self._multidimensional_eye(shape=(1, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+
+        # matrix, matrix
+        fst = Wishart(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+        snd = Wishart(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            scale_matrix=self._multidimensional_eye(shape=(1, 1, 2, 2)),
         )
 
         samples = fst.sample(
