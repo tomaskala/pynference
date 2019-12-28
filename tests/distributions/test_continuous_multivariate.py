@@ -2279,7 +2279,7 @@ class TestFirstTwoMoments:
         return batch_outer / (samples.shape[0] - 1)
 
     def _multidimensional_diag(self, x):
-        return x[..., np.arange(x.shape[-1]), np.arange(x.shape[-1])]
+        return np.diagonal(x, axis1=-2, axis2=-1)
 
     def test_mean_and_variance_mvn(self):
         from pynference.distributions.continuous_multivariate import (
@@ -2932,32 +2932,3 @@ class TestSamplingShapes:
                     samples.shape
                     == (10, 10, 2) + distribution.batch_shape + distribution.rv_shape
                 ), f"sampling shape of {distribution}"
-
-
-class TestTransformedDistributions:
-    random_state = check_random_state(123)
-
-    distributions = {}
-
-    supports = {}
-
-    def test_supports(self):
-        for distribution_cls, parameter_set in self.distributions.items():
-            for i, parameters in enumerate(parameter_set):
-                distribution = distribution_cls(**parameters)
-
-                assert distribution.support == self.supports[type(distribution)](
-                    distribution
-                ), f"support of {distribution}"
-
-    def test_shapes(self):
-        batch_shapes = [(), (2,), (2, 3)]
-
-        for distribution_cls, parameter_set in self.distributions.items():
-            for i, parameters in enumerate(parameter_set):
-                distribution = distribution_cls(**parameters)
-
-                assert (
-                    distribution.batch_shape == batch_shapes[i]
-                ), f"batch_shape of {distribution}"
-                assert distribution.rv_shape == (), f"rv_shape of {distribution}"

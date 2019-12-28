@@ -5,7 +5,7 @@ import numpy as np
 import numpy.linalg as la  # Not SciPy, NumPy works for batches of matrices.
 from numpy.random import RandomState
 from scipy.linalg import solve_triangular
-from scipy.special import gammaln
+from scipy.special import gammaln, multigammaln
 
 from pynference.constants import ArrayLike, Parameter, Shape, Variate
 from pynference.distributions.constraints import (
@@ -793,36 +793,75 @@ class MultivariateT(Distribution):
 
 
 class Wishart(ExponentialFamily):
-    _constraints: Dict[str, Constraint] = {}
-    _support: Constraint = None
+    _constraints: Dict[str, Constraint] = {
+        "df": positive,
+        "scale_matrix": positive_definite,
+    }
+    _support: Constraint = positive_definite
 
-    def __init__(self, check_parameters: bool = True, check_support: bool = True):
-        pass
+    def __init__(
+        self,
+        df: Parameter,
+        scale_matrix: Parameter,
+        check_parameters: bool = True,
+        check_support: bool = True,
+    ):
+        batch_shape = broadcast_shapes(np.shape(df), np.shape(scale_matrix)[:-2])
+        rv_shape = np.shape(scale_matrix)[-1:]
+
+        super().__init__(
+            batch_shape=batch_shape,
+            rv_shape=rv_shape,
+            check_parameters=check_parameters,
+            check_support=check_support,
+        )
+
+        self.df = df
+        self.scale_matrix = scale_matrix
 
     @property
     def mean(self) -> Parameter:
-        pass
+        return self.df * self.scale_matrix
 
     @property
     def variance(self) -> Parameter:
-        pass
+        diag = np.diagonal(self.scale_matrix, axis1=-2, axis2=-1)
+        batch_outer = diag[..., np.newaxis] @ np.swapaxes(diag[..., np.newaxis], -2, -1)
+        return self.df * (np.square(self.scale_matrix) + batch_outer)
 
     def _log_prob(self, x: Variate) -> ArrayLike:
-        pass
+        p = self.rv_shape[0]
+        _, log_det_scale = la.slogdet(self.scale_matrix)
+        normalizer = self.df / 2.0 * (p * np.log(2.0) + log_det_scale) + multigammaln(
+            self.df / 2.0, p
+        )
+
+        _, log_det_x = la.slogdet(x)
+        trace = la.trace(la.solve(self.scale_matrix, x))
+        return (self.df - p - 1.0) / 2.0 * log_det_x - trace / 2.0 - normalizer
 
     def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
         pass
 
     @property
     def natural_parameter(self) -> Tuple[Parameter, ...]:
-        pass
+        return (
+            -0.5 * la.inv(self.scale_matrix),
+            (self.df - self.rv_shape[0] - 1.0) / 2.0,
+        )
 
     @property
     def log_normalizer(self) -> Parameter:
-        pass
+        p = self.rv_shape[0]
+        _, log_det = la.slogdet(self.scale_matrix)
+
+        return self.df / 2.0 * (p * np.log(2.0) + log_det) + multigammaln(
+            self.df / 2.0, p
+        )
 
     def base_measure(self, x: Variate) -> ArrayLike:
-        pass
+        return 1.0
 
     def sufficient_statistic(self, x: Variate) -> Tuple[ArrayLike, ...]:
-        pass
+        _, log_det = la.slogdet(x)
+        return x, log_det
