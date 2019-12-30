@@ -912,8 +912,6 @@ class Wishart(ExponentialFamily):
         _, log_det = la.slogdet(x)
 
         return (
-            x.reshape(
-                (-1,) + self.batch_shape + (self.rv_shape[0] * self.rv_shape[0],)
-            ),
+            x.reshape((-1,) + self.batch_shape + (p * p,)),
             np.expand_dims(log_det, axis=-1),
         )

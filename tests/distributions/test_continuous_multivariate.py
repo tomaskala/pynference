@@ -2720,6 +2720,30 @@ class TestLogProb:
             scipy_result, rel=self.rtol, abs=self.atol
         ), f"log_prob of {distribution}"
 
+    def test_log_prob_wishart(self):
+        params = generate(
+            self.random_state,
+            dim=5,
+            shape=(),
+            positive="df",
+            positive_definite_matrix="scale_matrix",
+            positive_low=6.0,
+        )
+
+        distribution = Wishart(**params)
+        scipy_distribution = stats.wishart(
+            df=params["df"].item(), scale=params["scale_matrix"]
+        )
+
+        samples = distribution.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+        scipy_result = scipy_distribution.logpdf(np.transpose(samples, axes=(1, 2, 0)))
+
+        assert distribution.log_prob(samples) == approx(
+            scipy_result, rel=self.rtol, abs=self.atol
+        ), f"log_prob of {distribution}"
+
 
 class TestParameterConstraints:
     def test_dirichlet(self):
