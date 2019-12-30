@@ -2402,11 +2402,37 @@ class TestFirstTwoMoments:
                 positive_low=3.0,
             ),
         ),
+        Wishart: (
+            generate(
+                random_state,
+                dim=5,
+                shape=(),
+                positive="df",
+                positive_definite_matrix="scale_matrix",
+                positive_low=6.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2,),
+                positive="df",
+                positive_definite_matrix="scale_matrix",
+                positive_low=6.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2, 3),
+                positive="df",
+                positive_definite_matrix="scale_matrix",
+                positive_low=6.0,
+            ),
+        ),
     }
 
     n_samples = 200000
     atol = 1e-2
-    rtol = 1.0
+    rtol = 0.9
 
     def test_mean_and_variance_dirichlet(self):
         parameter_set = self.distributions[Dirichlet]
