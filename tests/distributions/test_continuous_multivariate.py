@@ -2531,41 +2531,29 @@ class TestFirstTwoMoments:
 class TestLogProb:
     random_state = check_random_state(123)
 
-    distributions = {
-        Dirichlet: generate(
-            random_state, dim=5, shape=(), positive_vector="concentration"
-        )
-    }
-
-    dist2scipy = {Dirichlet: lambda dist: stats.dirichlet(alpha=dist.concentration)}
-
     n_samples = 100
     atol = 1e-6
     rtol = 1e-6
 
     def test_log_prob(self):
-        for distribution_cls, parameters in self.distributions.items():
-            distribution = distribution_cls(**parameters)
+        params = generate(
+            self.random_state, dim=5, shape=(), positive_vector="concentration"
+        )
 
-            if distribution_cls not in self.dist2scipy:
-                continue
+        distribution = Dirichlet(**params)
+        scipy_distribution = stats.dirichlet(alpha=params["concentration"])
 
-            scipy_distribution = self.dist2scipy[distribution_cls](distribution)
+        samples = distribution.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
 
-            samples = distribution.sample(
-                sample_shape=(self.n_samples,), random_state=self.random_state
-            )
+        # For some reason, the SciPy Dirichlet distribution expects
+        # the variates in a reversed shape.
+        scipy_result = scipy_distribution.logpdf(samples.T)
 
-            if distribution_cls is Dirichlet:
-                # For some reason, the SciPy Dirichlet distribution expects
-                # the variates in a reversed shape.
-                scipy_result = scipy_distribution.logpdf(samples.T)
-            else:
-                scipy_result = scipy_distribution.logpdf(samples)
-
-            assert distribution.log_prob(samples) == approx(
-                scipy_result, rel=self.rtol, abs=self.atol
-            ), f"log_prob of {distribution}"
+        assert distribution.log_prob(samples) == approx(
+            scipy_result, rel=self.rtol, abs=self.atol
+        ), f"log_prob of {distribution}"
 
     def test_log_prob_mvn_scalar1(self):
         params = generate(
