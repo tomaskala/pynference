@@ -17,6 +17,7 @@ from pynference.distributions.constraints import (
     real_vector,
     simplex,
 )
+from pynference.distributions.continuous_univariate import Gamma
 from pynference.distributions.distribution import (
     Distribution,
     ExponentialFamily,
@@ -793,8 +794,6 @@ class MultivariateT(Distribution):
 
 
 # TODO: Store the Cholesky factor of the scale matrix to calculate everything efficiently?
-# TODO: log_prob tests
-# TODO: moments tests
 class Wishart(ExponentialFamily):
     _constraints: Dict[str, Constraint] = {
         "df": positive,
@@ -819,7 +818,7 @@ class Wishart(ExponentialFamily):
             check_support=check_support,
         )
 
-        self.df = df
+        self.df = np.broadcast_to(df, self.batch_shape)
         self.scale_matrix = np.broadcast_to(
             scale_matrix, self.batch_shape + (self.rv_shape[0], self.rv_shape[0])
         )
@@ -831,13 +830,15 @@ class Wishart(ExponentialFamily):
 
     @property
     def mean(self) -> Parameter:
-        return self.df * self.scale_matrix
+        return self.df[..., np.newaxis, np.newaxis] * self.scale_matrix
 
     @property
     def variance(self) -> Parameter:
         diag = np.diagonal(self.scale_matrix, axis1=-2, axis2=-1)
         batch_outer = diag[..., np.newaxis] @ np.swapaxes(diag[..., np.newaxis], -2, -1)
-        return self.df * (np.square(self.scale_matrix) + batch_outer)
+        return self.df[..., np.newaxis, np.newaxis] * (
+            np.square(self.scale_matrix) + batch_outer
+        )
 
     def _log_prob(self, x: Variate) -> ArrayLike:
         p = self.rv_shape[0]
@@ -867,9 +868,16 @@ class Wishart(ExponentialFamily):
             sample_shape + self.batch_shape + (n_tril,)
         )
 
-        # df = self.df - np.arange(p, 0, -1) + 1
-        # chi2 = Gamma(shape=df / 2.0, rate = 0.5, check_parameters=self.check_parameters, check_support=self.check_support)
-        # chi2_samples = chi2.sample(sample_shape=sample_shape, random_state=random_state)
+        df = np.expand_dims(self.df, -1)
+        dim_range = np.expand_dims(np.arange(p, 0, -1), 0)
+        df = np.squeeze(df - dim_range) + 1
+        chi2 = Gamma(
+            shape=df / 2.0,
+            rate=0.5,
+            check_parameters=self.check_parameters,
+            check_support=self.check_support,
+        )
+        chi2_samples = chi2.sample(sample_shape=sample_shape, random_state=random_state)
 
         sample = np.zeros(shape=sample_shape + self.batch_shape + (p, p))
         sample_batch_idx = tuple(
@@ -880,8 +888,7 @@ class Wishart(ExponentialFamily):
         sample[sample_batch_idx + tril_idx] = normal_samples
 
         diag_idx = np.diag_indices(p)
-        sample[sample_batch_idx + diag_idx] = 1.0
-        # sample[sample_batch_idx + diag_idx] = np.sqrt(chi2_samples)
+        sample[sample_batch_idx + diag_idx] = np.sqrt(chi2_samples)
 
         return sample
 

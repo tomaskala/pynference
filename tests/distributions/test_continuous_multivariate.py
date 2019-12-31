@@ -46,8 +46,8 @@ def generate(
         "real_vector_high": 10.0,
         "positive_vector_low": 0.001,
         "positive_vector_high": 10.0,
-        "positive_definite_matrix_low": 0.1,
-        "positive_definite_matrix_high": 5.0,
+        "positive_definite_matrix_low": 1.0,
+        "positive_definite_matrix_high": 4.0,
         "lower_triangular_matrix_low": 1.0,
         "lower_triangular_matrix_high": 2.0,
     }
@@ -2432,7 +2432,7 @@ class TestFirstTwoMoments:
 
     n_samples = 200000
     atol = 1e-2
-    rtol = 0.9
+    rtol = 0.95
 
     def test_mean_and_variance_dirichlet(self):
         parameter_set = self.distributions[Dirichlet]
@@ -2548,6 +2548,30 @@ class TestFirstTwoMoments:
 
             true_variance = distribution.variance
             empirical_variance = self._multidimensional_diag(empirical_covariance)
+
+            assert empirical_variance == approx(
+                true_variance, rel=self.rtol, abs=self.atol
+            ), f"variance of {distribution}"
+
+    def test_mean_and_variance_wishart(self):
+        parameter_set = self.distributions[Wishart]
+
+        for i, parameters in enumerate(parameter_set):
+            distribution = Wishart(**parameters)
+
+            samples = distribution.sample(
+                sample_shape=(self.n_samples,), random_state=self.random_state
+            )
+
+            true_mean = distribution.mean
+            empirical_mean = np.mean(samples, axis=0)
+
+            assert empirical_mean == approx(
+                true_mean, rel=self.rtol, abs=self.atol
+            ), f"mean of {distribution}"
+
+            true_variance = distribution.variance
+            empirical_variance = np.var(samples, axis=0)
 
             assert empirical_variance == approx(
                 true_variance, rel=self.rtol, abs=self.atol
