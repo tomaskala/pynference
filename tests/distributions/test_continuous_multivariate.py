@@ -1851,7 +1851,7 @@ class TestBroadcasting:
         assert snd.batch_shape == (2, 2)
         assert fst.rv_shape == snd.rv_shape == (2,)
 
-    def test_wishart(self):
+    def test_wishart1(self):
         # scalar, vector
         fst = Wishart(df=4.0, scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)))
         snd = Wishart(
@@ -1958,6 +1958,126 @@ class TestBroadcasting:
         snd = Wishart(
             df=np.array([[4.0, 4.0], [4.0, 4.0]]),
             scale_matrix=self._multidimensional_eye(shape=(1, 1, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+
+    def test_wishart2(self):
+        # scalar, vector
+        fst = Wishart(df=4.0, cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2)))
+        snd = Wishart(
+            df=np.array([4.0, 4.0]),
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.batch_shape == (2,)
+        assert snd.batch_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+
+        # scalar, matrix
+        fst = Wishart(
+            df=4.0, cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2, 2))
+        )
+        snd = Wishart(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            cholesky_tril=self._multidimensional_eye(shape=(1, 1, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+
+        # vector, vector
+        fst = Wishart(df=4.0, cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2)))
+        snd = Wishart(
+            df=np.array([4.0, 4.0]),
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.batch_shape == (2,)
+        assert snd.batch_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+
+        # vector, matrix
+        fst = Wishart(
+            df=np.array([4.0, 4.0]),
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+        snd = Wishart(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            cholesky_tril=self._multidimensional_eye(shape=(1, 1, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+
+        # matrix, vector
+        fst = Wishart(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+        snd = Wishart(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            cholesky_tril=self._multidimensional_eye(shape=(1, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+
+        # matrix, matrix
+        fst = Wishart(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+        snd = Wishart(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            cholesky_tril=self._multidimensional_eye(shape=(1, 1, 2, 2)),
         )
 
         samples = fst.sample(
@@ -2143,6 +2263,30 @@ class TestExponentialFamilies:
                 shape=(2, 3),
                 positive="df",
                 positive_definite_matrix="scale_matrix",
+                positive_low=6.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(),
+                positive="df",
+                lower_triangular_matrix="cholesky_tril",
+                positive_low=6.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2,),
+                positive="df",
+                lower_triangular_matrix="cholesky_tril",
+                positive_low=6.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2, 3),
+                positive="df",
+                lower_triangular_matrix="cholesky_tril",
                 positive_low=6.0,
             ),
         ),
@@ -2425,6 +2569,30 @@ class TestFirstTwoMoments:
                 shape=(2, 3),
                 positive="df",
                 positive_definite_matrix="scale_matrix",
+                positive_low=6.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(),
+                positive="df",
+                lower_triangular_matrix="cholesky_tril",
+                positive_low=6.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2,),
+                positive="df",
+                lower_triangular_matrix="cholesky_tril",
+                positive_low=6.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2, 3),
+                positive="df",
+                lower_triangular_matrix="cholesky_tril",
                 positive_low=6.0,
             ),
         ),
@@ -2758,7 +2926,7 @@ class TestLogProb:
             scipy_result, rel=self.rtol, abs=self.atol
         ), f"log_prob of {distribution}"
 
-    def test_log_prob_wishart(self):
+    def test_log_prob_wishart1(self):
         params = generate(
             self.random_state,
             dim=5,
@@ -2771,6 +2939,31 @@ class TestLogProb:
         distribution = Wishart(**params)
         scipy_distribution = stats.wishart(
             df=params["df"].item(), scale=params["scale_matrix"]
+        )
+
+        samples = distribution.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+        scipy_result = scipy_distribution.logpdf(np.transpose(samples, axes=(1, 2, 0)))
+
+        assert distribution.log_prob(samples) == approx(
+            scipy_result, rel=self.rtol, abs=self.atol
+        ), f"log_prob of {distribution}"
+
+    def test_log_prob_wishart2(self):
+        params = generate(
+            self.random_state,
+            dim=5,
+            shape=(),
+            positive="df",
+            lower_triangular_matrix="cholesky_tril",
+            positive_low=6.0,
+        )
+
+        distribution = Wishart(**params)
+        scipy_distribution = stats.wishart(
+            df=params["df"].item(),
+            scale=params["cholesky_tril"] @ params["cholesky_tril"].T,
         )
 
         samples = distribution.sample(
@@ -2903,6 +3096,14 @@ class TestParameterConstraints:
             Wishart(df=1.0, scale_matrix=np.eye(4))
         with raises(ValueError, match=r".*degrees of freedom.*"):
             Wishart(df=2.0, scale_matrix=np.eye(4))
+
+        chol1 = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
+        chol2 = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [1.0, 0.0, -1.0]])
+
+        with raises(ValueError, match=r".*lower_cholesky.*"):
+            Wishart(df=4.0, cholesky_tril=chol1)
+        with raises(ValueError, match=r".*lower_cholesky.*"):
+            Wishart(df=4.0, cholesky_tril=chol2)
 
 
 class TestSamplingShapes:
@@ -3137,6 +3338,30 @@ class TestSamplingShapes:
                 shape=(2, 3),
                 positive="df",
                 positive_definite_matrix="scale_matrix",
+                positive_low=6.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(),
+                positive="df",
+                lower_triangular_matrix="cholesky_tril",
+                positive_low=6.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2,),
+                positive="df",
+                lower_triangular_matrix="cholesky_tril",
+                positive_low=6.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2, 3),
+                positive="df",
+                lower_triangular_matrix="cholesky_tril",
                 positive_low=6.0,
             ),
         ),
