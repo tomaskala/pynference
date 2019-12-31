@@ -828,6 +828,16 @@ class Wishart(ExponentialFamily):
                 "The degrees of freedom must be at least the dimension of the scale matrix."
             )
 
+        chi2_df = np.expand_dims(self.df, -1)
+        dim_range = np.expand_dims(np.arange(self.rv_shape[0], 0, -1), 0)
+        chi2_df = np.squeeze(chi2_df - dim_range) + 1
+        self._chi2 = Gamma(
+            shape=chi2_df / 2.0,
+            rate=0.5,
+            check_parameters=self.check_parameters,
+            check_support=self.check_support,
+        )
+
     @property
     def mean(self) -> Parameter:
         return self.df[..., np.newaxis, np.newaxis] * self.scale_matrix
@@ -868,16 +878,9 @@ class Wishart(ExponentialFamily):
             sample_shape + self.batch_shape + (n_tril,)
         )
 
-        df = np.expand_dims(self.df, -1)
-        dim_range = np.expand_dims(np.arange(p, 0, -1), 0)
-        df = np.squeeze(df - dim_range) + 1
-        chi2 = Gamma(
-            shape=df / 2.0,
-            rate=0.5,
-            check_parameters=self.check_parameters,
-            check_support=self.check_support,
+        chi2_samples = self._chi2.sample(
+            sample_shape=sample_shape, random_state=random_state
         )
-        chi2_samples = chi2.sample(sample_shape=sample_shape, random_state=random_state)
 
         sample = np.zeros(shape=sample_shape + self.batch_shape + (p, p))
         sample_batch_idx = tuple(
