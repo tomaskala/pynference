@@ -18,11 +18,7 @@ from pynference.distributions.constraints import (
     simplex,
 )
 from pynference.distributions.continuous_univariate import Gamma
-from pynference.distributions.distribution import (
-    Distribution,
-    ExponentialFamily,
-    TransformedDistribution,
-)
+from pynference.distributions.distribution import Distribution, ExponentialFamily
 from pynference.distributions.utils import (
     arraywise_diagonal,
     broadcast_shapes,
@@ -97,8 +93,172 @@ class Dirichlet(ExponentialFamily):
         return (np.log(x),)
 
 
-class InverseWishart(TransformedDistribution):
-    pass
+class InverseWishart(ExponentialFamily):
+    _constraints: Dict[str, Constraint] = {
+        "df": positive,
+        "_cholesky_tril": lower_cholesky,
+    }
+    _support: Constraint = positive_definite
+
+    def __init__(
+        self,
+        df: Parameter,
+        scale_matrix: Parameter = None,
+        cholesky_tril: Parameter = None,
+        check_parameters: bool = True,
+        check_support: bool = True,
+    ):
+        if (scale_matrix is not None) + (cholesky_tril is not None) != 1:
+            raise ValueError(
+                "Provide either the scale matrix or its lower "
+                "triangular Cholesky decomposition."
+            )
+
+        if scale_matrix is not None:
+            if check_parameters:
+                self._check_parameter(positive_definite, "scale_matrix", scale_matrix)
+
+            cholesky_tril = la.cholesky(scale_matrix)
+
+        batch_shape = broadcast_shapes(np.shape(df), np.shape(cholesky_tril)[:-2])
+        rv_shape = np.shape(cholesky_tril)[-1:]
+
+        super().__init__(
+            batch_shape=batch_shape,
+            rv_shape=rv_shape,
+            check_parameters=check_parameters,
+            check_support=check_support,
+        )
+
+        self.df = np.broadcast_to(df, self.batch_shape)
+        self._cholesky_tril = np.broadcast_to(
+            cholesky_tril, self.batch_shape + (self.rv_shape[0], self.rv_shape[0])
+        )
+
+        if not np.all(df > rv_shape[0] - 1):
+            raise ValueError(
+                "The degrees of freedom must be at least the dimension of the scale matrix."
+            )
+
+        chi2_df = np.expand_dims(self.df, -1)
+        dim_range = np.expand_dims(np.arange(self.rv_shape[0], 0, -1), 0)
+        chi2_df = np.squeeze(chi2_df - dim_range) + 1
+        self._chi2 = Gamma(
+            shape=chi2_df / 2.0,
+            rate=0.5,
+            check_parameters=self.check_parameters,
+            check_support=self.check_support,
+        )
+
+    @property
+    def mean(self) -> Parameter:
+        p = self.rv_shape[0]
+        df = self.df[..., np.newaxis, np.newaxis]
+        scale_matrix = self._cholesky_tril @ np.swapaxes(self._cholesky_tril, -2, -1)
+        return np.where(df > p + 1, scale_matrix / (df - p - 1), np.nan)
+
+    @property
+    def variance(self) -> Parameter:
+        p = self.rv_shape[0]
+        df = self.df[..., np.newaxis, np.newaxis]
+        scale_matrix = self._cholesky_tril @ np.swapaxes(self._cholesky_tril, -2, -1)
+
+        diag = np.diagonal(scale_matrix, axis1=-2, axis2=-1)
+        batch_outer = diag[..., np.newaxis] @ np.swapaxes(diag[..., np.newaxis], -2, -1)
+
+        numerator = (df - p + 1) * np.square(scale_matrix) + (df - p - 1) * batch_outer
+        denominator = (df - p) * np.square(df - p - 1) * (df - p - 3)
+        return np.where(df > p + 3, numerator / denominator, np.nan)
+
+    def _log_prob(self, x: Variate) -> ArrayLike:
+        p = self.rv_shape[0]
+        cholesky_x = la.cholesky(x)
+        half_log_det_scale = _half_log_det(self._cholesky_tril)
+        log_det_x = 2.0 * _half_log_det(cholesky_x)
+
+        scale_matrix = self._cholesky_tril @ np.swapaxes(self._cholesky_tril, -2, -1)
+        x_inv = _cholesky2inverse(cholesky_x)
+        trace = np.trace(scale_matrix @ x_inv, axis1=-2, axis2=-1)
+
+        normalizer = (
+            self.df * half_log_det_scale
+            - (self.df * p / 2.0) * np.log(2.0)
+            - multigammaln(self.df / 2.0, p)
+        )
+
+        return -(self.df + p + 1.0) / 2.0 * log_det_x - trace / 2.0 + normalizer
+
+    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
+        scale_inv = _cholesky2inverse(self._cholesky_tril)
+        cholesky_inv = la.cholesky(scale_inv)
+
+        A = self._standard_sample(sample_shape, random_state)
+        CA = cholesky_inv @ A
+
+        CA_inv = la.inv(CA)
+        CA_inv_T = np.swapaxes(CA_inv, -2, -1)
+
+        return CA_inv_T @ CA_inv
+
+    def _standard_sample(
+        self, sample_shape: Shape, random_state: RandomState
+    ) -> Variate:
+        p = self.rv_shape[0]
+        n_tril = p * (p - 1) // 2
+        normal_samples = random_state.standard_normal(
+            sample_shape + self.batch_shape + (n_tril,)
+        )
+
+        chi2_samples = self._chi2.sample(
+            sample_shape=sample_shape, random_state=random_state
+        )
+
+        sample = np.zeros(shape=sample_shape + self.batch_shape + (p, p))
+        sample_batch_idx = tuple(
+            [slice(None, None, None)] * len(sample_shape + self.batch_shape)
+        )
+
+        tril_idx = np.tril_indices(p, k=-1)
+        sample[sample_batch_idx + tril_idx] = normal_samples
+
+        diag_idx = np.diag_indices(p)
+        sample[sample_batch_idx + diag_idx] = np.sqrt(chi2_samples)
+
+        return sample
+
+    @property
+    def natural_parameter(self) -> Tuple[Parameter, ...]:
+        p = self.rv_shape[0]
+        scale_matrix = self._cholesky_tril @ np.swapaxes(self._cholesky_tril, -2, -1)
+        return (
+            (-0.5 * scale_matrix).reshape(
+                self.batch_shape + (self.rv_shape[0] * self.rv_shape[0],)
+            ),
+            np.expand_dims(-(self.df + p + 1.0) / 2.0, axis=-1),
+        )
+
+    @property
+    def log_normalizer(self) -> Parameter:
+        p = self.rv_shape[0]
+        log_det = 2.0 * _half_log_det(self._cholesky_tril)
+
+        return self.df / 2.0 * (p * np.log(2.0) - log_det) + multigammaln(
+            self.df / 2.0, p
+        )
+
+    def base_measure(self, x: Variate) -> ArrayLike:
+        return 1.0
+
+    def sufficient_statistic(self, x: Variate) -> Tuple[ArrayLike, ...]:
+        p = self.rv_shape[0]
+        cholesky_x = la.cholesky(x)
+        log_det = 2.0 * _half_log_det(cholesky_x)
+        x_inv = _cholesky2inverse(cholesky_x)
+
+        return (
+            x_inv.reshape((-1,) + self.batch_shape + (p * p,)),
+            np.expand_dims(log_det, axis=-1),
+        )
 
 
 class _MVNScalar(ExponentialFamily):
@@ -511,26 +671,26 @@ class _MVNMatrix(ExponentialFamily):
         )
 
 
-def _precision2cholesky(precision_matrix: np.ndarray, batch_shape: Shape) -> np.ndarray:
-    if batch_shape == ():
+def _inverse2cholesky(inverse_matrix: np.ndarray) -> np.ndarray:
+    if np.ndim(inverse_matrix) == 2:
         tril_inv = np.swapaxes(
-            la.cholesky(precision_matrix[..., ::-1, ::-1])[..., ::-1, ::-1], -2, -1
+            la.cholesky(inverse_matrix[..., ::-1, ::-1])[..., ::-1, ::-1], -2, -1
         )
         identity = np.broadcast_to(
-            np.identity(precision_matrix.shape[-1]), tril_inv.shape
+            np.identity(inverse_matrix.shape[-1]), tril_inv.shape
         )
 
         return solve_triangular(tril_inv, identity, lower=True)
     else:
         identity = np.broadcast_to(
-            np.identity(precision_matrix.shape[-1]), precision_matrix.shape
+            np.identity(inverse_matrix.shape[-1]), inverse_matrix.shape
         )
-        inv = la.solve(precision_matrix, identity)
+        inv = la.solve(inverse_matrix, identity)
         return la.cholesky(inv)
 
 
-def _cholesky2precision(cholesky_tril: np.ndarray, batch_shape: Shape) -> np.ndarray:
-    if batch_shape == ():
+def _cholesky2inverse(cholesky_tril: np.ndarray) -> np.ndarray:
+    if np.ndim(cholesky_tril) == 2:
         identity = np.identity(cholesky_tril.shape[-1])
         cholesky_inv = solve_triangular(cholesky_tril, identity, lower=True)
     else:
@@ -664,7 +824,7 @@ def MultivariateNormal(
                 np.shape(mean)[:-2], np.shape(precision_matrix)[:-2]
             )
 
-            cholesky_tril = _precision2cholesky(precision_matrix, batch_shape)
+            cholesky_tril = _inverse2cholesky(precision_matrix)
         else:
             if check_parameters:
                 _check_constraint(lower_cholesky, "cholesky_tril", cholesky_tril)
@@ -675,7 +835,7 @@ def MultivariateNormal(
                 np.shape(mean)[:-2], np.shape(cholesky_tril)[:-2]
             )
 
-            precision_matrix = _cholesky2precision(cholesky_tril, batch_shape)
+            precision_matrix = _cholesky2inverse(cholesky_tril)
 
         rv_shape = np.shape(cholesky_tril)[-1:]
         mean = np.squeeze(mean, axis=-1)
@@ -870,13 +1030,7 @@ class Wishart(ExponentialFamily):
         log_det_scale = 2.0 * _half_log_det(self._cholesky_tril)
         _, log_det_x = la.slogdet(x)
 
-        if self.batch_shape == ():
-            identity = np.identity(self._cholesky_tril.shape[-1])
-            cholesky_inv = solve_triangular(self._cholesky_tril, identity, lower=True)
-        else:
-            cholesky_inv = la.inv(self._cholesky_tril)
-
-        scale_inv = np.swapaxes(cholesky_inv, -2, -1) @ cholesky_inv
+        scale_inv = _cholesky2inverse(self._cholesky_tril)
         trace = np.trace(scale_inv @ x, axis1=-2, axis2=-1)
 
         normalizer = self.df / 2.0 * (p * np.log(2.0) + log_det_scale) + multigammaln(
@@ -921,7 +1075,7 @@ class Wishart(ExponentialFamily):
     def natural_parameter(self) -> Tuple[Parameter, ...]:
         p = self.rv_shape[0]
         return (
-            (-0.5 * _cholesky2precision(self._cholesky_tril, self.batch_shape)).reshape(
+            (-0.5 * _cholesky2inverse(self._cholesky_tril)).reshape(
                 self.batch_shape + (self.rv_shape[0] * self.rv_shape[0],)
             ),
             np.expand_dims((self.df - p - 1.0) / 2.0, axis=-1),

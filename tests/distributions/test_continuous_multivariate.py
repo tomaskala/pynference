@@ -2091,6 +2091,254 @@ class TestBroadcasting:
             snd.log_prob(samples), rel=self.rtol, abs=self.atol
         )
 
+    def test_inverse_wishart1(self):
+        # scalar, vector
+        fst = InverseWishart(
+            df=4.0, scale_matrix=self._multidimensional_eye(shape=(2, 2, 2))
+        )
+        snd = InverseWishart(
+            df=np.array([4.0, 4.0]),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.batch_shape == (2,)
+        assert snd.batch_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+
+        # scalar, matrix
+        fst = InverseWishart(
+            df=4.0, scale_matrix=self._multidimensional_eye(shape=(2, 2, 2, 2))
+        )
+        snd = InverseWishart(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            scale_matrix=self._multidimensional_eye(shape=(1, 1, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+
+        # vector, vector
+        fst = InverseWishart(
+            df=4.0, scale_matrix=self._multidimensional_eye(shape=(2, 2, 2))
+        )
+        snd = InverseWishart(
+            df=np.array([4.0, 4.0]),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.batch_shape == (2,)
+        assert snd.batch_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+
+        # vector, matrix
+        fst = InverseWishart(
+            df=np.array([4.0, 4.0]),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+        snd = InverseWishart(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            scale_matrix=self._multidimensional_eye(shape=(1, 1, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+
+        # matrix, vector
+        fst = InverseWishart(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+        snd = InverseWishart(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            scale_matrix=self._multidimensional_eye(shape=(1, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+
+        # matrix, matrix
+        fst = InverseWishart(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            scale_matrix=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+        snd = InverseWishart(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            scale_matrix=self._multidimensional_eye(shape=(1, 1, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+
+    def test_inverse_wishart2(self):
+        # scalar, vector
+        fst = InverseWishart(
+            df=4.0, cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2))
+        )
+        snd = InverseWishart(
+            df=np.array([4.0, 4.0]),
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.batch_shape == (2,)
+        assert snd.batch_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+
+        # scalar, matrix
+        fst = InverseWishart(
+            df=4.0, cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2, 2))
+        )
+        snd = InverseWishart(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            cholesky_tril=self._multidimensional_eye(shape=(1, 1, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+
+        # vector, vector
+        fst = InverseWishart(
+            df=4.0, cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2))
+        )
+        snd = InverseWishart(
+            df=np.array([4.0, 4.0]),
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.batch_shape == (2,)
+        assert snd.batch_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+
+        # vector, matrix
+        fst = InverseWishart(
+            df=np.array([4.0, 4.0]),
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+        snd = InverseWishart(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            cholesky_tril=self._multidimensional_eye(shape=(1, 1, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+
+        # matrix, vector
+        fst = InverseWishart(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2)),
+        )
+        snd = InverseWishart(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            cholesky_tril=self._multidimensional_eye(shape=(1, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+
+        # matrix, matrix
+        fst = InverseWishart(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2, 2)),
+        )
+        snd = InverseWishart(
+            df=np.array([[4.0, 4.0], [4.0, 4.0]]),
+            cholesky_tril=self._multidimensional_eye(shape=(1, 1, 2, 2)),
+        )
+
+        samples = fst.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+
+        assert fst.batch_shape == (2, 2)
+        assert snd.batch_shape == (2, 2)
+        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.log_prob(samples) == approx(
+            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        )
+
 
 class TestExponentialFamilies:
     random_state = check_random_state(123)
@@ -2241,6 +2489,56 @@ class TestExponentialFamilies:
             ),
         ),
         Wishart: (
+            generate(
+                random_state,
+                dim=5,
+                shape=(),
+                positive="df",
+                positive_definite_matrix="scale_matrix",
+                positive_low=6.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2,),
+                positive="df",
+                positive_definite_matrix="scale_matrix",
+                positive_low=6.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2, 3),
+                positive="df",
+                positive_definite_matrix="scale_matrix",
+                positive_low=6.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(),
+                positive="df",
+                lower_triangular_matrix="cholesky_tril",
+                positive_low=6.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2,),
+                positive="df",
+                lower_triangular_matrix="cholesky_tril",
+                positive_low=6.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2, 3),
+                positive="df",
+                lower_triangular_matrix="cholesky_tril",
+                positive_low=6.0,
+            ),
+        ),
+        InverseWishart: (
             generate(
                 random_state,
                 dim=5,
@@ -2596,6 +2894,56 @@ class TestFirstTwoMoments:
                 positive_low=6.0,
             ),
         ),
+        InverseWishart: (
+            generate(
+                random_state,
+                dim=5,
+                shape=(),
+                positive="df",
+                positive_definite_matrix="scale_matrix",
+                positive_low=9.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2,),
+                positive="df",
+                positive_definite_matrix="scale_matrix",
+                positive_low=9.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2, 3),
+                positive="df",
+                positive_definite_matrix="scale_matrix",
+                positive_low=9.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(),
+                positive="df",
+                lower_triangular_matrix="cholesky_tril",
+                positive_low=9.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2,),
+                positive="df",
+                lower_triangular_matrix="cholesky_tril",
+                positive_low=9.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2, 3),
+                positive="df",
+                lower_triangular_matrix="cholesky_tril",
+                positive_low=9.0,
+            ),
+        ),
     }
 
     n_samples = 200000
@@ -2743,6 +3091,30 @@ class TestFirstTwoMoments:
 
             assert empirical_variance == approx(
                 true_variance, rel=self.rtol, abs=self.atol
+            ), f"variance of {distribution}"
+
+    def test_mean_and_variance_inverse_wishart(self):
+        parameter_set = self.distributions[InverseWishart]
+
+        for i, parameters in enumerate(parameter_set):
+            distribution = InverseWishart(**parameters)
+
+            samples = distribution.sample(
+                sample_shape=(self.n_samples,), random_state=self.random_state
+            )
+
+            true_mean = distribution.mean
+            empirical_mean = np.mean(samples, axis=0)
+
+            assert empirical_mean == approx(
+                true_mean, rel=self.rtol, abs=self.atol
+            ), f"mean of {distribution}"
+
+            true_variance = distribution.variance
+            empirical_variance = np.var(samples, axis=0)
+
+            assert empirical_variance == approx(
+                true_variance, rel=2 * self.rtol, abs=self.atol
             ), f"variance of {distribution}"
 
 
@@ -2975,6 +3347,55 @@ class TestLogProb:
             scipy_result, rel=self.rtol, abs=self.atol
         ), f"log_prob of {distribution}"
 
+    def test_log_prob_inverse_wishart1(self):
+        params = generate(
+            self.random_state,
+            dim=5,
+            shape=(),
+            positive="df",
+            positive_definite_matrix="scale_matrix",
+            positive_low=6.0,
+        )
+
+        distribution = InverseWishart(**params)
+        scipy_distribution = stats.invwishart(
+            df=params["df"].item(), scale=params["scale_matrix"]
+        )
+
+        samples = distribution.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+        scipy_result = scipy_distribution.logpdf(np.transpose(samples, axes=(1, 2, 0)))
+
+        assert distribution.log_prob(samples) == approx(
+            scipy_result, rel=self.rtol, abs=self.atol
+        ), f"log_prob of {distribution}"
+
+    def test_log_prob_inverse_wishart2(self):
+        params = generate(
+            self.random_state,
+            dim=5,
+            shape=(),
+            positive="df",
+            lower_triangular_matrix="cholesky_tril",
+            positive_low=6.0,
+        )
+
+        distribution = InverseWishart(**params)
+        scipy_distribution = stats.invwishart(
+            df=params["df"].item(),
+            scale=params["cholesky_tril"] @ params["cholesky_tril"].T,
+        )
+
+        samples = distribution.sample(
+            sample_shape=(self.n_samples,), random_state=self.random_state
+        )
+        scipy_result = scipy_distribution.logpdf(np.transpose(samples, axes=(1, 2, 0)))
+
+        assert distribution.log_prob(samples) == approx(
+            scipy_result, rel=self.rtol, abs=self.atol
+        ), f"log_prob of {distribution}"
+
 
 class TestParameterConstraints:
     def test_dirichlet(self):
@@ -3104,6 +3525,33 @@ class TestParameterConstraints:
             Wishart(df=4.0, cholesky_tril=chol1)
         with raises(ValueError, match=r".*lower_cholesky.*"):
             Wishart(df=4.0, cholesky_tril=chol2)
+
+    def test_inverse_wishart(self):
+        with raises(ValueError, match=r".*positive.*"):
+            InverseWishart(df=0.0, scale_matrix=np.eye(3))
+        with raises(ValueError, match=r".*positive.*"):
+            InverseWishart(df=-1.0, scale_matrix=np.eye(3))
+
+        cov1 = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
+        cov2 = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, -1.0]])
+
+        with raises(ValueError, match=r".*positive_definite.*"):
+            InverseWishart(df=4.0, scale_matrix=cov1)
+        with raises(ValueError, match=r".*positive_definite.*"):
+            InverseWishart(df=4.0, scale_matrix=cov2)
+
+        with raises(ValueError, match=r".*degrees of freedom.*"):
+            InverseWishart(df=1.0, scale_matrix=np.eye(4))
+        with raises(ValueError, match=r".*degrees of freedom.*"):
+            InverseWishart(df=2.0, scale_matrix=np.eye(4))
+
+        chol1 = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
+        chol2 = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [1.0, 0.0, -1.0]])
+
+        with raises(ValueError, match=r".*lower_cholesky.*"):
+            InverseWishart(df=4.0, cholesky_tril=chol1)
+        with raises(ValueError, match=r".*lower_cholesky.*"):
+            InverseWishart(df=4.0, cholesky_tril=chol2)
 
 
 class TestSamplingShapes:
@@ -3316,6 +3764,56 @@ class TestSamplingShapes:
             ),
         ),
         Wishart: (
+            generate(
+                random_state,
+                dim=5,
+                shape=(),
+                positive="df",
+                positive_definite_matrix="scale_matrix",
+                positive_low=6.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2,),
+                positive="df",
+                positive_definite_matrix="scale_matrix",
+                positive_low=6.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2, 3),
+                positive="df",
+                positive_definite_matrix="scale_matrix",
+                positive_low=6.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(),
+                positive="df",
+                lower_triangular_matrix="cholesky_tril",
+                positive_low=6.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2,),
+                positive="df",
+                lower_triangular_matrix="cholesky_tril",
+                positive_low=6.0,
+            ),
+            generate(
+                random_state,
+                dim=5,
+                shape=(2, 3),
+                positive="df",
+                lower_triangular_matrix="cholesky_tril",
+                positive_low=6.0,
+            ),
+        ),
+        InverseWishart: (
             generate(
                 random_state,
                 dim=5,
