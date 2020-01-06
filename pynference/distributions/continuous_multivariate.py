@@ -616,19 +616,6 @@ class _MVNMatrix(ExponentialFamily):
         )
 
     @property
-    def _natural_parameter(self) -> Tuple[Parameter, ...]:
-        precision = self.precision_matrix
-
-        # The matrix is vectorized so that the Frobenius product can be written
-        # as an ordinary dot product.
-        return (
-            np.sum(precision * self._mean[..., np.newaxis], axis=-1),
-            (-0.5 * precision).reshape(
-                self.batch_shape + (self.rv_shape[0] * self.rv_shape[0],)
-            ),
-        )
-
-    @property
     def natural_parameter(self) -> Tuple[Parameter, ...]:
         precision = self.precision_matrix
         covariance = self.covariance_matrix
