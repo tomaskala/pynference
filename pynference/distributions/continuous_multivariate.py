@@ -173,8 +173,8 @@ class InverseWishart(ExponentialFamily):
     def _log_prob(self, x: Variate) -> ArrayLike:
         p = self.rv_shape[0]
         cholesky_x = la.cholesky(x)
-        half_log_det_scale = _half_log_det(self._cholesky_tril)
-        log_det_x = 2.0 * _half_log_det(cholesky_x)
+        half_log_det_scale = _cholesky_half_log_det(self._cholesky_tril)
+        log_det_x = 2.0 * _cholesky_half_log_det(cholesky_x)
 
         scale_matrix = self._cholesky_tril @ np.swapaxes(self._cholesky_tril, -2, -1)
         x_inv = _cholesky2inverse(cholesky_x)
@@ -240,7 +240,7 @@ class InverseWishart(ExponentialFamily):
     @property
     def log_normalizer(self) -> Parameter:
         p = self.rv_shape[0]
-        log_det = 2.0 * _half_log_det(self._cholesky_tril)
+        log_det = 2.0 * _cholesky_half_log_det(self._cholesky_tril)
 
         return self.df / 2.0 * (p * np.log(2.0) - log_det) + multigammaln(
             self.df / 2.0, p
@@ -252,7 +252,7 @@ class InverseWishart(ExponentialFamily):
     def sufficient_statistic(self, x: Variate) -> Tuple[ArrayLike, ...]:
         p = self.rv_shape[0]
         cholesky_x = la.cholesky(x)
-        log_det = 2.0 * _half_log_det(cholesky_x)
+        log_det = 2.0 * _cholesky_half_log_det(cholesky_x)
         x_inv = _cholesky2inverse(cholesky_x)
 
         return (
@@ -487,7 +487,7 @@ class _MVNVector(ExponentialFamily):
         )
 
 
-def _half_log_det(cholesky_tril: np.ndarray):
+def _cholesky_half_log_det(cholesky_tril: np.ndarray):
     return np.sum(np.log(np.diagonal(cholesky_tril, axis1=-2, axis2=-1)), axis=-1)
 
 
@@ -599,7 +599,7 @@ class _MVNMatrix(ExponentialFamily):
         return self._precision_matrix
 
     def _log_prob(self, x: Variate) -> ArrayLike:
-        half_log_det = _half_log_det(self._cholesky_tril)
+        half_log_det = _cholesky_half_log_det(self._cholesky_tril)
         mahalanobis_squared = _mahalanobis_squared(
             x - self._mean, self._cholesky_tril, self.batch_shape
         )
@@ -632,7 +632,7 @@ class _MVNMatrix(ExponentialFamily):
 
     @property
     def log_normalizer(self) -> Parameter:
-        half_log_det = _half_log_det(self._cholesky_tril)
+        half_log_det = _cholesky_half_log_det(self._cholesky_tril)
         mahalanobis_squared = _mahalanobis_squared(
             self._mean, self._cholesky_tril, self.batch_shape
         )
@@ -912,7 +912,7 @@ class MultivariateT(Distribution):
 
     def _log_prob(self, x: Variate) -> ArrayLike:
         p = self.rv_shape[0]
-        half_log_det = _half_log_det(self._cholesky_tril)
+        half_log_det = _cholesky_half_log_det(self._cholesky_tril)
 
         normalizer = (
             gammaln((self.df + p) / 2.0)
@@ -1014,7 +1014,7 @@ class Wishart(ExponentialFamily):
 
     def _log_prob(self, x: Variate) -> ArrayLike:
         p = self.rv_shape[0]
-        log_det_scale = 2.0 * _half_log_det(self._cholesky_tril)
+        log_det_scale = 2.0 * _cholesky_half_log_det(self._cholesky_tril)
         _, log_det_x = la.slogdet(x)
 
         scale_inv = _cholesky2inverse(self._cholesky_tril)
@@ -1071,7 +1071,7 @@ class Wishart(ExponentialFamily):
     @property
     def log_normalizer(self) -> Parameter:
         p = self.rv_shape[0]
-        log_det = 2.0 * _half_log_det(self._cholesky_tril)
+        log_det = 2.0 * _cholesky_half_log_det(self._cholesky_tril)
 
         return self.df / 2.0 * (p * np.log(2.0) + log_det) + multigammaln(
             self.df / 2.0, p
