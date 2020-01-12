@@ -1,4 +1,4 @@
-from typing import Tuple, Union
+from typing import Dict, Tuple, Union
 
 import numpy as np
 
@@ -10,6 +10,10 @@ Parameter = np.ndarray
 
 # Return type of distribution sampling.
 Variate = np.ndarray
+
+# Output of inference algorithms. The log-prob of
+# these is evaluated within probabilistic models.
+Sample = Dict[str, np.ndarray]
 
 # Either an empty tuple (scalar) or a tuple of dimensions (array).
 Shape = Tuple[int, ...]
