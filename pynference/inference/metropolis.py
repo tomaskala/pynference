@@ -43,6 +43,20 @@ class UniformProposal(Proposal):
         return self.random_state.uniform(low=-self.scale, high=self.scale, size=shape)
 
 
+# TODO: Constraints
+# ----------------
+# 1. Implement a function `biject_to(constraint)` which, given a constraint, returns
+#    a transformation object. The transformation (some are already implemented) allow
+#    to transform, inverse-transform and calculate log_abs_det_J. Take inspiration in
+#    https://github.com/pyro-ppl/numpyro/blob/master/numpyro/distributions/transforms.py
+# 2. Each model would return a dictionary {parameter_name: constraint}. Before sampling,
+#    assemble the transformations & do inverse (unconstraining) transforms. After sampling,
+#    do forward (constraining) transforms.
+# NOTE: It would be be much simpler to return a dictionary {parameter: distribution} or
+# something like that. Currently impossible, needs higher probabilistic programming
+# constructs. For now, stick with the above formulation even if it seems stupid in
+# certain parts.
+
 # TODO: ArrayOrdering + DictToArrayBijection from PyMC?
 # TODO: Or not if Jax is used. Apparently, it is no longer needed there.
 class Metropolis:
