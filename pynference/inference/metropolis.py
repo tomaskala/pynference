@@ -91,9 +91,9 @@ class Metropolis:
 
         self.accepted = 0
 
-        self.accepted_since_tune = 0
-        self.scaling = 1.0
-        self.steps_until_tune = tune_interval
+        self._accepted_since_tune = 0
+        self._scaling = 1.0
+        self._steps_until_tune = tune_interval
 
     def run(self) -> List[Sample]:
         samples = []
@@ -102,17 +102,17 @@ class Metropolis:
         # TODO: Unconstrain theta.
 
         for i in range(self.n_samples):
-            if self.steps_until_tune == 0 and self.tune:
-                self.tune_scaling()
-                self.accepted_since_tune = 0
-                self.steps_until_tune = self.tune_interval
+            if self._steps_until_tune == 0 and self.tune:
+                self._tune_scaling()
+                self._accepted_since_tune = 0
+                self._steps_until_tune = self.tune_interval
 
             theta, accepted = self.step(theta)
             samples.append(theta)
 
             self.accepted += accepted
-            self.accepted_since_tune += accepted
-            self.steps_until_tune -= 1
+            self._accepted_since_tune += accepted
+            self._steps_until_tune -= 1
 
             print(
                 "Done sample {}/{}. Accepted {} samples.".format(
@@ -131,7 +131,7 @@ class Metropolis:
         theta_prop = {}
 
         for name, param in theta.items():
-            theta_prop[name] = param + self.proposal(np.shape(param)) * self.scaling
+            theta_prop[name] = param + self.proposal(np.shape(param)) * self._scaling
 
         acceptance_ratio = self.model.log_prob(theta_prop) - self.model.log_prob(theta)
 
@@ -144,25 +144,24 @@ class Metropolis:
         else:
             return theta, False
 
-    # TODO: Add underscores to internal methods. The same for interval variables.
-    def tune_scaling(self):
-        acceptance_rate = self.accepted_since_tune / self.tune_interval
+    def _tune_scaling(self):
+        acceptance_rate = self._accepted_since_tune / self.tune_interval
 
         if acceptance_rate < 0.001:
             # Reduce by 90 percent.
-            self.scaling *= 0.1
+            self._scaling *= 0.1
         elif acceptance_rate < 0.05:
             # Reduce by 50 percent.
-            self.scaling *= 0.5
+            self._scaling *= 0.5
         elif acceptance_rate < 0.2:
             # Reduce by ten percent.
-            self.scaling *= 0.9
+            self._scaling *= 0.9
         elif acceptance_rate > 0.95:
             # Increase by factor of ten.
-            self.scaling *= 10.0
+            self._scaling *= 10.0
         elif acceptance_rate > 0.75:
             # Increase by double.
-            self.scaling *= 2.0
+            self._scaling *= 2.0
         elif acceptance_rate > 0.5:
             # Increase by ten percent.
-            self.scaling *= 1.1
+            self._scaling *= 1.1
