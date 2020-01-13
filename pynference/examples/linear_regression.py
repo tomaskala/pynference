@@ -1,3 +1,6 @@
+"""
+isort:skip
+"""
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent.parent.resolve()))
@@ -48,7 +51,7 @@ def main():
 
     model = LinearRegression(X, y, variance, Sigma0, random_state)
 
-    n_samples = 1000
+    n_samples = 10000
     proposal = "normal"
     scale_init = 1.0
     tune = True
@@ -64,7 +67,7 @@ def main():
     samples = metropolis.run()
 
     betas = np.empty(shape=(n_samples, 2))
-    
+
     for i, sample in enumerate(samples):
         betas[i] = sample["beta"]
 
@@ -79,7 +82,7 @@ def main():
 
     print(np.mean(betas, axis=0))
 
-    plt.show()
+    # plt.show()
 
 
 if __name__ == "__main__":

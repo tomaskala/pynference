@@ -1,5 +1,5 @@
 import abc
-from typing import Dict, List, Tuple, Type
+from typing import Any, Dict, List, Tuple, Type
 
 import numpy as np
 from numpy.random import RandomState
@@ -90,6 +90,7 @@ class Metropolis:
         self.random_state = check_random_state(random_state)
 
         self.accepted = 0
+        self.stats: List[Dict[str, Any]] = []
 
         self._accepted_since_tune = 0
         self._scaling = 1.0
@@ -102,23 +103,9 @@ class Metropolis:
         # TODO: Unconstrain theta.
 
         for i in range(self.n_samples):
-            if self._steps_until_tune == 0 and self.tune:
-                self._tune_scaling()
-                self._accepted_since_tune = 0
-                self._steps_until_tune = self.tune_interval
-
-            theta, accepted = self.step(theta)
+            theta, stats = self.step(theta)
             samples.append(theta)
-
-            self.accepted += accepted
-            self._accepted_since_tune += accepted
-            self._steps_until_tune -= 1
-
-            print(
-                "Done sample {}/{}. Accepted {} samples.".format(
-                    i + 1, self.n_samples, self.accepted
-                )
-            )
+            self.stats.append(stats)
 
         # TODO: Constrain samples.
 
@@ -127,7 +114,12 @@ class Metropolis:
     def initialize(self) -> Sample:
         return self.model.sample()  # TODO: Pass random state?
 
-    def step(self, theta: Sample) -> Tuple[Sample, bool]:
+    def step(self, theta: Sample) -> Tuple[Sample, Dict[str, Any]]:
+        if self._steps_until_tune == 0 and self.tune:
+            self._tune_scaling()
+            self._accepted_since_tune = 0
+            self._steps_until_tune = self.tune_interval
+
         theta_prop = {}
 
         for name, param in theta.items():
@@ -135,14 +127,26 @@ class Metropolis:
 
         acceptance_ratio = self.model.log_prob(theta_prop) - self.model.log_prob(theta)
 
-        # TODO: Return some stats to be reported in the `run` method.
         if (
             np.isfinite(acceptance_ratio)
             and np.log(self.random_state.rand()) < acceptance_ratio
         ):
-            return theta_prop, True
+            accepted = True
+            theta = theta_prop
         else:
-            return theta, False
+            accepted = False
+
+        self.accepted += accepted
+        self._accepted_since_tune += accepted
+        self._steps_until_tune -= 1
+
+        stats = {
+            "mh_log_ratio": acceptance_ratio,
+            "accepted": accepted,
+            "scaling": self._scaling,
+        }
+
+        return theta, stats
 
     def _tune_scaling(self):
         acceptance_rate = self._accepted_since_tune / self.tune_interval
