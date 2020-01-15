@@ -4,8 +4,8 @@ from typing import Any, Dict, List, Tuple, Type
 import numpy as np
 from numpy.random import RandomState
 
-from pynference.constants import Sample, Shape, Variate
-from pynference.distributions.transformations import biject_to
+from pynference.constants import ArrayLike, Sample, Shape, Variate
+from pynference.distributions.transformations import Transformation, biject_to
 from pynference.model import Model  # TODO: Why is model in __all__?
 from pynference.utils import check_random_state
 
@@ -44,19 +44,38 @@ class UniformProposal(Proposal):
         return self.random_state.uniform(low=-self.scale, high=self.scale, size=shape)
 
 
-# TODO: Constraints
-# ----------------
-# 1. Implement a function `biject_to(constraint)` which, given a constraint, returns
-#    a transformation object. The transformation (some are already implemented) allow
-#    to transform, inverse-transform and calculate log_abs_det_J. Take inspiration in
-#    https://github.com/pyro-ppl/numpyro/blob/master/numpyro/distributions/transforms.py
-# 2. Each model would return a dictionary {parameter_name: constraint}. Before sampling,
-#    assemble the transformations & do inverse (unconstraining) transforms. After sampling,
-#    do forward (constraining) transforms.
-# NOTE: It would be be much simpler to return a dictionary {parameter: distribution} or
-# something like that. Currently impossible, needs higher probabilistic programming
-# constructs. For now, stick with the above formulation even if it seems stupid in
-# certain parts.
+def get_model_transformations(model: Model) -> Dict[str, Transformation]:
+    return {
+        name: biject_to(constraint) for name, constraint in model.constraints.items()
+    }
+
+
+def transform_parameters(
+    parameters: Sample,
+    transformations: Dict[str, Transformation],
+    inverse: bool = False,
+) -> Sample:
+    """
+    Apply the given transformations to the sampled parameters. If a parameter without
+    a defined transformation is present, it is left untransformed.
+
+    If inverse is False, the forward transformation (unconstrained -> constraint) is applied.
+    Otherwise, the inverse transformation (constraint -> unconstrained) is applied.
+    :param parameters: dictionary of parameters
+    :param transformations: dictionary of transformations
+    :param inverse: whether to apply inverse or forward transformations
+    """
+    if inverse:
+        return {
+            k: transformations[k].inverse(v) if k in transformations else v
+            for k, v in parameters.items()
+        }
+    else:
+        return {
+            k: transformations[k](v) if k in transformations else v
+            for k, v in parameters.items()
+        }
+
 
 # TODO: ArrayOrdering + DictToArrayBijection from PyMC?
 # TODO: Or not if Jax is used. Apparently, it is no longer needed there.
@@ -99,18 +118,14 @@ class Metropolis:
 
     def run(self) -> List[Sample]:
         samples = []
-        theta_init = self.initialize()
-        theta = {}
+        transformations = get_model_transformations(self.model)
 
-        # Unconstrain theta.
-        for param_name, param_value in theta_init.items():
-            constraint = self.model.constraints[param_name]
-            transformation = biject_to(constraint)
-            theta[param_name] = transformation.inverse(param_value)
+        # Sample and unconstrain the initial theta.
+        theta = self.initialize()
+        theta = transform_parameters(theta, transformations, inverse=True)
 
-        # TODO: Don't forget to transform when calculating the acceptance ratio!
         for i in range(self.n_samples):
-            theta, stats = self.step(theta)
+            theta, stats = self.step(theta, transformations)
             samples.append(theta)
             self.stats.append(stats)
 
@@ -122,24 +137,18 @@ class Metropolis:
                 )
 
         # Constrain samples.
-        samples_transformed = []
+        return [
+            transform_parameters(sample, transformations, inverse=False)
+            for sample in samples
+        ]
 
-        for sample in samples:
-            sample_transformed = {}
-
-            for param_name, param_value in sample.items():
-                constraint = self.model.constraints[param_name]
-                transformation = biject_to(constraint)
-                sample_transformed[param_name] = transformation(param_value)
-
-            samples_transformed.append(sample_transformed)
-
-        return samples_transformed
-
+    # TODO: Pass n_samples to allow mean/median/... initializations.
     def initialize(self) -> Sample:
         return self.model.sample()  # TODO: Pass random state?
 
-    def step(self, theta: Sample) -> Tuple[Sample, Dict[str, Any]]:
+    def step(
+        self, theta: Sample, transformations: Dict[str, Transformation]
+    ) -> Tuple[Sample, Dict[str, Any]]:
         if self._steps_until_tune == 0 and self.tune:
             self._tune_scaling()
             self._accepted_since_tune = 0
@@ -150,7 +159,9 @@ class Metropolis:
         for name, param in theta.items():
             theta_prop[name] = param + self.proposal(np.shape(param)) * self._scaling
 
-        acceptance_ratio = self.model.log_prob(theta_prop) - self.model.log_prob(theta)
+        acceptance_ratio = self._log_prob(theta_prop, transformations) - self._log_prob(
+            theta, transformations
+        )
 
         if (
             np.isfinite(acceptance_ratio)
@@ -172,6 +183,12 @@ class Metropolis:
         }
 
         return theta, stats
+
+    def _log_prob(
+        self, theta: Sample, transformations: Dict[str, Transformation]
+    ) -> ArrayLike:
+        theta_constrained = transform_parameters(theta, transformations, inverse=False)
+        return self.model.log_prob(theta_constrained)
 
     def _tune_scaling(self):
         acceptance_rate = self._accepted_since_tune / self.tune_interval
