@@ -121,7 +121,7 @@ class InverseWishart(ExponentialFamily):
             cholesky_tril = la.cholesky(scale_matrix)
 
         batch_shape = broadcast_shapes(np.shape(df), np.shape(cholesky_tril)[:-2])
-        rv_shape = np.shape(cholesky_tril)[-1:]
+        rv_shape = np.shape(cholesky_tril)[-2:]
 
         super().__init__(
             batch_shape=batch_shape,
@@ -968,7 +968,7 @@ class Wishart(ExponentialFamily):
             cholesky_tril = la.cholesky(scale_matrix)
 
         batch_shape = broadcast_shapes(np.shape(df), np.shape(cholesky_tril)[:-2])
-        rv_shape = np.shape(cholesky_tril)[-1:]
+        rv_shape = np.shape(cholesky_tril)[-2:]
 
         super().__init__(
             batch_shape=batch_shape,

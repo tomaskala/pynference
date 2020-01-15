@@ -1865,7 +1865,7 @@ class TestBroadcasting:
 
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (2,)
-        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2, 2)
         assert fst.log_prob(samples) == approx(
             snd.log_prob(samples), rel=self.rtol, abs=self.atol
         )
@@ -1885,7 +1885,7 @@ class TestBroadcasting:
 
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
-        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2, 2)
         assert fst.log_prob(samples) == approx(
             snd.log_prob(samples), rel=self.rtol, abs=self.atol
         )
@@ -1903,7 +1903,7 @@ class TestBroadcasting:
 
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (2,)
-        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2, 2)
         assert fst.log_prob(samples) == approx(
             snd.log_prob(samples), rel=self.rtol, abs=self.atol
         )
@@ -1924,7 +1924,7 @@ class TestBroadcasting:
 
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
-        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2, 2)
         assert fst.log_prob(samples) == approx(
             snd.log_prob(samples), rel=self.rtol, abs=self.atol
         )
@@ -1945,7 +1945,7 @@ class TestBroadcasting:
 
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
-        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2, 2)
         assert fst.log_prob(samples) == approx(
             snd.log_prob(samples), rel=self.rtol, abs=self.atol
         )
@@ -1966,7 +1966,7 @@ class TestBroadcasting:
 
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
-        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2, 2)
         assert fst.log_prob(samples) == approx(
             snd.log_prob(samples), rel=self.rtol, abs=self.atol
         )
@@ -1985,7 +1985,7 @@ class TestBroadcasting:
 
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (2,)
-        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2, 2)
         assert fst.log_prob(samples) == approx(
             snd.log_prob(samples), rel=self.rtol, abs=self.atol
         )
@@ -2005,7 +2005,7 @@ class TestBroadcasting:
 
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
-        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2, 2)
         assert fst.log_prob(samples) == approx(
             snd.log_prob(samples), rel=self.rtol, abs=self.atol
         )
@@ -2023,7 +2023,7 @@ class TestBroadcasting:
 
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (2,)
-        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2, 2)
         assert fst.log_prob(samples) == approx(
             snd.log_prob(samples), rel=self.rtol, abs=self.atol
         )
@@ -2044,7 +2044,7 @@ class TestBroadcasting:
 
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
-        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2, 2)
         assert fst.log_prob(samples) == approx(
             snd.log_prob(samples), rel=self.rtol, abs=self.atol
         )
@@ -2065,7 +2065,7 @@ class TestBroadcasting:
 
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
-        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2, 2)
         assert fst.log_prob(samples) == approx(
             snd.log_prob(samples), rel=self.rtol, abs=self.atol
         )
@@ -2086,7 +2086,7 @@ class TestBroadcasting:
 
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
-        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2, 2)
         assert fst.log_prob(samples) == approx(
             snd.log_prob(samples), rel=self.rtol, abs=self.atol
         )
@@ -2107,7 +2107,7 @@ class TestBroadcasting:
 
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (2,)
-        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2, 2)
         assert fst.log_prob(samples) == approx(
             snd.log_prob(samples), rel=self.rtol, abs=self.atol
         )
@@ -2127,7 +2127,7 @@ class TestBroadcasting:
 
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
-        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2, 2)
         assert fst.log_prob(samples) == approx(
             snd.log_prob(samples), rel=self.rtol, abs=self.atol
         )
@@ -2147,7 +2147,7 @@ class TestBroadcasting:
 
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (2,)
-        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2, 2)
         assert fst.log_prob(samples) == approx(
             snd.log_prob(samples), rel=self.rtol, abs=self.atol
         )
@@ -2168,7 +2168,7 @@ class TestBroadcasting:
 
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
-        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2, 2)
         assert fst.log_prob(samples) == approx(
             snd.log_prob(samples), rel=self.rtol, abs=self.atol
         )
@@ -2189,7 +2189,7 @@ class TestBroadcasting:
 
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
-        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2, 2)
         assert fst.log_prob(samples) == approx(
             snd.log_prob(samples), rel=self.rtol, abs=self.atol
         )
@@ -2210,7 +2210,7 @@ class TestBroadcasting:
 
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
-        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2, 2)
         assert fst.log_prob(samples) == approx(
             snd.log_prob(samples), rel=self.rtol, abs=self.atol
         )
@@ -2231,7 +2231,7 @@ class TestBroadcasting:
 
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (2,)
-        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2, 2)
         assert fst.log_prob(samples) == approx(
             snd.log_prob(samples), rel=self.rtol, abs=self.atol
         )
@@ -2251,7 +2251,7 @@ class TestBroadcasting:
 
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
-        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2, 2)
         assert fst.log_prob(samples) == approx(
             snd.log_prob(samples), rel=self.rtol, abs=self.atol
         )
@@ -2271,7 +2271,7 @@ class TestBroadcasting:
 
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (2,)
-        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2, 2)
         assert fst.log_prob(samples) == approx(
             snd.log_prob(samples), rel=self.rtol, abs=self.atol
         )
@@ -2292,7 +2292,7 @@ class TestBroadcasting:
 
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
-        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2, 2)
         assert fst.log_prob(samples) == approx(
             snd.log_prob(samples), rel=self.rtol, abs=self.atol
         )
@@ -2313,7 +2313,7 @@ class TestBroadcasting:
 
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
-        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2, 2)
         assert fst.log_prob(samples) == approx(
             snd.log_prob(samples), rel=self.rtol, abs=self.atol
         )
@@ -2334,7 +2334,7 @@ class TestBroadcasting:
 
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
-        assert fst.rv_shape == snd.rv_shape == (2,)
+        assert fst.rv_shape == snd.rv_shape == (2, 2)
         assert fst.log_prob(samples) == approx(
             snd.log_prob(samples), rel=self.rtol, abs=self.atol
         )
@@ -3874,13 +3874,8 @@ class TestSamplingShapes:
                     sample_shape=(), random_state=self.random_state
                 )
 
-                rv_shape = distribution.rv_shape
-
-                if distribution_cls in (InverseWishart, Wishart):
-                    rv_shape += distribution.rv_shape
-
                 assert (
-                    samples.shape == distribution.batch_shape + rv_shape
+                    samples.shape == distribution.batch_shape + distribution.rv_shape
                 ), f"sampling shape of {distribution}"
 
     def test_sampling_shapes_1d(self):
@@ -3892,13 +3887,9 @@ class TestSamplingShapes:
                     sample_shape=(100,), random_state=self.random_state
                 )
 
-                rv_shape = distribution.rv_shape
-
-                if distribution_cls in (InverseWishart, Wishart):
-                    rv_shape += distribution.rv_shape
-
                 assert (
-                    samples.shape == (100,) + distribution.batch_shape + rv_shape
+                    samples.shape
+                    == (100,) + distribution.batch_shape + distribution.rv_shape
                 ), f"sampling shape of {distribution}"
 
     def test_sampling_shapes_2d(self):
@@ -3910,13 +3901,9 @@ class TestSamplingShapes:
                     sample_shape=(10, 10), random_state=self.random_state
                 )
 
-                rv_shape = distribution.rv_shape
-
-                if distribution_cls in (InverseWishart, Wishart):
-                    rv_shape += distribution.rv_shape
-
                 assert (
-                    samples.shape == (10, 10) + distribution.batch_shape + rv_shape
+                    samples.shape
+                    == (10, 10) + distribution.batch_shape + distribution.rv_shape
                 ), f"sampling shape of {distribution}"
 
     def test_sampling_shapes_3d(self):
@@ -3928,11 +3915,7 @@ class TestSamplingShapes:
                     sample_shape=(10, 10, 2), random_state=self.random_state
                 )
 
-                rv_shape = distribution.rv_shape
-
-                if distribution_cls in (InverseWishart, Wishart):
-                    rv_shape += distribution.rv_shape
-
                 assert (
-                    samples.shape == (10, 10, 2) + distribution.batch_shape + rv_shape
+                    samples.shape
+                    == (10, 10, 2) + distribution.batch_shape + distribution.rv_shape
                 ), f"sampling shape of {distribution}"
