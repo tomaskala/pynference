@@ -5,7 +5,8 @@ import numpy as np
 from numpy.random import RandomState
 
 from pynference.constants import Sample, Shape, Variate
-from pynference.model import Model
+from pynference.distributions.transformations import biject_to
+from pynference.model import Model  # TODO: Why is model in __all__?
 from pynference.utils import check_random_state
 
 
@@ -89,7 +90,7 @@ class Metropolis:
         self.tune_interval = tune_interval
         self.random_state = check_random_state(random_state)
 
-        self.accepted = 0
+        self.accepted = 0  # TODO: This can be removed because of stats.
         self.stats: List[Dict[str, Any]] = []
 
         self._accepted_since_tune = 0
@@ -98,18 +99,42 @@ class Metropolis:
 
     def run(self) -> List[Sample]:
         samples = []
-        theta = self.initialize()
+        theta_init = self.initialize()
+        theta = {}
 
-        # TODO: Unconstrain theta.
+        # Unconstrain theta.
+        for param_name, param_value in theta_init.items():
+            constraint = self.model.constraints[param_name]
+            transformation = biject_to(constraint)
+            theta[param_name] = transformation.inverse(param_value)
 
+        # TODO: Don't forget to transform when calculating the acceptance ratio!
         for i in range(self.n_samples):
             theta, stats = self.step(theta)
             samples.append(theta)
             self.stats.append(stats)
 
-        # TODO: Constrain samples.
+            if i > 0 and i % 100 == 0:
+                print(
+                    "Done {}/{} samples. Accepted {} samples.".format(
+                        i, self.n_samples, self.accepted
+                    )
+                )
 
-        return samples
+        # Constrain samples.
+        samples_transformed = []
+
+        for sample in samples:
+            sample_transformed = {}
+
+            for param_name, param_value in sample.items():
+                constraint = self.model.constraints[param_name]
+                transformation = biject_to(constraint)
+                sample_transformed[param_name] = transformation(param_value)
+
+            samples_transformed.append(sample_transformed)
+
+        return samples_transformed
 
     def initialize(self) -> Sample:
         return self.model.sample()  # TODO: Pass random state?

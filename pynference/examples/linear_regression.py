@@ -4,11 +4,13 @@ isort:skip
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent.parent.resolve()))
+from typing import Dict
 
 import matplotlib.pyplot as plt
 import numpy as np
 
 from pynference.constants import ArrayLike, Sample
+from pynference.distributions.constraints import Constraint, real_vector
 from pynference.distributions import MultivariateNormal
 from pynference.inference.metropolis import Metropolis
 from pynference.model import Model
@@ -22,6 +24,10 @@ class LinearRegression(Model):
         self.variance = variance
         self.Sigma0 = Sigma0
         self.random_state = check_random_state(random_state)
+
+    @property
+    def constraints(self) -> Dict[str, Constraint]:
+        return {"beta": real_vector}
 
     def log_prob(self, theta: Sample) -> ArrayLike:
         beta = theta["beta"]
@@ -82,7 +88,7 @@ def main():
 
     print(np.mean(betas, axis=0))
 
-    # plt.show()
+    plt.show()
 
 
 if __name__ == "__main__":
