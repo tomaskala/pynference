@@ -1,13 +1,20 @@
 import abc
-from typing import Any, Dict, List, Tuple, Type
+from typing import Any, Callable, Dict, List, Tuple, Type
 
 import numpy as np
 from numpy.random import RandomState
 
 from pynference.constants import ArrayLike, Sample, Shape, Variate
-from pynference.distributions.transformations import Transformation, biject_to
+from pynference.distributions.transformations import Transformation
+from pynference.inference.utils import (
+    get_model_transformations,
+    init_to_prior,
+    transform_parameters,
+)
 from pynference.model.model import Model
 from pynference.utils import check_random_state
+
+__all__ = ["Metropolis"]
 
 
 class Proposal(abc.ABC):
@@ -44,39 +51,6 @@ class UniformProposal(Proposal):
         return self.random_state.uniform(low=-self.scale, high=self.scale, size=shape)
 
 
-def get_model_transformations(model: Model) -> Dict[str, Transformation]:
-    return {
-        name: biject_to(constraint) for name, constraint in model.constraints.items()
-    }
-
-
-def transform_parameters(
-    parameters: Sample,
-    transformations: Dict[str, Transformation],
-    inverse: bool = False,
-) -> Sample:
-    """
-    Apply the given transformations to the sampled parameters. If a parameter without
-    a defined transformation is present, it is left untransformed.
-
-    If inverse is False, the forward transformation (unconstrained -> constraint) is applied.
-    Otherwise, the inverse transformation (constraint -> unconstrained) is applied.
-    :param parameters: dictionary of parameters
-    :param transformations: dictionary of transformations
-    :param inverse: whether to apply inverse or forward transformations
-    """
-    if inverse:
-        return {
-            k: transformations[k].inverse(v) if k in transformations else v
-            for k, v in parameters.items()
-        }
-    else:
-        return {
-            k: transformations[k](v) if k in transformations else v
-            for k, v in parameters.items()
-        }
-
-
 # TODO: ArrayOrdering + DictToArrayBijection from PyMC?
 # TODO: Or not if Jax is used. Apparently, it is no longer needed there.
 class Metropolis:
@@ -93,6 +67,7 @@ class Metropolis:
         n_samples: int,
         proposal: str,
         scale_init: float = 1.0,
+        init: Callable[[Model, RandomState], Sample] = init_to_prior,
         tune: bool = True,
         tune_interval: int = 100,
         random_state: RandomState = None,
@@ -105,6 +80,7 @@ class Metropolis:
                 scale=scale_init, random_state=random_state
             )
 
+        self.init = init
         self.tune = tune
         self.tune_interval = tune_interval
         self.random_state = check_random_state(random_state)
@@ -121,7 +97,7 @@ class Metropolis:
         transformations = get_model_transformations(self.model)
 
         # Sample and unconstrain the initial theta.
-        theta = self.initialize()
+        theta = self.init(self.model, self.random_state)
         theta = transform_parameters(theta, transformations, inverse=True)
 
         for i in range(self.n_samples):
@@ -131,8 +107,12 @@ class Metropolis:
 
             if i > 0 and i % 100 == 0:
                 print(
-                    "Done {}/{} samples. Accepted {} samples.".format(
-                        i, self.n_samples, self.accepted
+                    "Done {}/{} samples ({:.2f} %). Accepted {} samples ({:.2f} %).".format(
+                        i,
+                        self.n_samples,
+                        i / self.n_samples * 100.0,
+                        self.accepted,
+                        self.accepted / i * 100.0,
                     )
                 )
 
@@ -141,10 +121,6 @@ class Metropolis:
             transform_parameters(sample, transformations, inverse=False)
             for sample in samples
         ]
-
-    # TODO: Pass n_samples to allow mean/median/... initializations.
-    def initialize(self) -> Sample:
-        return self.model.sample()  # TODO: Pass random state?
 
     def step(
         self, theta: Sample, transformations: Dict[str, Transformation]

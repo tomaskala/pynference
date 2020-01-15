@@ -1,7 +1,9 @@
 import abc
 from typing import Dict
 
-from pynference.constants import ArrayLike, Sample
+from numpy.random import RandomState
+
+from pynference.constants import ArrayLike, Sample, Shape
 from pynference.distributions.constraints import Constraint
 
 
@@ -16,5 +18,5 @@ class Model(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def sample(self) -> Sample:
+    def sample(self, sample_shape: Shape, random_state: RandomState) -> Sample:
         pass

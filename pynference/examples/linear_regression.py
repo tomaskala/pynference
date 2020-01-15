@@ -8,22 +8,22 @@ from typing import Dict
 
 import matplotlib.pyplot as plt
 import numpy as np
+from numpy.random import RandomState
 
-from pynference.constants import ArrayLike, Sample
+from pynference.constants import ArrayLike, Sample, Shape
 from pynference.distributions.constraints import Constraint, real_vector
 from pynference.distributions import MultivariateNormal
-from pynference.inference.metropolis import Metropolis
+from pynference.inference import init_to_mean, init_to_prior, init_to_uniform, Metropolis
 from pynference.model.model import Model
 from pynference.utils import check_random_state
 
 
 class LinearRegression(Model):
-    def __init__(self, X, y, variance, Sigma0, random_state):
+    def __init__(self, X, y, variance, Sigma0):
         self.X = X
         self.y = y
         self.variance = variance
         self.Sigma0 = Sigma0
-        self.random_state = check_random_state(random_state)
 
     @property
     def constraints(self) -> Dict[str, Constraint]:
@@ -38,11 +38,11 @@ class LinearRegression(Model):
         p_y = MultivariateNormal(mean=y_mean, variance=self.variance)
         return np.sum(p_y.log_prob(self.y)) + np.sum(p_beta.log_prob(beta))
 
-    def sample(self) -> Sample:
+    def sample(self, sample_shape: Shape, random_state: RandomState) -> Sample:
         p_beta = MultivariateNormal(
             mean=np.zeros(self.Sigma0.shape[0]), covariance_matrix=self.Sigma0
         )
-        return {"beta": p_beta.sample(random_state=self.random_state)}
+        return {"beta": p_beta.sample(sample_shape=sample_shape, random_state=random_state)}
 
 
 def main():
@@ -50,16 +50,17 @@ def main():
     variance = 0.5
     n = 100
     X = np.ones(shape=(n, 2))
-    X[:, 1] = random_state.normal(scale=2.0)
+    X[:, 1] = random_state.normal(scale=2.0, size=n)
     beta_true = np.array([2.0, 1.0])
-    y = X @ beta_true + random_state.normal(scale=np.sqrt(variance), size=X.shape[0])
+    y = X @ beta_true + random_state.normal(scale=np.sqrt(variance), size=n)
     Sigma0 = np.array([[1.0, 0.0], [0.0, 1.0]])
 
-    model = LinearRegression(X, y, variance, Sigma0, random_state)
+    model = LinearRegression(X, y, variance, Sigma0)
 
     n_samples = 10000
     proposal = "normal"
-    scale_init = 1.0
+    scale_init = 0.05
+    init = init_to_uniform()
     tune = True
 
     metropolis = Metropolis(
@@ -67,12 +68,13 @@ def main():
         n_samples=n_samples,
         proposal=proposal,
         scale_init=scale_init,
+        init=init,
         tune=tune,
         random_state=random_state,
     )
     samples = metropolis.run()
 
-    betas = np.empty(shape=(n_samples, 2))
+    betas = np.zeros(shape=(n_samples, 2))
 
     for i, sample in enumerate(samples):
         betas[i] = sample["beta"]
