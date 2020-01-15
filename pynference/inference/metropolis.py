@@ -51,8 +51,6 @@ class UniformProposal(Proposal):
         return self.random_state.uniform(low=-self.scale, high=self.scale, size=shape)
 
 
-# TODO: ArrayOrdering + DictToArrayBijection from PyMC?
-# TODO: Or not if Jax is used. Apparently, it is no longer needed there.
 class Metropolis:
     _proposal_map: Dict[str, Type[Proposal]] = {
         "cauchy": CauchyProposal,
@@ -87,7 +85,7 @@ class Metropolis:
         self.tune_interval = tune_interval
         self.random_state = check_random_state(random_state)
 
-        self.accepted = 0  # TODO: This can be removed because of stats.
+        self.accepted = 0
         self.stats: List[Dict[str, Any]] = []
 
         self._accepted_since_tune = 0
