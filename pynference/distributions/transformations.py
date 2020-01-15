@@ -287,24 +287,25 @@ def _transform_to_real_vector(constraint: Constraint) -> Transformation:
 
 @biject_to.register(interval)
 def _transform_to_interval(constraint: Constraint) -> Transformation:
-    if constraint is positive:
-        return ExpTransformation()
-    elif constraint is zero_one:
-        return SigmoidTransformation(rv_dim=0)
-    elif isinstance(constraint, interval):
-        loc = constraint.lower
-        scale = constraint.upper - constraint.lower
+    loc = constraint.lower
+    scale = constraint.upper - constraint.lower
 
-        return ComposeTransformation(
-            (
-                SigmoidTransformation(),
-                AffineTransformation(loc=loc, scale=scale, domain=zero_one),
-            )
+    return ComposeTransformation(
+        (
+            SigmoidTransformation(),
+            AffineTransformation(loc=loc, scale=scale, domain=zero_one),
         )
-    else:
-        raise ValueError(
-            "The constraint {} is not a subclass of Interval".format(constraint)
-        )
+    )
+
+
+@biject_to.register(positive)
+def _transform_to_positive(constraint: Constraint) -> Transformation:
+    return ExpTransformation()
+
+
+@biject_to.register(zero_one)
+def _transform_to_zero_one(constraint: Constraint) -> Transformation:
+    return SigmoidTransformation(rv_dim=0)
 
 
 @biject_to.register(positive_vector)
