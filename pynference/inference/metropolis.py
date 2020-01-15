@@ -6,7 +6,7 @@ from numpy.random import RandomState
 
 from pynference.constants import ArrayLike, Sample, Shape, Variate
 from pynference.distributions.transformations import Transformation, biject_to
-from pynference.model import Model  # TODO: Why is model in __all__?
+from pynference.model.model import Model
 from pynference.utils import check_random_state
 
 

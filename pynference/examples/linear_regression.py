@@ -13,7 +13,7 @@ from pynference.constants import ArrayLike, Sample
 from pynference.distributions.constraints import Constraint, real_vector
 from pynference.distributions import MultivariateNormal
 from pynference.inference.metropolis import Metropolis
-from pynference.model import Model
+from pynference.model.model import Model
 from pynference.utils import check_random_state
 
 
