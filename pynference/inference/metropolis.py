@@ -79,6 +79,8 @@ class Metropolis:
             self.proposal = self._proposal_map[proposal](
                 scale=scale_init, random_state=random_state
             )
+        else:
+            raise ValueError("Unknown proposal type: {}.".format(proposal))
 
         self.init = init
         self.tune = tune
