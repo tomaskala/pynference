@@ -40,7 +40,7 @@ def _init_to_uniform(model: Model, random_state: RandomState, radius: float) -> 
         uniform_sample = uniform.sample(
             sample_shape=np.shape(dummy_sample[name]), random_state=random_state
         )
-        theta[name] = transformation.inverse(uniform_sample)
+        theta[name] = transformation(uniform_sample)
 
     return theta
 
