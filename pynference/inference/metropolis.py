@@ -68,6 +68,7 @@ class Metropolis:
         init: Callable[[Model, RandomState], Sample] = init_to_prior,
         tune: bool = True,
         tune_interval: int = 100,
+        track_stats: bool = True,
         random_state: RandomState = None,
     ):
         self.model = model
@@ -83,6 +84,7 @@ class Metropolis:
         self.init = init
         self.tune = tune
         self.tune_interval = tune_interval
+        self.track_stats = track_stats
         self.random_state = check_random_state(random_state)
 
         self.accepted = 0
@@ -103,7 +105,9 @@ class Metropolis:
         for i in range(self.n_samples):
             theta, stats = self.step(theta, transformations)
             samples.append(theta)
-            self.stats.append(stats)
+
+            if self.track_stats:
+                self.stats.append(stats)
 
             if i > 0 and i % 100 == 0:
                 print(
