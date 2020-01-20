@@ -153,7 +153,7 @@ class Metropolis:
         self._steps_until_tune -= 1
 
         stats = {
-            "mh_log_ratio": acceptance_ratio,
+            "acceptance_ratio": acceptance_ratio,
             "accepted": accepted,
             "scaling": self._scaling,
         }
