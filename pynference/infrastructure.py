@@ -19,9 +19,10 @@ class Message:
     message_type: MessageType
     name: str
     dist: Distribution
+    value: Variate
     args: Tuple[Any, ...] = field(default_factory=tuple)
     kwargs: Dict[str, Any] = field(default_factory=dict)
-    value: Variate
+    stop: bool = field(default=False)
 
 
 _MESSENGER_STACK: List["Messenger"] = []
@@ -50,7 +51,19 @@ class Messenger(abc.ABC):
 
 
 def _apply_stack(message: Message) -> Message:
-    pass
+    for i, messenger in enumerate(reversed(_MESSENGER_STACK)):
+        messenger.process_message(message)
+
+        if message.stop:
+            break
+
+    if message.value is None:
+        message.value = message.dist(*message.args, **message.kwargs)
+
+    for messenger in _MESSENGER_STACK[-i - 1 :]:
+        messenger.postprocess_message(message)
+
+    return message
 
 
 def sample(
