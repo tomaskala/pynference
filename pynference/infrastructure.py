@@ -9,8 +9,10 @@ from numpy.random import RandomState
 
 from pynference.constants import Parameter, Shape, Variate
 from pynference.distributions.constraints import real
-from pynference.distributions.distribution import Distribution
+from pynference.distributions.distribution import Distribution, TransformedDistribution
 from pynference.distributions.transformations import ComposeTransformation, biject_to
+
+__all__ = ["sample", "Trace", "Replay", "Block", "Seed", "Condition", "Substitute"]
 
 
 class MessageType(Enum):
@@ -22,19 +24,19 @@ class MessageType(Enum):
 class Message:
     message_type: MessageType
     name: str
-    dist: Distribution
+    fun: Callable[..., Variate]
     value: Variate
     is_observed: bool
     args: Tuple[Any, ...] = field(default_factory=tuple)
     kwargs: Dict[str, Any] = field(default_factory=dict)
-    stop: bool = field(default=False)
+    block: bool = field(default=False)
 
 
 _MESSENGER_STACK: List["Messenger"] = []
 
 
 class Messenger(abc.ABC):
-    def __init__(self, fun: Optional[Callable[..., Variate]] = None):
+    def __init__(self, fun: Callable[..., Variate]):
         self.fun = fun
 
     def __enter__(self):
@@ -59,11 +61,11 @@ def _apply_stack(message: Message) -> Message:
     for i, messenger in enumerate(reversed(_MESSENGER_STACK)):
         messenger.process_message(message)
 
-        if message.stop:
+        if message.block:
             break
 
     if message.value is None:
-        message.value = message.dist(*message.args, **message.kwargs)
+        message.value = message.fun(*message.args, **message.kwargs)
 
     for messenger in _MESSENGER_STACK[-i - 1 :]:
         messenger.postprocess_message(message)
@@ -84,7 +86,7 @@ def sample(
         message = Message(
             message_type=MessageType.SAMPLE,
             name=name,
-            dist=dist,
+            fun=dist,
             kwargs={"sample_shape": sample_shape, "random_state": random_state},
             value=observation,
             is_observed=observation is not None,
@@ -94,9 +96,9 @@ def sample(
 
 
 class Trace(Messenger):
-    def __init__(self, fun: Optional[Callable[..., Variate]] = None):
+    def __init__(self, fun: Callable[..., Variate]):
         super().__init__(fun=fun)
-        self._trace = None
+        self._trace: OrderedDict[str, Message] = collections.OrderedDict()
 
     def __enter__(self):
         super().__enter__()
@@ -138,7 +140,7 @@ class Block(Messenger):
 
     def process_message(self, message: Message):
         if self.hide_predicate(message):
-            message.stop = True
+            message.block = True
 
 
 class Seed(Messenger):
@@ -160,7 +162,7 @@ class Condition(Messenger):
         self,
         fun: Callable[..., Variate],
         condition: Optional[Dict[str, Parameter]] = None,
-        substitution: Optional[Callable[OrderedDict[str, Message]], Parameter] = None,
+        substitution: Optional[Callable[[OrderedDict[str, Message]], Parameter]] = None,
     ):
         if (condition is not None) + (substitution is not None) != 1:
             raise ValueError(
@@ -184,7 +186,7 @@ class Condition(Messenger):
                 if message.name in self.condition:
                     value = self.condition[message.name]
             else:
-                value = self.substitution(message)
+                value = self.substitution(message)  # type: ignore
 
             if value is not None:
                 message.value = value
@@ -197,7 +199,7 @@ class Substitute(Messenger):
         fun: Callable[..., Variate],
         condition: Optional[Dict[str, Parameter]] = None,
         base_distribution_condition: Optional[Dict[str, Parameter]] = None,
-        substitution: Optional[Callable[OrderedDict[str, Message]], Parameter] = None,
+        substitution: Optional[Callable[[OrderedDict[str, Message]], Parameter]] = None,
     ):
         if (condition is not None) + (base_distribution_condition is not None) + (
             substitution is not None
@@ -217,19 +219,24 @@ class Substitute(Messenger):
             message.message_type is MessageType.SAMPLE
             or message.message_type is MessageType.PARAM
         ):
-            if self.condition is not None and message.name in self.condition:
-                message.value = self.condition[message.name]
+            if self.condition is not None:
+                if message.name in self.condition:
+                    message.value = self.condition[message.name]
             else:
                 if self.substitution is not None:
                     base_value = self.substitution(message)
                 else:
-                    base_value = self.base_distribution_condition.get(
+                    base_value = self.base_distribution_condition.get(  # type: ignore
                         message.name, None
                     )
 
                 if base_value is not None:
                     if message.message_type is MessageType.SAMPLE:
-                        message.value = message.dist.transform(base_value)
+                        if isinstance(message.fun, TransformedDistribution):
+                            for t in message.fun.transformation:
+                                base_value = t(base_value)
+
+                        message.value = base_value
                     else:
                         constraint = message.kwargs.pop("constraint", real)
                         transformation = biject_to(constraint)

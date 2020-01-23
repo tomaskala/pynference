@@ -287,6 +287,13 @@ def _transform_to_real_vector(constraint: Constraint) -> Transformation:
 
 @biject_to.register(interval)
 def _transform_to_interval(constraint: Constraint) -> Transformation:
+    if not isinstance(constraint, Interval):
+        raise ValueError(
+            "The function expects an interval constraint but {} was given.".format(
+                type(constraint)
+            )
+        )
+
     loc = constraint.lower
     scale = constraint.upper - constraint.lower
 

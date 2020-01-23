@@ -27,6 +27,9 @@ class Distribution(abc.ABC):
         self.check_parameters = check_parameters
         self.check_support = check_support
 
+    def __call__(self, sample_shape: Shape = (), random_state=None) -> Variate:
+        return self.sample(sample_shape=sample_shape, random_state=random_state)
+
     def __setattr__(self, name, value):
         if (
             hasattr(self, "check_parameters")

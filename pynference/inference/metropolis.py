@@ -65,7 +65,7 @@ class Metropolis:
         n_samples: int,
         proposal: str,
         scale_init: float = 1.0,
-        init: Callable[[Model, RandomState], Sample] = init_to_prior,
+        init: Callable[[Model, RandomState], Sample] = init_to_prior(),
         tune: bool = True,
         tune_interval: int = 100,
         track_stats: bool = True,
