@@ -121,3 +121,17 @@ class Replay(Messenger):
     def process_message(self, message: Message):
         if message.name in self.trace and message.message_type is MessageType.SAMPLE:
             message.value = self.trace[message.name].value
+
+
+class Block(Messenger):
+    def __init__(
+        self,
+        fun: Callable[..., Variate],
+        hide_predicate: Callable[[Message], bool] = lambda message: True,
+    ):
+        super().__init__(fun=fun)
+        self.hide_predicate = hide_predicate
+
+    def process_message(message: Message):
+        if self.hide_predicate(message):
+            message.stop = True
