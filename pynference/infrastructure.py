@@ -1,4 +1,6 @@
 import abc
+from collections import OrderedDict
+from copy import copy
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -85,3 +87,27 @@ def sample(
         )
         message = _apply_stack(message)
         return message.value
+
+
+class Trace(Messenger):
+    def __init__(self, fun: Optional[Callable[..., Variate]] = None):
+        super().__init__(fun=fun)
+        self._trace = None
+
+    def __enter__(self):
+        super().__enter__()
+        self._trace = OrderedDict()
+        return self._trace
+
+    def trace(self, *args, **kwargs):
+        self(*args, **kwargs)
+        return self._trace
+
+    def postprocess_message(self, message: Message):
+        if message.message_type != MessageType.SAMPLE:
+            raise ValueError("Only sample sites can be registered to a trace.")
+
+        if message.name in self._trace:
+            raise ValueError("The sample sites must have unique names.")
+
+        self._trace[message.name] = copy(message)
