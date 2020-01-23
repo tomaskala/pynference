@@ -1,9 +1,9 @@
 import abc
-from collections import OrderedDict
+import collections
 from copy import copy
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, OrderedDict, Tuple
 
 from numpy.random import RandomState
 
@@ -96,7 +96,7 @@ class Trace(Messenger):
 
     def __enter__(self):
         super().__enter__()
-        self._trace = OrderedDict()
+        self._trace = collections.OrderedDict()
         return self._trace
 
     def trace(self, *args, **kwargs):
@@ -111,3 +111,13 @@ class Trace(Messenger):
             raise ValueError("The sample sites must have unique names.")
 
         self._trace[message.name] = copy(message)
+
+
+class Replay(Messenger):
+    def __init__(self, fun: Callable[..., Variate], trace: OrderedDict):
+        super().__init__(fun=fun)
+        self.trace = trace
+
+    def process_message(self, message: Message):
+        if message.name in self.trace and message.message_type is MessageType.SAMPLE:
+            message.value = self.trace[message.name].value
