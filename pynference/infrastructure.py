@@ -8,7 +8,9 @@ from typing import Any, Callable, Dict, List, Optional, OrderedDict, Tuple
 from numpy.random import RandomState
 
 from pynference.constants import Parameter, Shape, Variate
+from pynference.distributions.constraints import real
 from pynference.distributions.distribution import Distribution
+from pynference.distributions.transformations import ComposeTransformation, biject_to
 
 
 class MessageType(Enum):
@@ -187,3 +189,55 @@ class Condition(Messenger):
             if value is not None:
                 message.value = value
                 message.is_observed = True
+
+
+class Substitute(Messenger):
+    def __init__(
+        self,
+        fun: Callable[..., Variate],
+        condition: Optional[Dict[str, Parameter]] = None,
+        base_distribution_condition: Optional[Dict[str, Parameter]] = None,
+        substitution: Optional[Callable[OrderedDict[str, Message]], Parameter] = None,
+    ):
+        if (condition is not None) + (base_distribution_condition is not None) + (
+            substitution is not None
+        ) != 1:
+            raise ValueError(
+                "Provide exactly one of the condition dictionary, base "
+                "distribution condition dictionary or substitution function."
+            )
+
+        super().__init__(fun=fun)
+        self.condition = condition
+        self.base_distribution_condition = base_distribution_condition
+        self.substitution = substitution
+
+    def process_message(self, message: Message):
+        if (
+            message.message_type is MessageType.SAMPLE
+            or message.message_type is MessageType.PARAM
+        ):
+            if self.condition is not None and message.name in self.condition:
+                message.value = self.condition[message.name]
+            else:
+                if self.substitution is not None:
+                    base_value = self.substitution(message)
+                else:
+                    base_value = self.base_distribution_condition.get(
+                        message.name, None
+                    )
+
+                if base_value is not None:
+                    if message.message_type is MessageType.SAMPLE:
+                        message.value = message.dist.transform(base_value)
+                    else:
+                        constraint = message.kwargs.pop("constraint", real)
+                        transformation = biject_to(constraint)
+
+                        if isinstance(transformation, ComposeTransformation):
+                            skip_first = ComposeTransformation(
+                                transformation.transformations[1:]
+                            )
+                            message.value = skip_first(base_value)
+                        else:
+                            message.value = base_value
