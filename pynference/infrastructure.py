@@ -7,7 +7,7 @@ from typing import Any, Callable, Dict, List, Optional, OrderedDict, Tuple
 
 from numpy.random import RandomState
 
-from pynference.constants import Shape, Variate
+from pynference.constants import Parameter, Shape, Variate
 from pynference.distributions.distribution import Distribution
 
 
@@ -72,7 +72,7 @@ def _apply_stack(message: Message) -> Message:
 def sample(
     name: str,
     dist: Distribution,
-    observed: Optional[Variate] = None,
+    observation: Optional[Variate] = None,
     sample_shape: Shape = (),
     random_state: RandomState = None,
 ) -> Variate:
@@ -84,8 +84,8 @@ def sample(
             name=name,
             dist=dist,
             kwargs={"sample_shape": sample_shape, "random_state": random_state},
-            value=observed,
-            is_observed=observed is not None,
+            value=observation,
+            is_observed=observation is not None,
         )
         message = _apply_stack(message)
         return message.value
@@ -116,7 +116,7 @@ class Trace(Messenger):
 
 
 class Replay(Messenger):
-    def __init__(self, fun: Callable[..., Variate], trace: OrderedDict):
+    def __init__(self, fun: Callable[..., Variate], trace: OrderedDict[str, Message]):
         super().__init__(fun=fun)
         self.trace = trace
 
@@ -151,3 +151,39 @@ class Seed(Messenger):
             and message.kwargs["random_state"] is None
         ):
             message.kwargs["random_state"] = self.random_state
+
+
+class Condition(Messenger):
+    def __init__(
+        self,
+        fun: Callable[..., Variate],
+        condition: Optional[Dict[str, Parameter]] = None,
+        substitution: Optional[Callable[OrderedDict[str, Message]], Parameter] = None,
+    ):
+        if (condition is not None) + (substitution is not None) != 1:
+            raise ValueError(
+                "Provide exactly one of the condition dictionary or substitution function."
+            )
+
+        super().__init__(fun=fun)
+        self.condition = condition
+        self.substitution = substitution
+
+    def process_message(self, message: Message):
+        if message.message_type is MessageType.SAMPLE:
+            if message.is_observed:
+                raise ValueError(
+                    "Cannot condition an already observed sample site {}.".format(
+                        message.name
+                    )
+                )
+
+            if self.condition is not None:
+                if message.name in self.condition:
+                    value = self.condition[message.name]
+            else:
+                value = self.substitution(message)
+
+            if value is not None:
+                message.value = value
+                message.is_observed = True
