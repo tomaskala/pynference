@@ -22,6 +22,7 @@ class Message:
     name: str
     dist: Distribution
     value: Variate
+    is_observed: bool
     args: Tuple[Any, ...] = field(default_factory=tuple)
     kwargs: Dict[str, Any] = field(default_factory=dict)
     stop: bool = field(default=False)
@@ -84,6 +85,7 @@ def sample(
             dist=dist,
             kwargs={"sample_shape": sample_shape, "random_state": random_state},
             value=observed,
+            is_observed=observed is not None,
         )
         message = _apply_stack(message)
         return message.value
@@ -132,6 +134,20 @@ class Block(Messenger):
         super().__init__(fun=fun)
         self.hide_predicate = hide_predicate
 
-    def process_message(message: Message):
+    def process_message(self, message: Message):
         if self.hide_predicate(message):
             message.stop = True
+
+
+class Seed(Messenger):
+    def __init__(self, fun: Callable[..., Variate], random_state: RandomState):
+        super().__init__(fun=fun)
+        self.random_state = random_state
+
+    def process_message(self, message: Message):
+        if (
+            message.message_type is MessageType.SAMPLE
+            and not message.is_observed
+            and message.kwargs["random_state"] is None
+        ):
+            message.kwargs["random_state"] = self.random_state
