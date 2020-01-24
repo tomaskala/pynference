@@ -17,7 +17,16 @@ from pynference.distributions.transformations import (
     biject_to,
 )
 
-__all__ = ["sample", "Trace", "Replay", "Block", "Seed", "Condition", "Substitute"]
+__all__ = [
+    "sample",
+    "MessageType",
+    "Trace",
+    "Replay",
+    "Block",
+    "Seed",
+    "Condition",
+    "Substitute",
+]
 
 
 class MessageType(Enum):
@@ -49,7 +58,7 @@ class Messenger(abc.ABC):
 
     def __exit__(self, exc_type, exc_value, traceback):
         assert _MESSENGER_STACK[-1] is self
-        _MESSENGER_STACK.pop(self)
+        _MESSENGER_STACK.pop()
 
     def __call__(self, *args, **kwargs) -> Variate:
         with self:

@@ -1,17 +1,15 @@
 import abc
-from typing import Any, Callable, Dict, List, Tuple, Type
+from typing import Any, Dict, List, Tuple, Type
 
 import numpy as np
 from numpy.random import RandomState
 
-from pynference.constants import ArrayLike, Sample, Shape, Variate
-from pynference.distributions.transformations import Transformation
+from pynference.constants import Sample, Shape, Variate
 from pynference.inference.utils import (
-    get_model_transformations,
     init_to_prior,
-    transform_parameters,
+    initialize,
+    prepare_metropolis_functions,
 )
-from pynference.model.model import Model
 from pynference.utils import check_random_state
 
 __all__ = ["Metropolis"]
@@ -61,11 +59,11 @@ class Metropolis:
 
     def __init__(
         self,
-        model: Model,
+        model,
         n_samples: int,
         proposal: str,
         scale_init: float = 1.0,
-        init: Callable[[Model, RandomState], Sample] = init_to_prior(),
+        init=init_to_prior(),
         tune: bool = True,
         tune_interval: int = 100,
         track_stats: bool = True,
@@ -90,20 +88,21 @@ class Metropolis:
         self.accepted = 0
         self.stats: List[Dict[str, Any]] = []
 
+        self._log_prob = None
+        self._transformation = None
         self._accepted_since_tune = 0
         self._scaling = 1.0
         self._steps_until_tune = tune_interval
 
-    def run(self) -> List[Sample]:
+    def run(self, *args, **kwargs) -> List[Sample]:
         samples = []
-        transformations = get_model_transformations(self.model)
-
-        # Sample and unconstrain the initial theta.
-        theta = self.init(self.model, self.random_state)
-        theta = transform_parameters(theta, transformations, inverse=True)
+        self._log_prob, self._transformation = prepare_metropolis_functions(
+            self.model, self.random_state, *args, **kwargs
+        )
+        theta = initialize(self.model, self.init, self.random_state, *args, **kwargs)
 
         for i in range(self.n_samples):
-            theta, stats = self.step(theta, transformations)
+            theta, stats = self.step(theta, *args, **kwargs)
             samples.append(theta)
 
             if self.track_stats:
@@ -120,15 +119,9 @@ class Metropolis:
                     )
                 )
 
-        # Constrain samples.
-        return [
-            transform_parameters(sample, transformations, inverse=False)
-            for sample in samples
-        ]
+        return [self._transformation(sample) for sample in samples]
 
-    def step(
-        self, theta: Sample, transformations: Dict[str, Transformation]
-    ) -> Tuple[Sample, Dict[str, Any]]:
+    def step(self, theta: Sample, *args, **kwargs) -> Tuple[Sample, Dict[str, Any]]:
         if self._steps_until_tune == 0 and self.tune:
             self._tune_scaling()
             self._accepted_since_tune = 0
@@ -139,9 +132,9 @@ class Metropolis:
         for name, param in theta.items():
             theta_prop[name] = param + self.proposal(np.shape(param)) * self._scaling
 
-        acceptance_ratio = self._log_prob(theta_prop, transformations) - self._log_prob(
-            theta, transformations
-        )
+        acceptance_ratio = self._log_prob(
+            self._transformation(theta_prop), *args, **kwargs
+        ) - self._log_prob(self._transformation(theta), *args, **kwargs)
 
         if (
             np.isfinite(acceptance_ratio)
@@ -163,12 +156,6 @@ class Metropolis:
         }
 
         return theta, stats
-
-    def _log_prob(
-        self, theta: Sample, transformations: Dict[str, Transformation]
-    ) -> ArrayLike:
-        theta_constrained = transform_parameters(theta, transformations, inverse=False)
-        return self.model.log_prob(theta_constrained)
 
     def _tune_scaling(self):
         acceptance_rate = self._accepted_since_tune / self.tune_interval

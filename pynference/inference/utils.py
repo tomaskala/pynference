@@ -1,60 +1,98 @@
 from functools import partial
-from typing import Callable, Dict
+from typing import Any, Callable, Dict, Tuple
 
 import numpy as np
 from numpy.random import RandomState
 
-from pynference.constants import Sample
-from pynference.distributions import Uniform
+from pynference.constants import Sample, Shape, Variate
+from pynference.distributions import TransformedDistribution, Uniform
 from pynference.distributions.transformations import Transformation, biject_to
-from pynference.infrastructure import Seed, Substitute, Trace
-from pynference.model.model import Model
+from pynference.infrastructure import (
+    Block,
+    Message,
+    MessageType,
+    Seed,
+    Substitute,
+    Trace,
+    sample,
+)
 
 __all__ = [
     "init_to_mean",
     "init_to_prior",
     "init_to_uniform",
     "get_model_transformations",
+    "initialize",
+    "prepare_metropolis_functions",
+    "log_prob",
     "transform_parameters",
 ]
 
 
-def _init_to_prior(model: Model, random_state: RandomState) -> Sample:
-    return model.sample(sample_shape=(), random_state=random_state)
+def _sample_from_message(message: Message, sample_shape: Shape) -> Variate:
+    if message.message_type is MessageType.SAMPLE:
+        if isinstance(message.fun, TransformedDistribution):
+            dist = message.fun.base_distribution
+        else:
+            dist = message.fun  # type: ignore
 
-
-def _init_to_mean(model: Model, random_state: RandomState, n_samples: int) -> Sample:
-    thetas = model.sample(sample_shape=(n_samples,), random_state=random_state)
-    return {name: np.mean(theta, axis=0) for name, theta in thetas.items()}
-
-
-def _init_to_uniform(model: Model, random_state: RandomState, radius: float) -> Sample:
-    theta = {}
-    uniform = Uniform(lower=-radius, upper=radius)
-
-    # Hack to get the variable shapes. Once more complex probabilistic
-    # programming constructs are implemented, this can be refined.
-    dummy_sample = model.sample(sample_shape=(), random_state=random_state)
-
-    for name, constraint in model.constraints.items():
-        transformation = biject_to(constraint)
-        uniform_sample = uniform.sample(
-            sample_shape=np.shape(dummy_sample[name]), random_state=random_state
+        return sample(
+            "_initialization",
+            dist,
+            sample_shape=sample_shape + message.kwargs["sample_shape"],
         )
-        theta[name] = transformation(uniform_sample)
+    else:
+        raise ValueError(
+            "Can only initialize a message of type SAMPLE but {} was given.".format(
+                message.message_type
+            )
+        )
 
-    return theta
+
+def _init_to_prior(message: Message) -> Variate:
+    return _sample_from_message(message, sample_shape=())
 
 
-def init_to_prior() -> Callable[[Model, RandomState], Sample]:
+def _init_to_mean(message: Message, n_samples: int) -> Variate:
+    samples = _sample_from_message(message, sample_shape=(n_samples,))
+    return np.mean(samples, axis=0)
+
+
+def _init_to_uniform(message: Message, radius: float) -> Variate:
+    if message.message_type is MessageType.SAMPLE:
+        if isinstance(message.fun, TransformedDistribution):
+            dist = message.fun.base_distribution
+        else:
+            dist = message.fun  # type: ignore
+
+        dummy = sample(
+            "_initialization", dist, sample_shape=message.kwargs["sample_shape"]
+        )
+        transformation = biject_to(dist.support)
+
+        uniform_sample = sample(
+            "_uniform",
+            Uniform(lower=-radius, upper=radius),
+            sample_shape=np.shape(transformation.inverse(dummy)),
+        )
+        return transformation(uniform_sample)
+    else:
+        raise ValueError(
+            "Can only initialize a message of type SAMPLE but {} was given.".format(
+                message.message_type
+            )
+        )
+
+
+def init_to_prior() -> Callable[[Message], Variate]:
     return _init_to_prior
 
 
-def init_to_mean(n_samples: int = 20) -> Callable[[Model, RandomState], Sample]:
+def init_to_mean(n_samples: int = 20) -> Callable[[Message], Variate]:
     return partial(_init_to_mean, n_samples=n_samples)
 
 
-def init_to_uniform(radius: float = 2.0) -> Callable[[Model, RandomState], Sample]:
+def init_to_uniform(radius: float = 2.0) -> Callable[[Message], Variate]:
     return partial(_init_to_uniform, radius=radius)
 
 
@@ -67,21 +105,50 @@ def get_model_transformations(
 
 
 # TODO: Change the following:
-# 1. initializations
-# 2. make create_log_prob work on unconstrained parameters
-# 3. make metropolis nicely constrain the sampled parameters at the end
+# 1. make create_log_prob work on unconstrained parameters
+# 2. make metropolis nicely constrain the sampled parameters at the end
 
 
-# TODO: Types
-def create_log_prob(model) -> Callable[..., float]:
-    def _log_prob(theta: Sample, *args, **kwargs) -> float:
-        nonlocal model
-        # The `theta` is assumed to be constrained to the model support.
-        model = Substitute(model, base_distribution_condition=theta)
-        trace = Trace(model)
-        return trace.log_prob(*args, **kwargs)
+def initialize(
+    model,
+    initializer: Callable[[Message], Variate],
+    random_state: RandomState,
+    *args,
+    **kwargs
+) -> Sample:
+    model = Substitute(model, substitution=Block(Seed(initializer, random_state)))
+    trace = Trace(model).trace(*args, **kwargs)
 
-    return _log_prob
+    constrained = {}
+    transformations = {}
+
+    for name, message in trace.items():
+        if message.message_type is MessageType.SAMPLE and not message.is_observed:
+            constrained[name] = message.value
+            transformations[name] = biject_to(message.fun.support)
+
+    # Unconstrain the parameters.
+    return transform_parameters(constrained, transformations, inverse=True)
+
+
+def prepare_metropolis_functions(
+    model, random_state: RandomState, *args, **kwargs
+) -> Tuple[Callable[[Sample, Any, Any], float], Callable[[Sample], Sample]]:
+    transformations = get_model_transformations(model, random_state, *args, **kwargs)
+
+    log_prob_function = partial(log_prob, model=model)
+    transformation_function = partial(
+        transform_parameters, transformations=transformations, inverse=False
+    )
+
+    return log_prob_function, transformation_function
+
+
+def log_prob(theta: Sample, model, *args, **kwargs) -> float:
+    # The `theta` is assumed to be constrained to the model support.
+    model = Substitute(model, base_distribution_condition=theta)
+    trace = Trace(model)
+    return trace.log_prob(*args, **kwargs)
 
 
 def transform_parameters(
