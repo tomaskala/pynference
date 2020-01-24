@@ -22,7 +22,7 @@ def model(X, y, a0, b0, Sigma0):
     )
 
     y_mean = X @ beta
-    sample("Y", MultivariateNormal(mean=y_mean, variance=sigma2))
+    sample("y", MultivariateNormal(mean=y_mean, variance=sigma2), observation=y)
 
 
 def main():
@@ -41,7 +41,7 @@ def main():
     b0 = 1.0
     Sigma0 = np.array([[1.0, 0.0], [0.0, 1.0]])
 
-    n_samples = 1000
+    n_samples = 10000
     proposal = "normal"
     scale_init = 0.05
     init = init_to_uniform()
