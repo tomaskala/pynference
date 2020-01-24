@@ -7,6 +7,7 @@ from numpy.random import RandomState
 from pynference.constants import Sample
 from pynference.distributions import Uniform
 from pynference.distributions.transformations import Transformation, biject_to
+from pynference.infrastructure import Seed, Substitute, Trace
 from pynference.model.model import Model
 
 __all__ = [
@@ -57,10 +58,30 @@ def init_to_uniform(radius: float = 2.0) -> Callable[[Model, RandomState], Sampl
     return partial(_init_to_uniform, radius=radius)
 
 
-def get_model_transformations(model: Model) -> Dict[str, Transformation]:
-    return {
-        name: biject_to(constraint) for name, constraint in model.constraints.items()
-    }
+def get_model_transformations(
+    model, random_state: RandomState, *args, **kwargs
+) -> Dict[str, Transformation]:
+    model = Seed(model, random_state)
+    trace = Trace(model)
+    return trace.transformations(*args, **kwargs)
+
+
+# TODO: Change the following:
+# 1. initializations
+# 2. make create_log_prob work on unconstrained parameters
+# 3. make metropolis nicely constrain the sampled parameters at the end
+
+
+# TODO: Types
+def create_log_prob(model) -> Callable[..., float]:
+    def _log_prob(theta: Sample, *args, **kwargs) -> float:
+        nonlocal model
+        # The `theta` is assumed to be constrained to the model support.
+        model = Substitute(model, base_distribution_condition=theta)
+        trace = Trace(model)
+        return trace.log_prob(*args, **kwargs)
+
+    return _log_prob
 
 
 def transform_parameters(

@@ -5,12 +5,17 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Any, Callable, Dict, List, Optional, OrderedDict, Tuple
 
+import numpy as np
 from numpy.random import RandomState
 
 from pynference.constants import Parameter, Shape, Variate
 from pynference.distributions.constraints import real
 from pynference.distributions.distribution import Distribution, TransformedDistribution
-from pynference.distributions.transformations import ComposeTransformation, biject_to
+from pynference.distributions.transformations import (
+    ComposeTransformation,
+    Transformation,
+    biject_to,
+)
 
 __all__ = ["sample", "Trace", "Replay", "Block", "Seed", "Condition", "Substitute"]
 
@@ -108,6 +113,31 @@ class Trace(Messenger):
     def trace(self, *args, **kwargs):
         self(*args, **kwargs)
         return self._trace
+
+    def log_prob(self, *args, **kwargs) -> float:
+        trace = self.trace(*args, **kwargs)
+        log_prob = 0.0
+
+        for name, message in trace.items():
+            if message.message_type is MessageType.SAMPLE:
+                # TODO: Memoize inside messages?
+                log_prob += np.sum(message.fun.log_prob(message.value))
+
+        return log_prob
+
+    def transformations(self, *args, **kwargs) -> Dict[str, Transformation]:
+        trace = self.trace(*args, **kwargs)
+        inv_transforms = {}
+
+        for name, message in trace.items():
+            if message.message_type is MessageType.SAMPLE and not message.is_observed:
+                inv_transforms[name] = biject_to(message.fun.support)
+            elif message.message_type is MessageType.PARAM:
+                constraint = kwargs.pop("constraint", real)
+                transformation = biject_to(constraint)
+                inv_transforms[name] = transformation
+
+        return inv_transforms
 
     def postprocess_message(self, message: Message):
         if message.message_type != MessageType.SAMPLE:
