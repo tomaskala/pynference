@@ -20,9 +20,7 @@ def model(X, y, a0, b0, Sigma0):
         "beta",
         MultivariateNormal(mean=np.zeros(Sigma0.shape[0]), covariance_matrix=Sigma0),
     )
-
-    y_mean = X @ beta
-    sample("y", MultivariateNormal(mean=y_mean, variance=sigma2), observation=y)
+    sample("y", MultivariateNormal(mean=X @ beta, variance=sigma2), observation=y)
 
 
 def main():
