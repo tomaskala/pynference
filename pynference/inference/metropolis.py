@@ -6,9 +6,11 @@ from numpy.random import RandomState
 
 from pynference.constants import Sample, Shape, Variate
 from pynference.inference.utils import (
+    get_model_transformations,
     init_to_prior,
     initialize,
-    prepare_metropolis_functions,
+    potential_energy,
+    transform_parameters,
 )
 from pynference.utils import check_random_state
 
@@ -88,17 +90,16 @@ class Metropolis:
         self.accepted = 0
         self.stats: List[Dict[str, Any]] = []
 
-        self._log_prob = None
-        self._transformation = None
+        self._transformations = None
         self._accepted_since_tune = 0
         self._scaling = 1.0
         self._steps_until_tune = tune_interval
 
     def run(self, *args, **kwargs) -> List[Sample]:
-        samples = []
-        self._log_prob, self._transformation = prepare_metropolis_functions(
+        self._transformations = get_model_transformations(
             self.model, self.random_state, *args, **kwargs
         )
+        samples = []
         theta = initialize(self.model, self.init, self.random_state, *args, **kwargs)
 
         for i in range(self.n_samples):
@@ -119,7 +120,9 @@ class Metropolis:
                     )
                 )
 
-        return [self._transformation(sample) for sample in samples]
+        return [
+            transform_parameters(sample, self._transformations) for sample in samples
+        ]
 
     def step(self, theta: Sample, *args, **kwargs) -> Tuple[Sample, Dict[str, Any]]:
         if self._steps_until_tune == 0 and self.tune:
@@ -132,9 +135,12 @@ class Metropolis:
         for name, param in theta.items():
             theta_prop[name] = param + self.proposal(np.shape(param)) * self._scaling
 
-        acceptance_ratio = self._log_prob(
-            self._transformation(theta_prop), *args, **kwargs
-        ) - self._log_prob(self._transformation(theta), *args, **kwargs)
+        # Reversed order than usual because the potential energy is minus log_prob.
+        acceptance_ratio = potential_energy(
+            self.model, self._transformations, theta, *args, **kwargs
+        ) - potential_energy(
+            self.model, self._transformations, theta_prop, *args, **kwargs
+        )
 
         if (
             np.isfinite(acceptance_ratio)

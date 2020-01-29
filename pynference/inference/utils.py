@@ -1,5 +1,5 @@
 from functools import partial
-from typing import Any, Callable, Dict, Tuple
+from typing import Callable, Dict
 
 import numpy as np
 from numpy.random import RandomState
@@ -23,7 +23,7 @@ __all__ = [
     "init_to_uniform",
     "get_model_transformations",
     "initialize",
-    "prepare_metropolis_functions",
+    "potential_energy",
     "log_prob",
     "transform_parameters",
 ]
@@ -104,11 +104,6 @@ def get_model_transformations(
     return trace.transformations(*args, **kwargs)
 
 
-# TODO: Change the following:
-# 1. make create_log_prob work on unconstrained parameters
-# 2. make metropolis nicely constrain the sampled parameters at the end
-
-
 def initialize(
     model,
     initializer: Callable[[Message], Variate],
@@ -131,22 +126,20 @@ def initialize(
     return transform_parameters(constrained, transformations, inverse=True)
 
 
-def prepare_metropolis_functions(
-    model, random_state: RandomState, *args, **kwargs
-) -> Tuple[Callable[[Sample, Any, Any], float], Callable[[Sample], Sample]]:
-    transformations = get_model_transformations(model, random_state, *args, **kwargs)
+def potential_energy(
+    model, transformations: Dict[str, Transformation], theta: Sample, *args, **kwargs
+) -> float:
+    theta_constrained = transform_parameters(theta, transformations, inverse=False)
+    log_p = log_prob(model, theta_constrained, *args, **kwargs)
 
-    log_prob_function = partial(log_prob, model=model)
-    transformation_function = partial(
-        transform_parameters, transformations=transformations, inverse=False
-    )
+    for name, transformation in transformations.items():
+        log_p += np.sum(transformation.log_abs_J(theta[name], theta_constrained[name]))
 
-    return log_prob_function, transformation_function
+    return -log_p
 
 
-def log_prob(theta: Sample, model, *args, **kwargs) -> float:
-    # The `theta` is assumed to be constrained to the model support.
-    model = Substitute(model, base_distribution_condition=theta)
+def log_prob(model, theta_constrained: Sample, *args, **kwargs) -> float:
+    model = Substitute(model, condition=theta_constrained)
     trace = Trace(model)
     return trace.log_prob(*args, **kwargs)
 

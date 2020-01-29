@@ -140,6 +140,10 @@ class Trace(Messenger):
 
         for name, message in trace.items():
             if message.message_type is MessageType.SAMPLE and not message.is_observed:
+                # TODO: Add a condition for isinstance transformed distribution.
+                # TODO: If yes, replay_model=True and only biject to the base
+                # TODO: distribution support. Then use base_distribution_condition
+                # TODO: in inference/utils/log_prob.
                 inv_transforms[name] = biject_to(message.fun.support)
             elif message.message_type is MessageType.PARAM:
                 constraint = kwargs.pop("constraint", real)
