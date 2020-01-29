@@ -8,7 +8,6 @@ from pynference.constants import ArrayLike, Parameter, Shape, Variate
 from pynference.distributions.constraints import (
     Constraint,
     interval,
-    non_negative,
     positive,
     real,
     zero_one,
@@ -129,7 +128,7 @@ class Cauchy(Distribution):
 
 class Exponential(ExponentialFamily):
     _constraints: Dict[str, Constraint] = {"rate": positive}
-    _support: Constraint = non_negative
+    _support: Constraint = positive
 
     def __init__(
         self, rate: Parameter, check_parameters: bool = True, check_support: bool = True
