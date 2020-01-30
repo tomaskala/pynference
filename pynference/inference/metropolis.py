@@ -5,10 +5,9 @@ import numpy as np
 from numpy.random import RandomState
 
 from pynference.constants import Sample, Shape, Variate
+from pynference.inference.initializers import init_to_prior, initialize
 from pynference.inference.utils import (
     get_model_transformations,
-    init_to_prior,
-    initialize,
     potential_energy,
     transform_parameters,
 )
