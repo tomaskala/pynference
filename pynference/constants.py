@@ -1,6 +1,6 @@
 from typing import Dict, Tuple, Union
 
-import numpy as np
+import jax.numpy as np
 
 # Return type of a probability evaluation.
 ArrayLike = Union[float, np.ndarray]

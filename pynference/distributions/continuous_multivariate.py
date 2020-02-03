@@ -1,11 +1,13 @@
 from typing import Dict, Tuple
 from warnings import warn
 
-import numpy as np
-import numpy.linalg as la  # Not SciPy, NumPy works for batches of matrices.
-from numpy.random import RandomState
-from scipy.linalg import solve_triangular
-from scipy.special import gammaln, multigammaln
+import jax.numpy as np
+import jax.numpy.linalg as la  # Not SciPy, NumPy works for batches of matrices.
+import jax.random as random
+from jax import lax, ops
+from jax.random import PRNGKey
+from jax.scipy.linalg import solve_triangular
+from jax.scipy.special import gammaln, multigammaln
 
 from pynference.constants import ArrayLike, Parameter, Shape, Variate
 from pynference.distributions.constraints import (
@@ -17,11 +19,10 @@ from pynference.distributions.constraints import (
     real_vector,
     simplex,
 )
-from pynference.distributions.continuous_univariate import Gamma
+from pynference.distributions.continuous_univariate import Chi2
 from pynference.distributions.distribution import Distribution, ExponentialFamily
 from pynference.distributions.utils import (
     arraywise_diagonal,
-    broadcast_shapes,
     promote_shapes,
     replicate_along_last_axis,
 )
@@ -70,9 +71,9 @@ class Dirichlet(ExponentialFamily):
         )
         return np.sum((self.concentration - 1.0) * np.log(x), axis=-1) - normalizer
 
-    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        epsilon = random_state.standard_gamma(
-            self.concentration, sample_shape + self.batch_shape + self.rv_shape
+    def _sample(self, sample_shape: Shape, key: PRNGKey) -> Variate:
+        epsilon = random.gamma(
+            key, self.concentration, sample_shape + self.batch_shape + self.rv_shape
         )
         return epsilon / np.sum(epsilon, axis=-1, keepdims=True)
 
@@ -120,7 +121,7 @@ class InverseWishart(ExponentialFamily):
 
             cholesky_tril = la.cholesky(scale_matrix)
 
-        batch_shape = broadcast_shapes(np.shape(df), np.shape(cholesky_tril)[:-2])
+        batch_shape = lax.broadcast_shapes(np.shape(df), np.shape(cholesky_tril)[:-2])
         rv_shape = np.shape(cholesky_tril)[-2:]
 
         super().__init__(
@@ -143,9 +144,8 @@ class InverseWishart(ExponentialFamily):
         chi2_df = np.expand_dims(self.df, -1)
         dim_range = np.expand_dims(np.arange(self.rv_shape[0], 0, -1), 0)
         chi2_df = np.squeeze(chi2_df - dim_range) + 1
-        self._chi2 = Gamma(
-            shape=chi2_df / 2.0,
-            rate=0.5,
+        self._chi2 = Chi2(
+            df=chi2_df,
             check_parameters=self.check_parameters,
             check_support=self.check_support,
         )
@@ -188,11 +188,11 @@ class InverseWishart(ExponentialFamily):
 
         return -(self.df + p + 1.0) / 2.0 * log_det_x - trace / 2.0 + normalizer
 
-    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
+    def _sample(self, sample_shape: Shape, key: PRNGKey) -> Variate:
         scale_inv = _cholesky2inverse(self._cholesky_tril)
         cholesky_inv = la.cholesky(scale_inv)
 
-        A = self._standard_sample(sample_shape, random_state)
+        A = self._standard_sample(sample_shape, key)
         CA = cholesky_inv @ A
 
         CA_inv = la.inv(CA)
@@ -200,18 +200,16 @@ class InverseWishart(ExponentialFamily):
 
         return CA_inv_T @ CA_inv
 
-    def _standard_sample(
-        self, sample_shape: Shape, random_state: RandomState
-    ) -> Variate:
+    def _standard_sample(self, sample_shape: Shape, key: PRNGKey) -> Variate:
+        chi2_key, norm_key = random.split(key)
+
         p = self.rv_shape[0]
         n_tril = p * (p - 1) // 2
-        normal_samples = random_state.standard_normal(
-            sample_shape + self.batch_shape + (n_tril,)
+        normal_samples = random.normal(
+            norm_key, shape=sample_shape + self.batch_shape + (n_tril,)
         )
 
-        chi2_samples = self._chi2.sample(
-            sample_shape=sample_shape, random_state=random_state
-        )
+        chi2_samples = self._chi2.sample(sample_shape=sample_shape, key=chi2_key)
 
         sample = np.zeros(shape=sample_shape + self.batch_shape + (p, p))
         sample_batch_idx = tuple(
@@ -219,10 +217,14 @@ class InverseWishart(ExponentialFamily):
         )
 
         tril_idx = np.tril_indices(p, k=-1)
-        sample[sample_batch_idx + tril_idx] = normal_samples
+        sample = ops.index_update(
+            sample, ops.index[sample_batch_idx + tril_idx], normal_samples
+        )
 
         diag_idx = np.diag_indices(p)
-        sample[sample_batch_idx + diag_idx] = np.sqrt(chi2_samples)
+        sample = ops.index_update(
+            sample, ops.index[sample_batch_idx + diag_idx], np.sqrt(chi2_samples)
+        )
 
         return sample
 
@@ -325,9 +327,9 @@ class _MVNScalar(ExponentialFamily):
     def _mahalanobis_squared(self, centered_x: Variate):
         return self._precision * np.sum(np.square(centered_x), axis=-1)
 
-    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        epsilon = random_state.standard_normal(
-            sample_shape + self.batch_shape + self.rv_shape
+    def _sample(self, sample_shape: Shape, key: PRNGKey) -> Variate:
+        epsilon = random.normal(
+            key, shape=sample_shape + self.batch_shape + self.rv_shape
         )
         return self._mean + self._std[..., np.newaxis] * epsilon
 
@@ -437,9 +439,9 @@ class _MVNVector(ExponentialFamily):
     def _mahalanobis_squared(self, centered_x: Variate):
         return np.sum(self._precision_diag * np.square(centered_x), axis=-1)
 
-    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        epsilon = random_state.standard_normal(
-            sample_shape + self.batch_shape + self.rv_shape
+    def _sample(self, sample_shape: Shape, key: PRNGKey) -> Variate:
+        epsilon = random.normal(
+            key, shape=sample_shape + self.batch_shape + self.rv_shape
         )
         return self._mean + self._std_diag * epsilon
 
@@ -607,9 +609,9 @@ class _MVNMatrix(ExponentialFamily):
         normalizer = half_log_det + 0.5 * self.rv_shape[0] * np.log(2.0 * np.pi)
         return -0.5 * mahalanobis_squared - normalizer
 
-    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        epsilon = random_state.standard_normal(
-            sample_shape + self.batch_shape + self.rv_shape
+    def _sample(self, sample_shape: Shape, key: PRNGKey) -> Variate:
+        epsilon = random.normal(
+            key, shape=sample_shape + self.batch_shape + self.rv_shape
         )
         return self._mean + np.squeeze(
             self._cholesky_tril @ epsilon[..., np.newaxis], axis=-1
@@ -744,7 +746,7 @@ def MultivariateNormal(
 
             std = np.reciprocal(np.sqrt(precision))
 
-        batch_shape = broadcast_shapes(np.shape(mean)[:-1], np.shape(precision))
+        batch_shape = lax.broadcast_shapes(np.shape(mean)[:-1], np.shape(precision))
         rv_shape = np.shape(mean)[-1:]
 
         mean = np.broadcast_to(mean, batch_shape + rv_shape)
@@ -772,7 +774,7 @@ def MultivariateNormal(
 
             std_diag = np.reciprocal(np.sqrt(precision_diag))
 
-        batch_shape = broadcast_shapes(
+        batch_shape = lax.broadcast_shapes(
             np.shape(mean)[:-1], np.shape(precision_diag)[:-1]
         )
         rv_shape = np.shape(precision_diag)[-1:]
@@ -807,7 +809,7 @@ def MultivariateNormal(
 
             mean, precision_matrix = promote_shapes(mean, precision_matrix)
 
-            batch_shape = broadcast_shapes(
+            batch_shape = lax.broadcast_shapes(
                 np.shape(mean)[:-2], np.shape(precision_matrix)[:-2]
             )
 
@@ -818,7 +820,7 @@ def MultivariateNormal(
 
             mean, cholesky_tril = promote_shapes(mean, cholesky_tril)
 
-            batch_shape = broadcast_shapes(
+            batch_shape = lax.broadcast_shapes(
                 np.shape(mean)[:-2], np.shape(cholesky_tril)[:-2]
             )
 
@@ -874,7 +876,7 @@ class MultivariateT(Distribution):
 
         loc, cholesky_tril = promote_shapes(loc, cholesky_tril)
 
-        batch_shape = broadcast_shapes(
+        batch_shape = lax.broadcast_shapes(
             np.shape(df), np.shape(loc)[:-2], np.shape(cholesky_tril)[:-2]
         )
         rv_shape = np.shape(cholesky_tril)[-1:]
@@ -890,6 +892,12 @@ class MultivariateT(Distribution):
         self.df = np.broadcast_to(df, batch_shape)
         self.loc = loc
         self._cholesky_tril = cholesky_tril
+
+        self._chi2 = Chi2(
+            df=self.df,
+            check_parameters=self.check_parameters,
+            check_support=self.check_support,
+        )
 
     @property
     def mean(self) -> Parameter:
@@ -929,10 +937,11 @@ class MultivariateT(Distribution):
             mahalanobis_squared / self.df
         )
 
-    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        chi2 = random_state.chisquare(df=self.df, size=sample_shape + self.batch_shape)
-        norm = random_state.standard_normal(
-            sample_shape + self.batch_shape + self.rv_shape
+    def _sample(self, sample_shape: Shape, key: PRNGKey) -> Variate:
+        chi2_key, norm_key = random.split(key)
+        chi2 = self._chi2.sample(sample_shape=sample_shape, key=chi2_key)
+        norm = random.normal(
+            norm_key, shape=sample_shape + self.batch_shape + self.rv_shape
         )
 
         return self.loc + np.sqrt(self.df / chi2)[..., np.newaxis] * np.squeeze(
@@ -967,7 +976,7 @@ class Wishart(ExponentialFamily):
 
             cholesky_tril = la.cholesky(scale_matrix)
 
-        batch_shape = broadcast_shapes(np.shape(df), np.shape(cholesky_tril)[:-2])
+        batch_shape = lax.broadcast_shapes(np.shape(df), np.shape(cholesky_tril)[:-2])
         rv_shape = np.shape(cholesky_tril)[-2:]
 
         super().__init__(
@@ -990,9 +999,8 @@ class Wishart(ExponentialFamily):
         chi2_df = np.expand_dims(self.df, -1)
         dim_range = np.expand_dims(np.arange(self.rv_shape[0], 0, -1), 0)
         chi2_df = np.squeeze(chi2_df - dim_range) + 1
-        self._chi2 = Gamma(
-            shape=chi2_df / 2.0,
-            rate=0.5,
+        self._chi2 = Chi2(
+            df=chi2_df,
             check_parameters=self.check_parameters,
             check_support=self.check_support,
         )
@@ -1026,24 +1034,22 @@ class Wishart(ExponentialFamily):
 
         return (self.df - p - 1.0) / 2.0 * log_det_x - trace / 2.0 - normalizer
 
-    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        A = self._standard_sample(sample_shape, random_state)
+    def _sample(self, sample_shape: Shape, key: PRNGKey) -> Variate:
+        A = self._standard_sample(sample_shape, key)
         CA = self._cholesky_tril @ A
         CA_T = np.swapaxes(CA, -2, -1)
         return CA @ CA_T
 
-    def _standard_sample(
-        self, sample_shape: Shape, random_state: RandomState
-    ) -> Variate:
+    def _standard_sample(self, sample_shape: Shape, key: PRNGKey) -> Variate:
+        chi2_key, norm_key = random.split(key)
+
         p = self.rv_shape[0]
         n_tril = p * (p - 1) // 2
-        normal_samples = random_state.standard_normal(
-            sample_shape + self.batch_shape + (n_tril,)
+        normal_samples = random.normal(
+            norm_key, shape=sample_shape + self.batch_shape + (n_tril,)
         )
 
-        chi2_samples = self._chi2.sample(
-            sample_shape=sample_shape, random_state=random_state
-        )
+        chi2_samples = self._chi2.sample(sample_shape=sample_shape, key=chi2_key)
 
         sample = np.zeros(shape=sample_shape + self.batch_shape + (p, p))
         sample_batch_idx = tuple(
@@ -1051,10 +1057,14 @@ class Wishart(ExponentialFamily):
         )
 
         tril_idx = np.tril_indices(p, k=-1)
-        sample[sample_batch_idx + tril_idx] = normal_samples
+        sample = ops.index_update(
+            sample, ops.index[sample_batch_idx + tril_idx], normal_samples
+        )
 
         diag_idx = np.diag_indices(p)
-        sample[sample_batch_idx + diag_idx] = np.sqrt(chi2_samples)
+        sample = ops.index_update(
+            sample, ops.index[sample_batch_idx + diag_idx], np.sqrt(chi2_samples)
+        )
 
         return sample
 

@@ -1,14 +1,13 @@
 import abc
 from typing import Dict, List, Tuple, Union
 
-import numpy as np
-from numpy.random import RandomState
+import jax.numpy as np
+from jax.random import PRNGKey
 
 from pynference.constants import ArrayLike, Parameter, Shape, Variate
 from pynference.distributions.constraints import Constraint
 from pynference.distributions.transformations import Transformation
 from pynference.distributions.utils import sum_last
-from pynference.utils import check_random_state
 
 
 class Distribution(abc.ABC):
@@ -27,8 +26,8 @@ class Distribution(abc.ABC):
         self.check_parameters = check_parameters
         self.check_support = check_support
 
-    def __call__(self, sample_shape: Shape = (), random_state=None) -> Variate:
-        return self.sample(sample_shape=sample_shape, random_state=random_state)
+    def __call__(self, key: PRNGKey, sample_shape: Shape = ()) -> Variate:
+        return self.sample(key=key, sample_shape=sample_shape)
 
     def __setattr__(self, name, value):
         if (
@@ -71,12 +70,11 @@ class Distribution(abc.ABC):
     def _log_prob(self, x: Variate) -> ArrayLike:
         pass
 
-    def sample(self, sample_shape: Shape = (), random_state=None) -> Variate:
-        random_state = check_random_state(random_state)
-        return self._sample(sample_shape, random_state)
+    def sample(self, sample_shape: Shape, key: PRNGKey) -> Variate:
+        return self._sample(sample_shape=sample_shape, key=key)
 
     @abc.abstractmethod
-    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
+    def _sample(self, sample_shape: Shape, key: PRNGKey) -> Variate:
         pass
 
     def _validate_input(self, x: Variate):
@@ -182,8 +180,8 @@ class TransformedDistribution(Distribution):
         log_prob += sum_last(self.base_distribution.log_prob(y), dim_diff)
         return log_prob
 
-    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        epsilon = self.base_distribution.sample(sample_shape, random_state)
+    def _sample(self, sample_shape: Shape, key: PRNGKey) -> Variate:
+        epsilon = self.base_distribution.sample(key=key, sample_shape=sample_shape)
 
         for t in self.transformation:
             epsilon = t(epsilon)

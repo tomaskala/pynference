@@ -1,8 +1,8 @@
 import abc
 from typing import Callable, Dict, Optional, Sequence, Type, Union
 
-import numpy as np
-from scipy.special import expit, logit
+import jax.numpy as np
+from jax.scipy.special import expit, logit
 
 from pynference.constants import ArrayLike, Variate
 from pynference.distributions.constraints import (
@@ -187,7 +187,7 @@ class PowerTransformation(Transformation):
         return np.power(x, self.power)
 
     def inverse(self, y: Variate) -> Variate:
-        return np.power(y, np.reciprocal(self.power))
+        return np.power(y, 1.0 / self.power)
 
     def log_abs_J(self, x: Variate, y: Variate) -> Variate:
         # y = x^n

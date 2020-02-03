@@ -1,9 +1,13 @@
 from typing import Dict, List, Optional, Union
 
-import numpy as np
-import numpy.linalg as la
+import jax.numpy as np
+import jax.numpy.linalg as la
+import jax.random as random
+import numpy as onp
 import scipy.stats as stats
-from pytest import approx, raises
+from jax import device_put, ops
+from numpy.testing import assert_allclose
+from pytest import raises
 
 from pynference.constants import Parameter, Shape
 from pynference.distributions import (
@@ -17,7 +21,8 @@ from pynference.utils import check_random_state
 
 
 def generate(
-    random_state: np.random.RandomState,
+    key: random.PRNGKey,
+    random_state: onp.random.RandomState,
     dim: int,
     shape: Shape,
     positive: Optional[Union[str, List[str]]] = None,
@@ -59,8 +64,12 @@ def generate(
             positive = [positive]
 
         for p in positive:
-            parameters[p] = random_state.uniform(
-                low=limits["positive_low"], high=limits["positive_high"], size=shape
+            key, curr_key = random.split(key)
+            parameters[p] = random.uniform(
+                curr_key,
+                minval=limits["positive_low"],
+                maxval=limits["positive_high"],
+                shape=shape,
             )
 
     if real_vector is not None:
@@ -68,10 +77,12 @@ def generate(
             real_vector = [real_vector]
 
         for p in real_vector:
-            parameters[p] = random_state.uniform(
-                low=limits["real_vector_low"],
-                high=limits["real_vector_high"],
-                size=shape + (dim,),
+            key, curr_key = random.split(key)
+            parameters[p] = random.uniform(
+                curr_key,
+                minval=limits["real_vector_low"],
+                maxval=limits["real_vector_high"],
+                shape=shape + (dim,),
             )
 
     if positive_vector is not None:
@@ -79,10 +90,12 @@ def generate(
             positive_vector = [positive_vector]
 
         for p in positive_vector:
-            parameters[p] = random_state.uniform(
-                low=limits["positive_vector_low"],
-                high=limits["positive_vector_high"],
-                size=shape + (dim,),
+            key, curr_key = random.split(key)
+            parameters[p] = random.uniform(
+                curr_key,
+                minval=limits["positive_vector_low"],
+                maxval=limits["positive_vector_high"],
+                shape=shape + (dim,),
             )
 
     if positive_definite_matrix is not None:
@@ -97,7 +110,7 @@ def generate(
                 random_state=random_state,
             )
             parameters[p] = min_max_transform(
-                w,
+                device_put(w),
                 low=limits["positive_definite_matrix_low"],
                 high=limits["positive_definite_matrix_high"],
             )
@@ -114,7 +127,7 @@ def generate(
                 random_state=random_state,
             )
             w_scaled = min_max_transform(
-                w,
+                device_put(w),
                 low=limits["lower_triangular_matrix_low"],
                 high=limits["lower_triangular_matrix_high"],
             )
@@ -125,6 +138,7 @@ def generate(
 
 class TestBroadcasting:
     random_state = check_random_state(123)
+    key = random.PRNGKey(123)
 
     n_samples = 100
     atol = 1e-6
@@ -134,12 +148,10 @@ class TestBroadcasting:
         fst = Dirichlet(concentration=np.array([[1.0, 1.0], [1.0, 1.0]]))
         snd = Dirichlet(concentration=np.array(1.0).reshape(1, 1))
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
 
     def test_mvn_scalar1(self):
@@ -147,12 +159,10 @@ class TestBroadcasting:
         fst = MultivariateNormal(mean=1.0, variance=np.array([1.0]))
         snd = MultivariateNormal(mean=np.array(1.0).reshape(1, 1), variance=1.0)
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == snd.batch_shape == (1,)
         assert fst.rv_shape == snd.rv_shape == (1,)
@@ -161,12 +171,10 @@ class TestBroadcasting:
         fst = MultivariateNormal(mean=1.0, variance=np.ones(shape=(2, 2)))
         snd = MultivariateNormal(mean=1.0, variance=np.ones(shape=(1, 2)))
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (1, 2)
@@ -176,12 +184,10 @@ class TestBroadcasting:
         fst = MultivariateNormal(mean=1.0, variance=np.ones(shape=(2, 2, 2)))
         snd = MultivariateNormal(mean=1.0, variance=np.ones(shape=(1, 1, 2)))
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2, 2)
         assert snd.batch_shape == (1, 1, 2)
@@ -191,12 +197,10 @@ class TestBroadcasting:
         fst = MultivariateNormal(mean=np.ones(shape=(2, 2)), variance=1.0)
         snd = MultivariateNormal(mean=np.ones(shape=(1, 2)), variance=1.0)
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (1,)
@@ -210,12 +214,10 @@ class TestBroadcasting:
             mean=np.ones(shape=(1, 2)), variance=np.ones(shape=(2, 2))
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
@@ -229,12 +231,10 @@ class TestBroadcasting:
             mean=np.ones(shape=(1, 2)), variance=np.ones(shape=(2, 2, 2))
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2, 2)
         assert snd.batch_shape == (2, 2, 2)
@@ -244,12 +244,10 @@ class TestBroadcasting:
         fst = MultivariateNormal(mean=np.ones(shape=(2, 2, 2)), variance=1.0)
         snd = MultivariateNormal(mean=np.ones(shape=(1, 1, 2)), variance=1.0)
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (1, 1)
@@ -263,12 +261,10 @@ class TestBroadcasting:
             mean=np.ones(shape=(1, 1, 2)), variance=np.ones(shape=(2, 2))
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
@@ -282,12 +278,10 @@ class TestBroadcasting:
             mean=np.ones(shape=(1, 1, 2)), variance=np.ones(shape=(2, 2, 2))
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2, 2)
         assert snd.batch_shape == (2, 2, 2)
@@ -298,12 +292,10 @@ class TestBroadcasting:
         fst = MultivariateNormal(mean=1.0, precision=np.array([1.0]))
         snd = MultivariateNormal(mean=np.array(1.0).reshape(1, 1), precision=1.0)
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == snd.batch_shape == (1,)
         assert fst.rv_shape == snd.rv_shape == (1,)
@@ -312,12 +304,10 @@ class TestBroadcasting:
         fst = MultivariateNormal(mean=1.0, precision=np.ones(shape=(2, 2)))
         snd = MultivariateNormal(mean=1.0, precision=np.ones(shape=(1, 2)))
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (1, 2)
@@ -327,12 +317,10 @@ class TestBroadcasting:
         fst = MultivariateNormal(mean=1.0, precision=np.ones(shape=(2, 2, 2)))
         snd = MultivariateNormal(mean=1.0, precision=np.ones(shape=(1, 1, 2)))
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2, 2)
         assert snd.batch_shape == (1, 1, 2)
@@ -342,12 +330,10 @@ class TestBroadcasting:
         fst = MultivariateNormal(mean=np.ones(shape=(2, 2)), precision=1.0)
         snd = MultivariateNormal(mean=np.ones(shape=(1, 2)), precision=1.0)
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (1,)
@@ -361,12 +347,10 @@ class TestBroadcasting:
             mean=np.ones(shape=(1, 2)), precision=np.ones(shape=(2, 2))
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
@@ -380,12 +364,10 @@ class TestBroadcasting:
             mean=np.ones(shape=(1, 2)), precision=np.ones(shape=(2, 2, 2))
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2, 2)
         assert snd.batch_shape == (2, 2, 2)
@@ -395,12 +377,10 @@ class TestBroadcasting:
         fst = MultivariateNormal(mean=np.ones(shape=(2, 2, 2)), precision=1.0)
         snd = MultivariateNormal(mean=np.ones(shape=(1, 1, 2)), precision=1.0)
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (1, 1)
@@ -414,12 +394,10 @@ class TestBroadcasting:
             mean=np.ones(shape=(1, 1, 2)), precision=np.ones(shape=(2, 2))
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
@@ -433,12 +411,10 @@ class TestBroadcasting:
             mean=np.ones(shape=(1, 1, 2)), precision=np.ones(shape=(2, 2, 2))
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2, 2)
         assert snd.batch_shape == (2, 2, 2)
@@ -449,12 +425,10 @@ class TestBroadcasting:
         fst = MultivariateNormal(mean=1.0, variance_diag=np.ones(shape=(2, 2)))
         snd = MultivariateNormal(mean=1.0, variance_diag=np.ones(shape=(1, 2)))
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (1,)
@@ -464,12 +438,10 @@ class TestBroadcasting:
         fst = MultivariateNormal(mean=1.0, variance_diag=np.ones(shape=(2, 2, 2)))
         snd = MultivariateNormal(mean=1.0, variance_diag=np.ones(shape=(1, 1, 2)))
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (1, 1)
@@ -483,12 +455,10 @@ class TestBroadcasting:
             mean=np.ones(shape=(1, 2)), variance_diag=np.ones(shape=(2, 2))
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (2,)
@@ -502,12 +472,10 @@ class TestBroadcasting:
             mean=np.ones(shape=(1, 2)), variance_diag=np.ones(shape=(2, 2, 2))
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
@@ -521,12 +489,10 @@ class TestBroadcasting:
             mean=np.ones(shape=(1, 1, 2)), variance_diag=np.ones(shape=(2, 2))
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (1, 2)
@@ -540,12 +506,10 @@ class TestBroadcasting:
             mean=np.ones(shape=(1, 1, 2)), variance_diag=np.ones(shape=(2, 2, 2))
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
@@ -556,12 +520,10 @@ class TestBroadcasting:
         fst = MultivariateNormal(mean=1.0, precision_diag=np.ones(shape=(2, 2)))
         snd = MultivariateNormal(mean=1.0, precision_diag=np.ones(shape=(1, 2)))
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (1,)
@@ -571,12 +533,10 @@ class TestBroadcasting:
         fst = MultivariateNormal(mean=1.0, precision_diag=np.ones(shape=(2, 2, 2)))
         snd = MultivariateNormal(mean=1.0, precision_diag=np.ones(shape=(1, 1, 2)))
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (1, 1)
@@ -590,12 +550,10 @@ class TestBroadcasting:
             mean=np.ones(shape=(1, 2)), precision_diag=np.ones(shape=(2, 2))
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (2,)
@@ -609,12 +567,10 @@ class TestBroadcasting:
             mean=np.ones(shape=(1, 2)), precision_diag=np.ones(shape=(2, 2, 2))
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
@@ -628,12 +584,10 @@ class TestBroadcasting:
             mean=np.ones(shape=(1, 1, 2)), precision_diag=np.ones(shape=(2, 2))
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (1, 2)
@@ -647,12 +601,10 @@ class TestBroadcasting:
             mean=np.ones(shape=(1, 1, 2)), precision_diag=np.ones(shape=(2, 2, 2))
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
@@ -661,8 +613,9 @@ class TestBroadcasting:
     def _multidimensional_eye(self, shape):
         out = np.zeros(shape=shape)
         shape_idx = tuple([slice(None, None, None)] * len(shape[:-2]))
-        out[shape_idx + np.diag_indices(shape[-1])] = 1.0
-        return out
+        return ops.index_update(
+            out, ops.index[shape_idx + np.diag_indices(shape[-1])], 1.0
+        )
 
     def test_mvn_matrix1(self):
         # scalar, vector
@@ -673,12 +626,10 @@ class TestBroadcasting:
             mean=1.0, covariance_matrix=self._multidimensional_eye(shape=(1, 2, 2))
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (1,)
@@ -692,12 +643,10 @@ class TestBroadcasting:
             mean=1.0, covariance_matrix=self._multidimensional_eye(shape=(1, 1, 2, 2))
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (1, 1)
@@ -713,12 +662,10 @@ class TestBroadcasting:
             covariance_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (2,)
@@ -734,12 +681,10 @@ class TestBroadcasting:
             covariance_matrix=self._multidimensional_eye(shape=(2, 2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
@@ -755,12 +700,10 @@ class TestBroadcasting:
             covariance_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (1, 2)
@@ -776,12 +719,10 @@ class TestBroadcasting:
             covariance_matrix=self._multidimensional_eye(shape=(2, 2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
@@ -796,12 +737,10 @@ class TestBroadcasting:
             mean=1.0, precision_matrix=self._multidimensional_eye(shape=(1, 2, 2))
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (1,)
@@ -815,12 +754,10 @@ class TestBroadcasting:
             mean=1.0, precision_matrix=self._multidimensional_eye(shape=(1, 1, 2, 2))
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (1, 1)
@@ -836,12 +773,10 @@ class TestBroadcasting:
             precision_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (2,)
@@ -857,12 +792,10 @@ class TestBroadcasting:
             precision_matrix=self._multidimensional_eye(shape=(2, 2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
@@ -878,12 +811,10 @@ class TestBroadcasting:
             precision_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (1, 2)
@@ -899,12 +830,10 @@ class TestBroadcasting:
             precision_matrix=self._multidimensional_eye(shape=(2, 2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
@@ -919,12 +848,10 @@ class TestBroadcasting:
             mean=1.0, cholesky_tril=self._multidimensional_eye(shape=(1, 2, 2))
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (1,)
@@ -938,12 +865,10 @@ class TestBroadcasting:
             mean=1.0, cholesky_tril=self._multidimensional_eye(shape=(1, 1, 2, 2))
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (1, 1)
@@ -959,12 +884,10 @@ class TestBroadcasting:
             cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (2,)
@@ -980,12 +903,10 @@ class TestBroadcasting:
             cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
@@ -1001,12 +922,10 @@ class TestBroadcasting:
             cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (1, 2)
@@ -1022,12 +941,10 @@ class TestBroadcasting:
             cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
@@ -1042,12 +959,10 @@ class TestBroadcasting:
             df=4.0, loc=1.0, scale_matrix=self._multidimensional_eye(shape=(1, 2, 2))
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (1,)
@@ -1061,12 +976,10 @@ class TestBroadcasting:
             df=4.0, loc=1.0, scale_matrix=self._multidimensional_eye(shape=(1, 1, 2, 2))
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (1, 1)
@@ -1084,12 +997,10 @@ class TestBroadcasting:
             scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (2,)
@@ -1107,12 +1018,10 @@ class TestBroadcasting:
             scale_matrix=self._multidimensional_eye(shape=(2, 2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
@@ -1130,12 +1039,10 @@ class TestBroadcasting:
             scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (1, 2)
@@ -1153,12 +1060,10 @@ class TestBroadcasting:
             scale_matrix=self._multidimensional_eye(shape=(2, 2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
@@ -1176,12 +1081,10 @@ class TestBroadcasting:
             scale_matrix=self._multidimensional_eye(shape=(1, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (2,)
@@ -1199,12 +1102,10 @@ class TestBroadcasting:
             scale_matrix=self._multidimensional_eye(shape=(1, 1, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (1, 2)
@@ -1222,12 +1123,10 @@ class TestBroadcasting:
             scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (2,)
@@ -1245,12 +1144,10 @@ class TestBroadcasting:
             scale_matrix=self._multidimensional_eye(shape=(2, 2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
@@ -1268,12 +1165,10 @@ class TestBroadcasting:
             scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (1, 2)
@@ -1291,12 +1186,10 @@ class TestBroadcasting:
             scale_matrix=self._multidimensional_eye(shape=(2, 2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
@@ -1314,12 +1207,10 @@ class TestBroadcasting:
             scale_matrix=self._multidimensional_eye(shape=(1, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
@@ -1337,12 +1228,10 @@ class TestBroadcasting:
             scale_matrix=self._multidimensional_eye(shape=(1, 1, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
@@ -1360,12 +1249,10 @@ class TestBroadcasting:
             scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
@@ -1383,12 +1270,10 @@ class TestBroadcasting:
             scale_matrix=self._multidimensional_eye(shape=(2, 2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
@@ -1406,12 +1291,10 @@ class TestBroadcasting:
             scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
@@ -1429,12 +1312,10 @@ class TestBroadcasting:
             scale_matrix=self._multidimensional_eye(shape=(2, 2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
@@ -1449,12 +1330,10 @@ class TestBroadcasting:
             df=4.0, loc=1.0, cholesky_tril=self._multidimensional_eye(shape=(1, 2, 2))
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (1,)
@@ -1472,12 +1351,10 @@ class TestBroadcasting:
             cholesky_tril=self._multidimensional_eye(shape=(1, 1, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (1, 1)
@@ -1495,12 +1372,10 @@ class TestBroadcasting:
             cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (2,)
@@ -1518,12 +1393,10 @@ class TestBroadcasting:
             cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
@@ -1541,12 +1414,10 @@ class TestBroadcasting:
             cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (1, 2)
@@ -1564,12 +1435,10 @@ class TestBroadcasting:
             cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
@@ -1587,12 +1456,10 @@ class TestBroadcasting:
             cholesky_tril=self._multidimensional_eye(shape=(1, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (2,)
@@ -1610,12 +1477,10 @@ class TestBroadcasting:
             cholesky_tril=self._multidimensional_eye(shape=(1, 1, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (1, 2)
@@ -1633,12 +1498,10 @@ class TestBroadcasting:
             cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (2,)
@@ -1656,12 +1519,10 @@ class TestBroadcasting:
             cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
@@ -1679,12 +1540,10 @@ class TestBroadcasting:
             cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (1, 2)
@@ -1702,12 +1561,10 @@ class TestBroadcasting:
             cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
@@ -1725,12 +1582,10 @@ class TestBroadcasting:
             cholesky_tril=self._multidimensional_eye(shape=(1, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
@@ -1748,12 +1603,10 @@ class TestBroadcasting:
             cholesky_tril=self._multidimensional_eye(shape=(1, 1, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
@@ -1771,12 +1624,10 @@ class TestBroadcasting:
             cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
@@ -1794,12 +1645,10 @@ class TestBroadcasting:
             cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
@@ -1817,12 +1666,10 @@ class TestBroadcasting:
             cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
@@ -1840,12 +1687,10 @@ class TestBroadcasting:
             cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
@@ -1859,15 +1704,13 @@ class TestBroadcasting:
             scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (2,)
         assert fst.rv_shape == snd.rv_shape == (2, 2)
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
 
         # scalar, matrix
@@ -1879,15 +1722,13 @@ class TestBroadcasting:
             scale_matrix=self._multidimensional_eye(shape=(1, 1, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
         assert fst.rv_shape == snd.rv_shape == (2, 2)
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
 
         # vector, vector
@@ -1897,15 +1738,13 @@ class TestBroadcasting:
             scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (2,)
         assert fst.rv_shape == snd.rv_shape == (2, 2)
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
 
         # vector, matrix
@@ -1918,15 +1757,13 @@ class TestBroadcasting:
             scale_matrix=self._multidimensional_eye(shape=(1, 1, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
         assert fst.rv_shape == snd.rv_shape == (2, 2)
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
 
         # matrix, vector
@@ -1939,15 +1776,13 @@ class TestBroadcasting:
             scale_matrix=self._multidimensional_eye(shape=(1, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
         assert fst.rv_shape == snd.rv_shape == (2, 2)
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
 
         # matrix, matrix
@@ -1960,15 +1795,13 @@ class TestBroadcasting:
             scale_matrix=self._multidimensional_eye(shape=(1, 1, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
         assert fst.rv_shape == snd.rv_shape == (2, 2)
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
 
     def test_wishart2(self):
@@ -1979,15 +1812,13 @@ class TestBroadcasting:
             cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (2,)
         assert fst.rv_shape == snd.rv_shape == (2, 2)
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
 
         # scalar, matrix
@@ -1999,15 +1830,13 @@ class TestBroadcasting:
             cholesky_tril=self._multidimensional_eye(shape=(1, 1, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
         assert fst.rv_shape == snd.rv_shape == (2, 2)
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
 
         # vector, vector
@@ -2017,15 +1846,13 @@ class TestBroadcasting:
             cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (2,)
         assert fst.rv_shape == snd.rv_shape == (2, 2)
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
 
         # vector, matrix
@@ -2038,15 +1865,13 @@ class TestBroadcasting:
             cholesky_tril=self._multidimensional_eye(shape=(1, 1, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
         assert fst.rv_shape == snd.rv_shape == (2, 2)
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
 
         # matrix, vector
@@ -2059,15 +1884,13 @@ class TestBroadcasting:
             cholesky_tril=self._multidimensional_eye(shape=(1, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
         assert fst.rv_shape == snd.rv_shape == (2, 2)
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
 
         # matrix, matrix
@@ -2080,15 +1903,13 @@ class TestBroadcasting:
             cholesky_tril=self._multidimensional_eye(shape=(1, 1, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
         assert fst.rv_shape == snd.rv_shape == (2, 2)
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
 
     def test_inverse_wishart1(self):
@@ -2101,15 +1922,13 @@ class TestBroadcasting:
             scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (2,)
         assert fst.rv_shape == snd.rv_shape == (2, 2)
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
 
         # scalar, matrix
@@ -2121,15 +1940,13 @@ class TestBroadcasting:
             scale_matrix=self._multidimensional_eye(shape=(1, 1, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
         assert fst.rv_shape == snd.rv_shape == (2, 2)
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
 
         # vector, vector
@@ -2141,15 +1958,13 @@ class TestBroadcasting:
             scale_matrix=self._multidimensional_eye(shape=(2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (2,)
         assert fst.rv_shape == snd.rv_shape == (2, 2)
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
 
         # vector, matrix
@@ -2162,15 +1977,13 @@ class TestBroadcasting:
             scale_matrix=self._multidimensional_eye(shape=(1, 1, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
         assert fst.rv_shape == snd.rv_shape == (2, 2)
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
 
         # matrix, vector
@@ -2183,15 +1996,13 @@ class TestBroadcasting:
             scale_matrix=self._multidimensional_eye(shape=(1, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
         assert fst.rv_shape == snd.rv_shape == (2, 2)
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
 
         # matrix, matrix
@@ -2204,15 +2015,13 @@ class TestBroadcasting:
             scale_matrix=self._multidimensional_eye(shape=(1, 1, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
         assert fst.rv_shape == snd.rv_shape == (2, 2)
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
 
     def test_inverse_wishart2(self):
@@ -2225,15 +2034,13 @@ class TestBroadcasting:
             cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (2,)
         assert fst.rv_shape == snd.rv_shape == (2, 2)
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
 
         # scalar, matrix
@@ -2245,15 +2052,13 @@ class TestBroadcasting:
             cholesky_tril=self._multidimensional_eye(shape=(1, 1, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
         assert fst.rv_shape == snd.rv_shape == (2, 2)
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
 
         # vector, vector
@@ -2265,15 +2070,13 @@ class TestBroadcasting:
             cholesky_tril=self._multidimensional_eye(shape=(2, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
         assert fst.batch_shape == (2,)
         assert snd.batch_shape == (2,)
         assert fst.rv_shape == snd.rv_shape == (2, 2)
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
 
         # vector, matrix
@@ -2286,15 +2089,13 @@ class TestBroadcasting:
             cholesky_tril=self._multidimensional_eye(shape=(1, 1, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
         assert fst.rv_shape == snd.rv_shape == (2, 2)
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
 
         # matrix, vector
@@ -2307,15 +2108,13 @@ class TestBroadcasting:
             cholesky_tril=self._multidimensional_eye(shape=(1, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
         assert fst.rv_shape == snd.rv_shape == (2, 2)
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
 
         # matrix, matrix
@@ -2328,37 +2127,51 @@ class TestBroadcasting:
             cholesky_tril=self._multidimensional_eye(shape=(1, 1, 2, 2)),
         )
 
-        samples = fst.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
         assert fst.batch_shape == (2, 2)
         assert snd.batch_shape == (2, 2)
         assert fst.rv_shape == snd.rv_shape == (2, 2)
-        assert fst.log_prob(samples) == approx(
-            snd.log_prob(samples), rel=self.rtol, abs=self.atol
+        assert_allclose(
+            fst.log_prob(samples), snd.log_prob(samples), atol=self.atol, rtol=self.rtol
         )
 
 
 class TestExponentialFamilies:
     random_state = check_random_state(123)
+    key = random.PRNGKey(123)
 
     distributions = {
         Dirichlet: (
-            generate(random_state, dim=5, shape=(), positive_vector="concentration"),
-            generate(random_state, dim=5, shape=(4,), positive_vector="concentration"),
             generate(
-                random_state, dim=5, shape=(4, 3), positive_vector="concentration"
+                key, random_state, dim=5, shape=(), positive_vector="concentration"
+            ),
+            generate(
+                key, random_state, dim=5, shape=(4,), positive_vector="concentration"
+            ),
+            generate(
+                key, random_state, dim=5, shape=(4, 3), positive_vector="concentration"
             ),
         ),
         MultivariateNormal: (
             generate(
-                random_state, dim=5, shape=(), real_vector="mean", positive="variance"
+                key,
+                random_state,
+                dim=5,
+                shape=(),
+                real_vector="mean",
+                positive="variance",
             ),
             generate(
-                random_state, dim=5, shape=(4,), real_vector="mean", positive="variance"
+                key,
+                random_state,
+                dim=5,
+                shape=(4,),
+                real_vector="mean",
+                positive="variance",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(4, 3),
@@ -2366,9 +2179,15 @@ class TestExponentialFamilies:
                 positive="variance",
             ),
             generate(
-                random_state, dim=5, shape=(), real_vector="mean", positive="precision"
+                key,
+                random_state,
+                dim=5,
+                shape=(),
+                real_vector="mean",
+                positive="precision",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(4,),
@@ -2376,6 +2195,7 @@ class TestExponentialFamilies:
                 positive="precision",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(4, 3),
@@ -2383,6 +2203,7 @@ class TestExponentialFamilies:
                 positive="precision",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(),
@@ -2390,6 +2211,7 @@ class TestExponentialFamilies:
                 positive_vector="variance_diag",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(4,),
@@ -2397,6 +2219,7 @@ class TestExponentialFamilies:
                 positive_vector="variance_diag",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(4, 3),
@@ -2404,6 +2227,7 @@ class TestExponentialFamilies:
                 positive_vector="variance_diag",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(),
@@ -2411,6 +2235,7 @@ class TestExponentialFamilies:
                 positive_vector="precision_diag",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(4,),
@@ -2418,6 +2243,7 @@ class TestExponentialFamilies:
                 positive_vector="precision_diag",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(4, 3),
@@ -2425,6 +2251,7 @@ class TestExponentialFamilies:
                 positive_vector="precision_diag",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(),
@@ -2432,6 +2259,7 @@ class TestExponentialFamilies:
                 positive_definite_matrix="covariance_matrix",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(4,),
@@ -2439,6 +2267,7 @@ class TestExponentialFamilies:
                 positive_definite_matrix="covariance_matrix",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(4, 3),
@@ -2446,6 +2275,7 @@ class TestExponentialFamilies:
                 positive_definite_matrix="covariance_matrix",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(),
@@ -2453,6 +2283,7 @@ class TestExponentialFamilies:
                 positive_definite_matrix="precision_matrix",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(4,),
@@ -2460,6 +2291,7 @@ class TestExponentialFamilies:
                 positive_definite_matrix="precision_matrix",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(4, 3),
@@ -2467,6 +2299,7 @@ class TestExponentialFamilies:
                 positive_definite_matrix="precision_matrix",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(),
@@ -2474,6 +2307,7 @@ class TestExponentialFamilies:
                 lower_triangular_matrix="cholesky_tril",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(4,),
@@ -2481,6 +2315,7 @@ class TestExponentialFamilies:
                 lower_triangular_matrix="cholesky_tril",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(4, 3),
@@ -2490,6 +2325,7 @@ class TestExponentialFamilies:
         ),
         Wishart: (
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(),
@@ -2498,6 +2334,7 @@ class TestExponentialFamilies:
                 positive_low=6.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2,),
@@ -2506,6 +2343,7 @@ class TestExponentialFamilies:
                 positive_low=6.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2, 3),
@@ -2514,6 +2352,7 @@ class TestExponentialFamilies:
                 positive_low=6.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(),
@@ -2522,6 +2361,7 @@ class TestExponentialFamilies:
                 positive_low=6.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2,),
@@ -2530,6 +2370,7 @@ class TestExponentialFamilies:
                 positive_low=6.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2, 3),
@@ -2540,6 +2381,7 @@ class TestExponentialFamilies:
         ),
         InverseWishart: (
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(),
@@ -2548,6 +2390,7 @@ class TestExponentialFamilies:
                 positive_low=6.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2,),
@@ -2556,6 +2399,7 @@ class TestExponentialFamilies:
                 positive_low=6.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2, 3),
@@ -2564,6 +2408,7 @@ class TestExponentialFamilies:
                 positive_low=6.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(),
@@ -2572,6 +2417,7 @@ class TestExponentialFamilies:
                 positive_low=6.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2,),
@@ -2580,6 +2426,7 @@ class TestExponentialFamilies:
                 positive_low=6.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2, 3),
@@ -2603,7 +2450,7 @@ class TestExponentialFamilies:
                 distribution = distribution_cls(**parameters)
 
                 samples = distribution.sample(
-                    sample_shape=(self.n_samples,), random_state=self.random_state
+                    sample_shape=(self.n_samples,), key=self.key
                 )
 
                 assert np.all(
@@ -2619,7 +2466,7 @@ class TestExponentialFamilies:
                 distribution = distribution_cls(**parameters)
 
                 samples = distribution.sample(
-                    sample_shape=(self.n_samples,), random_state=self.random_state
+                    sample_shape=(self.n_samples,), key=self.key
                 )
 
                 h_x = distribution.base_measure(samples)
@@ -2630,35 +2477,59 @@ class TestExponentialFamilies:
                 dot_product = sum(np.sum(e * t, axis=-1) for e, t in zip(eta, t_x))
                 expected_log_prob = np.log(h_x) + dot_product - a_eta
 
-                assert distribution.log_prob(samples) == approx(
-                    expected_log_prob, rel=self.rtol, abs=self.atol
-                ), f"log_prob of {distribution}"
+                assert_allclose(
+                    distribution.log_prob(samples),
+                    expected_log_prob,
+                    atol=self.atol,
+                    rtol=self.rtol,
+                    err_msg=f"log_prob of {distribution}",
+                )
 
 
 class TestFirstTwoMoments:
     random_state = check_random_state(123)
+    key = random.PRNGKey(123)
 
     distributions = {
         Dirichlet: (
-            generate(random_state, dim=5, shape=(), positive_vector="concentration"),
-            generate(random_state, dim=5, shape=(2,), positive_vector="concentration"),
             generate(
-                random_state, dim=5, shape=(2, 3), positive_vector="concentration"
+                key, random_state, dim=5, shape=(), positive_vector="concentration"
             ),
-            generate(random_state, dim=10, shape=(), positive_vector="concentration"),
-            generate(random_state, dim=10, shape=(2,), positive_vector="concentration"),
             generate(
-                random_state, dim=10, shape=(2, 3), positive_vector="concentration"
+                key, random_state, dim=5, shape=(2,), positive_vector="concentration"
+            ),
+            generate(
+                key, random_state, dim=5, shape=(2, 3), positive_vector="concentration"
+            ),
+            generate(
+                key, random_state, dim=10, shape=(), positive_vector="concentration"
+            ),
+            generate(
+                key, random_state, dim=10, shape=(2,), positive_vector="concentration"
+            ),
+            generate(
+                key, random_state, dim=10, shape=(2, 3), positive_vector="concentration"
             ),
         ),
         MultivariateNormal: (
             generate(
-                random_state, dim=5, shape=(), real_vector="mean", positive="variance"
+                key,
+                random_state,
+                dim=5,
+                shape=(),
+                real_vector="mean",
+                positive="variance",
             ),
             generate(
-                random_state, dim=5, shape=(2,), real_vector="mean", positive="variance"
+                key,
+                random_state,
+                dim=5,
+                shape=(2,),
+                real_vector="mean",
+                positive="variance",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2, 3),
@@ -2666,9 +2537,15 @@ class TestFirstTwoMoments:
                 positive="variance",
             ),
             generate(
-                random_state, dim=5, shape=(), real_vector="mean", positive="precision"
+                key,
+                random_state,
+                dim=5,
+                shape=(),
+                real_vector="mean",
+                positive="precision",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2,),
@@ -2676,6 +2553,7 @@ class TestFirstTwoMoments:
                 positive="precision",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2, 3),
@@ -2683,6 +2561,7 @@ class TestFirstTwoMoments:
                 positive="precision",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(),
@@ -2690,6 +2569,7 @@ class TestFirstTwoMoments:
                 positive_vector="variance_diag",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2,),
@@ -2697,6 +2577,7 @@ class TestFirstTwoMoments:
                 positive_vector="variance_diag",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2, 3),
@@ -2704,6 +2585,7 @@ class TestFirstTwoMoments:
                 positive_vector="variance_diag",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(),
@@ -2711,6 +2593,7 @@ class TestFirstTwoMoments:
                 positive_vector="precision_diag",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2,),
@@ -2718,6 +2601,7 @@ class TestFirstTwoMoments:
                 positive_vector="precision_diag",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2, 3),
@@ -2725,6 +2609,7 @@ class TestFirstTwoMoments:
                 positive_vector="precision_diag",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(),
@@ -2732,6 +2617,7 @@ class TestFirstTwoMoments:
                 positive_definite_matrix="covariance_matrix",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2,),
@@ -2739,6 +2625,7 @@ class TestFirstTwoMoments:
                 positive_definite_matrix="covariance_matrix",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2, 3),
@@ -2746,6 +2633,7 @@ class TestFirstTwoMoments:
                 positive_definite_matrix="covariance_matrix",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(),
@@ -2753,6 +2641,7 @@ class TestFirstTwoMoments:
                 positive_definite_matrix="precision_matrix",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2,),
@@ -2760,6 +2649,7 @@ class TestFirstTwoMoments:
                 positive_definite_matrix="precision_matrix",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2, 3),
@@ -2767,6 +2657,7 @@ class TestFirstTwoMoments:
                 positive_definite_matrix="precision_matrix",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(),
@@ -2774,6 +2665,7 @@ class TestFirstTwoMoments:
                 lower_triangular_matrix="cholesky_tril",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2,),
@@ -2781,6 +2673,7 @@ class TestFirstTwoMoments:
                 lower_triangular_matrix="cholesky_tril",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2, 3),
@@ -2790,6 +2683,7 @@ class TestFirstTwoMoments:
         ),
         MultivariateT: (
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(),
@@ -2799,6 +2693,7 @@ class TestFirstTwoMoments:
                 positive_low=3.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2,),
@@ -2808,6 +2703,7 @@ class TestFirstTwoMoments:
                 positive_low=3.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2, 3),
@@ -2817,6 +2713,7 @@ class TestFirstTwoMoments:
                 positive_low=3.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(),
@@ -2826,6 +2723,7 @@ class TestFirstTwoMoments:
                 positive_low=3.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2,),
@@ -2835,6 +2733,7 @@ class TestFirstTwoMoments:
                 positive_low=3.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2, 3),
@@ -2846,6 +2745,7 @@ class TestFirstTwoMoments:
         ),
         Wishart: (
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(),
@@ -2854,6 +2754,7 @@ class TestFirstTwoMoments:
                 positive_low=6.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2,),
@@ -2862,6 +2763,7 @@ class TestFirstTwoMoments:
                 positive_low=6.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2, 3),
@@ -2870,6 +2772,7 @@ class TestFirstTwoMoments:
                 positive_low=6.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(),
@@ -2878,6 +2781,7 @@ class TestFirstTwoMoments:
                 positive_low=6.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2,),
@@ -2886,6 +2790,7 @@ class TestFirstTwoMoments:
                 positive_low=6.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2, 3),
@@ -2896,6 +2801,7 @@ class TestFirstTwoMoments:
         ),
         InverseWishart: (
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(),
@@ -2904,6 +2810,7 @@ class TestFirstTwoMoments:
                 positive_low=9.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2,),
@@ -2912,6 +2819,7 @@ class TestFirstTwoMoments:
                 positive_low=9.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2, 3),
@@ -2920,6 +2828,7 @@ class TestFirstTwoMoments:
                 positive_low=9.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(),
@@ -2928,6 +2837,7 @@ class TestFirstTwoMoments:
                 positive_low=9.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2,),
@@ -2936,6 +2846,7 @@ class TestFirstTwoMoments:
                 positive_low=9.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2, 3),
@@ -2956,17 +2867,23 @@ class TestFirstTwoMoments:
         for i, parameters in enumerate(parameter_set):
             distribution = Dirichlet(**parameters)
 
-            samples = distribution.sample(
-                sample_shape=(self.n_samples,), random_state=self.random_state
+            samples = distribution.sample(sample_shape=(self.n_samples,), key=self.key)
+
+            assert_allclose(
+                np.mean(samples, axis=0),
+                distribution.mean,
+                atol=self.atol,
+                rtol=self.rtol,
+                err_msg=f"mean of {distribution}",
             )
 
-            assert np.mean(samples, axis=0) == approx(
-                distribution.mean, rel=self.rtol, abs=self.atol
-            ), f"mean of {distribution}"
-
-            assert np.var(samples, axis=0) == approx(
-                distribution.variance, rel=self.rtol, abs=self.atol
-            ), f"variance of {distribution}"
+            assert_allclose(
+                np.std(samples, axis=0),
+                np.sqrt(distribution.variance),
+                atol=self.atol,
+                rtol=self.rtol,
+                err_msg=f"variance of {distribution}",
+            )
 
     def _batch_covariance_matrix(self, samples: np.ndarray) -> np.ndarray:
         centered = samples - np.mean(samples, axis=0, keepdims=True)
@@ -2988,53 +2905,73 @@ class TestFirstTwoMoments:
         for i, parameters in enumerate(parameter_set):
             distribution = MultivariateNormal(**parameters)
 
-            samples = distribution.sample(
-                sample_shape=(self.n_samples,), random_state=self.random_state
-            )
+            samples = distribution.sample(sample_shape=(self.n_samples,), key=self.key)
 
             true_mean = distribution.mean
             empirical_mean = np.mean(samples, axis=0)
 
-            assert empirical_mean == approx(
-                true_mean, rel=self.rtol, abs=self.atol
-            ), f"mean of {distribution}"
+            assert_allclose(
+                empirical_mean,
+                true_mean,
+                atol=self.atol,
+                rtol=self.rtol,
+                err_msg=f"mean of {distribution}",
+            )
 
             if type(distribution) is _MVNScalar:
                 true_variance = distribution.variance
                 empirical_variance = np.mean(np.var(samples, axis=0), axis=-1)
 
-                assert empirical_variance == approx(
-                    true_variance, rel=self.rtol, abs=self.atol
-                ), f"variance of {distribution}"
+                assert_allclose(
+                    empirical_variance,
+                    true_variance,
+                    atol=self.atol,
+                    rtol=self.rtol,
+                    err_msg=f"variance of {distribution}",
+                )
             elif type(distribution) is _MVNVector:
                 true_variance = distribution.variance
                 empirical_variance = np.var(samples, axis=0)
 
-                assert empirical_variance == approx(
-                    true_variance, rel=self.rtol, abs=self.atol
-                ), f"variance of {distribution}"
+                assert_allclose(
+                    empirical_variance,
+                    true_variance,
+                    atol=self.atol,
+                    rtol=self.rtol,
+                    err_msg=f"variance of {distribution}",
+                )
 
                 true_covariance = distribution.covariance_matrix
 
-                assert empirical_variance == approx(
+                assert_allclose(
+                    empirical_variance,
                     self._multidimensional_diag(true_covariance),
-                    rel=self.rtol,
-                    abs=self.atol,
-                ), f"variance of {distribution}"
+                    atol=self.atol,
+                    rtol=self.rtol,
+                    err_msg=f"variance of {distribution}",
+                )
             elif type(distribution) is _MVNMatrix:
                 true_covariance = distribution.covariance_matrix
                 empirical_covariance = self._batch_covariance_matrix(samples)
 
-                assert empirical_covariance == approx(
-                    true_covariance, rel=self.rtol, abs=self.atol
-                ), f"covariance of {distribution}"
+                assert_allclose(
+                    empirical_covariance,
+                    true_covariance,
+                    atol=self.atol,
+                    rtol=self.rtol,
+                    err_msg=f"covariance of {distribution}",
+                )
 
                 true_variance = distribution.variance
                 empirical_variance = self._multidimensional_diag(empirical_covariance)
 
-                assert empirical_variance == approx(
-                    true_variance, rel=self.rtol, abs=self.atol
-                ), f"variance of {distribution}"
+                assert_allclose(
+                    empirical_variance,
+                    true_variance,
+                    atol=self.atol,
+                    rtol=self.rtol,
+                    err_msg=f"variance of {distribution}",
+                )
             else:
                 raise ValueError("This should never happen")
 
@@ -3044,30 +2981,40 @@ class TestFirstTwoMoments:
         for i, parameters in enumerate(parameter_set):
             distribution = MultivariateT(**parameters)
 
-            samples = distribution.sample(
-                sample_shape=(self.n_samples,), random_state=self.random_state
-            )
+            samples = distribution.sample(sample_shape=(self.n_samples,), key=self.key)
 
             true_mean = distribution.mean
             empirical_mean = np.mean(samples, axis=0)
 
-            assert empirical_mean == approx(
-                true_mean, rel=self.rtol, abs=self.atol
-            ), f"mean of {distribution}"
+            assert_allclose(
+                empirical_mean,
+                true_mean,
+                atol=self.atol,
+                rtol=self.rtol,
+                err_msg=f"mean of {distribution}",
+            )
 
             true_covariance = distribution.covariance_matrix
             empirical_covariance = self._batch_covariance_matrix(samples)
 
-            assert empirical_covariance == approx(
-                true_covariance, rel=self.rtol, abs=self.atol
-            ), f"covariance of {distribution}"
+            assert_allclose(
+                empirical_covariance,
+                true_covariance,
+                atol=self.atol,
+                rtol=self.rtol,
+                err_msg=f"covariance of {distribution}",
+            )
 
             true_variance = distribution.variance
             empirical_variance = self._multidimensional_diag(empirical_covariance)
 
-            assert empirical_variance == approx(
-                true_variance, rel=self.rtol, abs=self.atol
-            ), f"variance of {distribution}"
+            assert_allclose(
+                empirical_variance,
+                true_variance,
+                atol=self.atol,
+                rtol=self.rtol,
+                err_msg=f"variance of {distribution}",
+            )
 
     def test_mean_and_variance_wishart(self):
         parameter_set = self.distributions[Wishart]
@@ -3075,23 +3022,29 @@ class TestFirstTwoMoments:
         for i, parameters in enumerate(parameter_set):
             distribution = Wishart(**parameters)
 
-            samples = distribution.sample(
-                sample_shape=(self.n_samples,), random_state=self.random_state
-            )
+            samples = distribution.sample(sample_shape=(self.n_samples,), key=self.key)
 
             true_mean = distribution.mean
             empirical_mean = np.mean(samples, axis=0)
 
-            assert empirical_mean == approx(
-                true_mean, rel=self.rtol, abs=self.atol
-            ), f"mean of {distribution}"
+            assert_allclose(
+                empirical_mean,
+                true_mean,
+                atol=self.atol,
+                rtol=2 * self.rtol,
+                err_msg=f"mean of {distribution}",
+            )
 
             true_variance = distribution.variance
             empirical_variance = np.var(samples, axis=0)
 
-            assert empirical_variance == approx(
-                true_variance, rel=self.rtol, abs=self.atol
-            ), f"variance of {distribution}"
+            assert_allclose(
+                empirical_variance,
+                true_variance,
+                atol=self.atol,
+                rtol=2 * self.rtol,
+                err_msg=f"variance of {distribution}",
+            )
 
     def test_mean_and_variance_inverse_wishart(self):
         parameter_set = self.distributions[InverseWishart]
@@ -3099,27 +3052,34 @@ class TestFirstTwoMoments:
         for i, parameters in enumerate(parameter_set):
             distribution = InverseWishart(**parameters)
 
-            samples = distribution.sample(
-                sample_shape=(self.n_samples,), random_state=self.random_state
-            )
+            samples = distribution.sample(sample_shape=(self.n_samples,), key=self.key)
 
             true_mean = distribution.mean
             empirical_mean = np.mean(samples, axis=0)
 
-            assert empirical_mean == approx(
-                true_mean, rel=self.rtol, abs=self.atol
-            ), f"mean of {distribution}"
+            assert_allclose(
+                empirical_mean,
+                true_mean,
+                atol=self.atol,
+                rtol=2 * self.rtol,
+                err_msg=f"mean of {distribution}",
+            )
 
             true_variance = distribution.variance
             empirical_variance = np.var(samples, axis=0)
 
-            assert empirical_variance == approx(
-                true_variance, rel=2 * self.rtol, abs=self.atol
-            ), f"variance of {distribution}"
+            assert_allclose(
+                empirical_variance,
+                true_variance,
+                atol=self.atol,
+                rtol=2 * self.rtol,
+                err_msg=f"variance of {distribution}",
+            )
 
 
 class TestLogProb:
     random_state = check_random_state(123)
+    key = random.PRNGKey(123)
 
     n_samples = 100
     atol = 1e-6
@@ -3127,27 +3087,38 @@ class TestLogProb:
 
     def test_log_prob(self):
         params = generate(
-            self.random_state, dim=5, shape=(), positive_vector="concentration"
+            self.key,
+            self.random_state,
+            dim=5,
+            shape=(),
+            positive_vector="concentration",
         )
 
         distribution = Dirichlet(**params)
         scipy_distribution = stats.dirichlet(alpha=params["concentration"])
 
-        samples = distribution.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = distribution.sample(sample_shape=(self.n_samples,), key=self.key)
 
         # For some reason, the SciPy Dirichlet distribution expects
         # the variates in a reversed shape.
         scipy_result = scipy_distribution.logpdf(samples.T)
 
-        assert distribution.log_prob(samples) == approx(
-            scipy_result, rel=self.rtol, abs=self.atol
-        ), f"log_prob of {distribution}"
+        assert_allclose(
+            distribution.log_prob(samples),
+            scipy_result,
+            atol=self.atol,
+            rtol=self.rtol,
+            err_msg=f"log_prob of {distribution}",
+        )
 
     def test_log_prob_mvn_scalar1(self):
         params = generate(
-            self.random_state, dim=5, shape=(), real_vector="mean", positive="variance"
+            self.key,
+            self.random_state,
+            dim=5,
+            shape=(),
+            real_vector="mean",
+            positive="variance",
         )
 
         distribution = MultivariateNormal(**params)
@@ -3155,18 +3126,25 @@ class TestLogProb:
             mean=params["mean"], cov=params["variance"]
         )
 
-        samples = distribution.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = distribution.sample(sample_shape=(self.n_samples,), key=self.key)
         scipy_result = scipy_distribution.logpdf(samples)
 
-        assert distribution.log_prob(samples) == approx(
-            scipy_result, rel=self.rtol, abs=self.atol
-        ), f"log_prob of {distribution}"
+        assert_allclose(
+            distribution.log_prob(samples),
+            scipy_result,
+            atol=self.atol,
+            rtol=self.rtol,
+            err_msg=f"log_prob of {distribution}",
+        )
 
     def test_log_prob_mvn_scalar2(self):
         params = generate(
-            self.random_state, dim=5, shape=(), real_vector="mean", positive="precision"
+            self.key,
+            self.random_state,
+            dim=5,
+            shape=(),
+            real_vector="mean",
+            positive="precision",
         )
 
         distribution = MultivariateNormal(**params)
@@ -3174,17 +3152,20 @@ class TestLogProb:
             mean=params["mean"], cov=1.0 / params["precision"]
         )
 
-        samples = distribution.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = distribution.sample(sample_shape=(self.n_samples,), key=self.key)
         scipy_result = scipy_distribution.logpdf(samples)
 
-        assert distribution.log_prob(samples) == approx(
-            scipy_result, rel=self.rtol, abs=self.atol
-        ), f"log_prob of {distribution}"
+        assert_allclose(
+            distribution.log_prob(samples),
+            scipy_result,
+            atol=self.atol,
+            rtol=self.rtol,
+            err_msg=f"log_prob of {distribution}",
+        )
 
     def test_log_prob_mvn_vector1(self):
         params = generate(
+            self.key,
             self.random_state,
             dim=5,
             shape=(),
@@ -3197,17 +3178,20 @@ class TestLogProb:
             mean=params["mean"], cov=np.diag(params["variance_diag"])
         )
 
-        samples = distribution.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = distribution.sample(sample_shape=(self.n_samples,), key=self.key)
         scipy_result = scipy_distribution.logpdf(samples)
 
-        assert distribution.log_prob(samples) == approx(
-            scipy_result, rel=self.rtol, abs=self.atol
-        ), f"log_prob of {distribution}"
+        assert_allclose(
+            distribution.log_prob(samples),
+            scipy_result,
+            atol=self.atol,
+            rtol=self.rtol,
+            err_msg=f"log_prob of {distribution}",
+        )
 
     def test_log_prob_mvn_vector2(self):
         params = generate(
+            self.key,
             self.random_state,
             dim=5,
             shape=(),
@@ -3220,17 +3204,20 @@ class TestLogProb:
             mean=params["mean"], cov=np.diag(np.reciprocal(params["precision_diag"]))
         )
 
-        samples = distribution.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = distribution.sample(sample_shape=(self.n_samples,), key=self.key)
         scipy_result = scipy_distribution.logpdf(samples)
 
-        assert distribution.log_prob(samples) == approx(
-            scipy_result, rel=self.rtol, abs=self.atol
-        ), f"log_prob of {distribution}"
+        assert_allclose(
+            distribution.log_prob(samples),
+            scipy_result,
+            atol=self.atol,
+            rtol=self.rtol,
+            err_msg=f"log_prob of {distribution}",
+        )
 
     def test_log_prob_mvn_matrix1(self):
         params = generate(
+            self.key,
             self.random_state,
             dim=5,
             shape=(),
@@ -3243,17 +3230,20 @@ class TestLogProb:
             mean=params["mean"], cov=params["covariance_matrix"]
         )
 
-        samples = distribution.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = distribution.sample(sample_shape=(self.n_samples,), key=self.key)
         scipy_result = scipy_distribution.logpdf(samples)
 
-        assert distribution.log_prob(samples) == approx(
-            scipy_result, rel=self.rtol, abs=self.atol
-        ), f"log_prob of {distribution}"
+        assert_allclose(
+            distribution.log_prob(samples),
+            scipy_result,
+            atol=self.atol,
+            rtol=self.rtol,
+            err_msg=f"log_prob of {distribution}",
+        )
 
     def test_log_prob_mvn_matrix2(self):
         params = generate(
+            self.key,
             self.random_state,
             dim=5,
             shape=(),
@@ -3266,17 +3256,20 @@ class TestLogProb:
             mean=params["mean"], cov=la.inv(params["precision_matrix"])
         )
 
-        samples = distribution.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = distribution.sample(sample_shape=(self.n_samples,), key=self.key)
         scipy_result = scipy_distribution.logpdf(samples)
 
-        assert distribution.log_prob(samples) == approx(
-            scipy_result, rel=self.rtol, abs=self.atol
-        ), f"log_prob of {distribution}"
+        assert_allclose(
+            distribution.log_prob(samples),
+            scipy_result,
+            atol=self.atol,
+            rtol=self.rtol,
+            err_msg=f"log_prob of {distribution}",
+        )
 
     def test_log_prob_mvn_matrix3(self):
         params = generate(
+            self.key,
             self.random_state,
             dim=5,
             shape=(),
@@ -3289,17 +3282,20 @@ class TestLogProb:
             mean=params["mean"], cov=params["cholesky_tril"] @ params["cholesky_tril"].T
         )
 
-        samples = distribution.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = distribution.sample(sample_shape=(self.n_samples,), key=self.key)
         scipy_result = scipy_distribution.logpdf(samples)
 
-        assert distribution.log_prob(samples) == approx(
-            scipy_result, rel=self.rtol, abs=self.atol
-        ), f"log_prob of {distribution}"
+        assert_allclose(
+            distribution.log_prob(samples),
+            scipy_result,
+            atol=self.atol,
+            rtol=self.rtol,
+            err_msg=f"log_prob of {distribution}",
+        )
 
     def test_log_prob_wishart1(self):
         params = generate(
+            self.key,
             self.random_state,
             dim=5,
             shape=(),
@@ -3313,17 +3309,20 @@ class TestLogProb:
             df=params["df"].item(), scale=params["scale_matrix"]
         )
 
-        samples = distribution.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = distribution.sample(sample_shape=(self.n_samples,), key=self.key)
         scipy_result = scipy_distribution.logpdf(np.transpose(samples, axes=(1, 2, 0)))
 
-        assert distribution.log_prob(samples) == approx(
-            scipy_result, rel=self.rtol, abs=self.atol
-        ), f"log_prob of {distribution}"
+        assert_allclose(
+            distribution.log_prob(samples),
+            scipy_result,
+            atol=self.atol,
+            rtol=self.rtol,
+            err_msg=f"log_prob of {distribution}",
+        )
 
     def test_log_prob_wishart2(self):
         params = generate(
+            self.key,
             self.random_state,
             dim=5,
             shape=(),
@@ -3338,17 +3337,20 @@ class TestLogProb:
             scale=params["cholesky_tril"] @ params["cholesky_tril"].T,
         )
 
-        samples = distribution.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = distribution.sample(sample_shape=(self.n_samples,), key=self.key)
         scipy_result = scipy_distribution.logpdf(np.transpose(samples, axes=(1, 2, 0)))
 
-        assert distribution.log_prob(samples) == approx(
-            scipy_result, rel=self.rtol, abs=self.atol
-        ), f"log_prob of {distribution}"
+        assert_allclose(
+            distribution.log_prob(samples),
+            scipy_result,
+            atol=self.atol,
+            rtol=self.rtol,
+            err_msg=f"log_prob of {distribution}",
+        )
 
     def test_log_prob_inverse_wishart1(self):
         params = generate(
+            self.key,
             self.random_state,
             dim=5,
             shape=(),
@@ -3362,17 +3364,20 @@ class TestLogProb:
             df=params["df"].item(), scale=params["scale_matrix"]
         )
 
-        samples = distribution.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = distribution.sample(sample_shape=(self.n_samples,), key=self.key)
         scipy_result = scipy_distribution.logpdf(np.transpose(samples, axes=(1, 2, 0)))
 
-        assert distribution.log_prob(samples) == approx(
-            scipy_result, rel=self.rtol, abs=self.atol
-        ), f"log_prob of {distribution}"
+        assert_allclose(
+            distribution.log_prob(samples),
+            scipy_result,
+            atol=self.atol,
+            rtol=self.rtol,
+            err_msg=f"log_prob of {distribution}",
+        )
 
     def test_log_prob_inverse_wishart2(self):
         params = generate(
+            self.key,
             self.random_state,
             dim=5,
             shape=(),
@@ -3387,14 +3392,16 @@ class TestLogProb:
             scale=params["cholesky_tril"] @ params["cholesky_tril"].T,
         )
 
-        samples = distribution.sample(
-            sample_shape=(self.n_samples,), random_state=self.random_state
-        )
+        samples = distribution.sample(sample_shape=(self.n_samples,), key=self.key)
         scipy_result = scipy_distribution.logpdf(np.transpose(samples, axes=(1, 2, 0)))
 
-        assert distribution.log_prob(samples) == approx(
-            scipy_result, rel=self.rtol, abs=self.atol
-        ), f"log_prob of {distribution}"
+        assert_allclose(
+            distribution.log_prob(samples),
+            scipy_result,
+            atol=self.atol,
+            rtol=self.rtol,
+            err_msg=f"log_prob of {distribution}",
+        )
 
 
 class TestParameterConstraints:
@@ -3556,28 +3563,48 @@ class TestParameterConstraints:
 
 class TestSamplingShapes:
     random_state = check_random_state(123)
+    key = random.PRNGKey(123)
 
     distributions = {
         Dirichlet: (
-            generate(random_state, dim=5, shape=(), positive_vector="concentration"),
-            generate(random_state, dim=5, shape=(2,), positive_vector="concentration"),
             generate(
-                random_state, dim=5, shape=(2, 3), positive_vector="concentration"
+                key, random_state, dim=5, shape=(), positive_vector="concentration"
             ),
-            generate(random_state, dim=10, shape=(), positive_vector="concentration"),
-            generate(random_state, dim=10, shape=(2,), positive_vector="concentration"),
             generate(
-                random_state, dim=10, shape=(2, 3), positive_vector="concentration"
+                key, random_state, dim=5, shape=(2,), positive_vector="concentration"
+            ),
+            generate(
+                key, random_state, dim=5, shape=(2, 3), positive_vector="concentration"
+            ),
+            generate(
+                key, random_state, dim=10, shape=(), positive_vector="concentration"
+            ),
+            generate(
+                key, random_state, dim=10, shape=(2,), positive_vector="concentration"
+            ),
+            generate(
+                key, random_state, dim=10, shape=(2, 3), positive_vector="concentration"
             ),
         ),
         MultivariateNormal: (
             generate(
-                random_state, dim=5, shape=(), real_vector="mean", positive="variance"
+                key,
+                random_state,
+                dim=5,
+                shape=(),
+                real_vector="mean",
+                positive="variance",
             ),
             generate(
-                random_state, dim=5, shape=(2,), real_vector="mean", positive="variance"
+                key,
+                random_state,
+                dim=5,
+                shape=(2,),
+                real_vector="mean",
+                positive="variance",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2, 3),
@@ -3585,9 +3612,15 @@ class TestSamplingShapes:
                 positive="variance",
             ),
             generate(
-                random_state, dim=5, shape=(), real_vector="mean", positive="precision"
+                key,
+                random_state,
+                dim=5,
+                shape=(),
+                real_vector="mean",
+                positive="precision",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2,),
@@ -3595,6 +3628,7 @@ class TestSamplingShapes:
                 positive="precision",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2, 3),
@@ -3602,6 +3636,7 @@ class TestSamplingShapes:
                 positive="precision",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(),
@@ -3609,6 +3644,7 @@ class TestSamplingShapes:
                 positive_vector="variance_diag",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2,),
@@ -3616,6 +3652,7 @@ class TestSamplingShapes:
                 positive_vector="variance_diag",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2, 3),
@@ -3623,6 +3660,7 @@ class TestSamplingShapes:
                 positive_vector="variance_diag",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(),
@@ -3630,6 +3668,7 @@ class TestSamplingShapes:
                 positive_vector="precision_diag",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2,),
@@ -3637,6 +3676,7 @@ class TestSamplingShapes:
                 positive_vector="precision_diag",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2, 3),
@@ -3644,6 +3684,7 @@ class TestSamplingShapes:
                 positive_vector="precision_diag",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(),
@@ -3651,6 +3692,7 @@ class TestSamplingShapes:
                 positive_definite_matrix="covariance_matrix",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2,),
@@ -3658,6 +3700,7 @@ class TestSamplingShapes:
                 positive_definite_matrix="covariance_matrix",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2, 3),
@@ -3665,6 +3708,7 @@ class TestSamplingShapes:
                 positive_definite_matrix="covariance_matrix",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(),
@@ -3672,6 +3716,7 @@ class TestSamplingShapes:
                 positive_definite_matrix="precision_matrix",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2,),
@@ -3679,6 +3724,7 @@ class TestSamplingShapes:
                 positive_definite_matrix="precision_matrix",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2, 3),
@@ -3686,6 +3732,7 @@ class TestSamplingShapes:
                 positive_definite_matrix="precision_matrix",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(),
@@ -3693,6 +3740,7 @@ class TestSamplingShapes:
                 lower_triangular_matrix="cholesky_tril",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2,),
@@ -3700,6 +3748,7 @@ class TestSamplingShapes:
                 lower_triangular_matrix="cholesky_tril",
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2, 3),
@@ -3709,6 +3758,7 @@ class TestSamplingShapes:
         ),
         MultivariateT: (
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(),
@@ -3718,6 +3768,7 @@ class TestSamplingShapes:
                 positive_low=3.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2,),
@@ -3727,6 +3778,7 @@ class TestSamplingShapes:
                 positive_low=3.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2, 3),
@@ -3736,6 +3788,7 @@ class TestSamplingShapes:
                 positive_low=3.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(),
@@ -3745,6 +3798,7 @@ class TestSamplingShapes:
                 positive_low=3.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2,),
@@ -3754,6 +3808,7 @@ class TestSamplingShapes:
                 positive_low=3.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2, 3),
@@ -3765,6 +3820,7 @@ class TestSamplingShapes:
         ),
         Wishart: (
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(),
@@ -3773,6 +3829,7 @@ class TestSamplingShapes:
                 positive_low=6.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2,),
@@ -3781,6 +3838,7 @@ class TestSamplingShapes:
                 positive_low=6.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2, 3),
@@ -3789,6 +3847,7 @@ class TestSamplingShapes:
                 positive_low=6.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(),
@@ -3797,6 +3856,7 @@ class TestSamplingShapes:
                 positive_low=6.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2,),
@@ -3805,6 +3865,7 @@ class TestSamplingShapes:
                 positive_low=6.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2, 3),
@@ -3815,6 +3876,7 @@ class TestSamplingShapes:
         ),
         InverseWishart: (
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(),
@@ -3823,6 +3885,7 @@ class TestSamplingShapes:
                 positive_low=6.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2,),
@@ -3831,6 +3894,7 @@ class TestSamplingShapes:
                 positive_low=6.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2, 3),
@@ -3839,6 +3903,7 @@ class TestSamplingShapes:
                 positive_low=6.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(),
@@ -3847,6 +3912,7 @@ class TestSamplingShapes:
                 positive_low=6.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2,),
@@ -3855,6 +3921,7 @@ class TestSamplingShapes:
                 positive_low=6.0,
             ),
             generate(
+                key,
                 random_state,
                 dim=5,
                 shape=(2, 3),
@@ -3870,9 +3937,7 @@ class TestSamplingShapes:
             for parameters in parameter_set:
                 distribution = distribution_cls(**parameters)
 
-                samples = distribution.sample(
-                    sample_shape=(), random_state=self.random_state
-                )
+                samples = distribution.sample(sample_shape=(), key=self.key)
 
                 assert (
                     samples.shape == distribution.batch_shape + distribution.rv_shape
@@ -3883,9 +3948,7 @@ class TestSamplingShapes:
             for parameters in parameter_set:
                 distribution = distribution_cls(**parameters)
 
-                samples = distribution.sample(
-                    sample_shape=(100,), random_state=self.random_state
-                )
+                samples = distribution.sample(sample_shape=(100,), key=self.key)
 
                 assert (
                     samples.shape
@@ -3897,9 +3960,7 @@ class TestSamplingShapes:
             for parameters in parameter_set:
                 distribution = distribution_cls(**parameters)
 
-                samples = distribution.sample(
-                    sample_shape=(10, 10), random_state=self.random_state
-                )
+                samples = distribution.sample(sample_shape=(10, 10), key=self.key)
 
                 assert (
                     samples.shape
@@ -3911,9 +3972,7 @@ class TestSamplingShapes:
             for parameters in parameter_set:
                 distribution = distribution_cls(**parameters)
 
-                samples = distribution.sample(
-                    sample_shape=(10, 10, 2), random_state=self.random_state
-                )
+                samples = distribution.sample(sample_shape=(10, 10, 2), key=self.key)
 
                 assert (
                     samples.shape

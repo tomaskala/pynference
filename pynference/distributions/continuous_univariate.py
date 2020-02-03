@@ -1,8 +1,10 @@
 from typing import Dict, Tuple
 
-import numpy as np
-from numpy.random import RandomState
-from scipy.special import betaln, gammaln, ndtr, ndtri
+import jax.numpy as np
+import jax.random as random
+from jax import lax
+from jax.random import PRNGKey
+from jax.scipy.special import betaln, gammaln, ndtr, ndtri
 
 from pynference.constants import ArrayLike, Parameter, Shape, Variate
 from pynference.distributions.constraints import (
@@ -22,7 +24,7 @@ from pynference.distributions.transformations import (
     ExpTransformation,
     PowerTransformation,
 )
-from pynference.distributions.utils import broadcast_shapes, promote_shapes
+from pynference.distributions.utils import promote_shapes
 
 
 class Beta(ExponentialFamily):
@@ -36,7 +38,7 @@ class Beta(ExponentialFamily):
         check_parameters: bool = True,
         check_support: bool = True,
     ):
-        batch_shape = broadcast_shapes(np.shape(shape1), np.shape(shape2))
+        batch_shape = lax.broadcast_shapes(np.shape(shape1), np.shape(shape2))
         rv_shape = ()
 
         super().__init__(
@@ -66,9 +68,10 @@ class Beta(ExponentialFamily):
             - betaln(self.shape1, self.shape2)
         )
 
-    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        x = random_state.standard_gamma(self.shape1, sample_shape + self.batch_shape)
-        y = random_state.standard_gamma(self.shape2, sample_shape + self.batch_shape)
+    def _sample(self, sample_shape: Shape, key: PRNGKey) -> Variate:
+        fst_key, snd_key = random.split(key)
+        x = random.gamma(fst_key, self.shape1, shape=sample_shape + self.batch_shape)
+        y = random.gamma(snd_key, self.shape2, shape=sample_shape + self.batch_shape)
         return x / (x + y)
 
     @property
@@ -97,7 +100,7 @@ class Cauchy(Distribution):
         check_parameters: bool = True,
         check_support: bool = True,
     ):
-        batch_shape = broadcast_shapes(np.shape(loc), np.shape(scale))
+        batch_shape = lax.broadcast_shapes(np.shape(loc), np.shape(scale))
         rv_shape = ()
 
         super().__init__(
@@ -121,8 +124,8 @@ class Cauchy(Distribution):
         normalizer = -np.log(np.pi) - np.log(self.scale)
         return -np.log1p(np.square((x - self.loc) / self.scale)) + normalizer
 
-    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        epsilon = random_state.standard_cauchy(sample_shape + self.batch_shape)
+    def _sample(self, sample_shape: Shape, key: PRNGKey) -> Variate:
+        epsilon = random.cauchy(key, shape=sample_shape + self.batch_shape)
         return self.loc + self.scale * epsilon
 
 
@@ -156,8 +159,8 @@ class Exponential(ExponentialFamily):
     def _log_prob(self, x: Variate) -> ArrayLike:
         return np.log(self.rate) - self.rate * x
 
-    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        epsilon = random_state.standard_exponential(sample_shape + self.batch_shape)
+    def _sample(self, sample_shape: Shape, key: PRNGKey) -> Variate:
+        epsilon = random.exponential(key, shape=sample_shape + self.batch_shape)
         return epsilon / self.rate
 
     @property
@@ -186,7 +189,7 @@ class Gamma(ExponentialFamily):
         check_parameters: bool = True,
         check_support: bool = True,
     ):
-        batch_shape = broadcast_shapes(np.shape(shape), np.shape(rate))
+        batch_shape = lax.broadcast_shapes(np.shape(shape), np.shape(rate))
         rv_shape = ()
 
         super().__init__(
@@ -210,10 +213,8 @@ class Gamma(ExponentialFamily):
         normalizer = self.shape * np.log(self.rate) - gammaln(self.shape)
         return (self.shape - 1.0) * np.log(x) - self.rate * x + normalizer
 
-    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        epsilon = random_state.standard_gamma(
-            self.shape, sample_shape + self.batch_shape
-        )
+    def _sample(self, sample_shape: Shape, key: PRNGKey) -> Variate:
+        epsilon = random.gamma(key, self.shape, shape=sample_shape + self.batch_shape)
         return epsilon / self.rate
 
     @property
@@ -229,6 +230,22 @@ class Gamma(ExponentialFamily):
 
     def sufficient_statistic(self, x: Variate) -> Tuple[ArrayLike, ...]:
         return np.log(x), x
+
+
+class Chi2(Gamma):
+    _constraints: Dict[str, Constraint] = {"df": positive}
+
+    def __init__(
+        self, df: Parameter, check_parameters: bool = True, check_support: bool = True
+    ):
+        super().__init__(
+            shape=0.5 * df,
+            rate=0.5,
+            check_parameters=check_parameters,
+            check_support=check_support,
+        )
+
+        self.df = df
 
 
 class InverseGamma(TransformedDistribution, ExponentialFamily):
@@ -297,7 +314,7 @@ class Laplace(Distribution):
         check_parameters: bool = True,
         check_support: bool = True,
     ):
-        batch_shape = broadcast_shapes(np.shape(loc), np.shape(scale))
+        batch_shape = lax.broadcast_shapes(np.shape(loc), np.shape(scale))
         rv_shape = ()
 
         super().__init__(
@@ -320,9 +337,11 @@ class Laplace(Distribution):
     def _log_prob(self, x: Variate) -> ArrayLike:
         return -np.abs(x - self.loc) / self.scale - np.log(2.0) - np.log(self.scale)
 
-    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        x = random_state.random_sample(sample_shape + self.batch_shape)
-        y = random_state.random_sample(sample_shape + self.batch_shape)
+    def _sample(self, sample_shape: Shape, key: PRNGKey) -> Variate:
+        fst_key, snd_key = random.split(key)
+        x = random.uniform(fst_key, sample_shape + self.batch_shape)
+        y = random.uniform(snd_key, sample_shape + self.batch_shape)
+
         epsilon = np.log(x) - np.log(y)
         return self.loc + self.scale * epsilon
 
@@ -338,7 +357,7 @@ class Logistic(Distribution):
         check_parameters: bool = True,
         check_support: bool = True,
     ):
-        batch_shape = broadcast_shapes(np.shape(loc), np.shape(scale))
+        batch_shape = lax.broadcast_shapes(np.shape(loc), np.shape(scale))
         rv_shape = ()
 
         super().__init__(
@@ -366,8 +385,8 @@ class Logistic(Distribution):
             - 2.0 * np.log1p(np.exp(-standardized_var))
         )
 
-    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        x = random_state.random_sample(sample_shape + self.batch_shape)
+    def _sample(self, sample_shape: Shape, key: PRNGKey) -> Variate:
+        x = random.uniform(key, sample_shape + self.batch_shape)
         return self.loc + self.scale * (np.log(x) - np.log1p(-x))
 
 
@@ -451,11 +470,11 @@ class Normal(ExponentialFamily):
             )
 
         if variance is not None:
-            batch_shape = broadcast_shapes(np.shape(mean), np.shape(variance))
+            batch_shape = lax.broadcast_shapes(np.shape(mean), np.shape(variance))
         elif precision is not None:
-            batch_shape = broadcast_shapes(np.shape(mean), np.shape(precision))
+            batch_shape = lax.broadcast_shapes(np.shape(mean), np.shape(precision))
         else:
-            batch_shape = broadcast_shapes(np.shape(mean), np.shape(std))
+            batch_shape = lax.broadcast_shapes(np.shape(mean), np.shape(std))
 
         rv_shape = ()
 
@@ -507,8 +526,8 @@ class Normal(ExponentialFamily):
         normalizer = -0.5 * (np.log(2.0) + np.log(np.pi) + np.log(self._variance))
         return -np.square(x - self._mean) * 0.5 * self._precision + normalizer
 
-    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        epsilon = random_state.standard_normal(sample_shape + self.batch_shape)
+    def _sample(self, sample_shape: Shape, key: PRNGKey) -> Variate:
+        epsilon = random.normal(key, shape=sample_shape + self.batch_shape)
         return self._mean + self._std * epsilon
 
     @property
@@ -586,7 +605,7 @@ class T(Distribution):
         check_parameters: bool = True,
         check_support: bool = True,
     ):
-        batch_shape = broadcast_shapes(np.shape(df), np.shape(loc), np.shape(scale))
+        batch_shape = lax.broadcast_shapes(np.shape(df), np.shape(loc), np.shape(scale))
         rv_shape = ()
 
         super().__init__(
@@ -598,6 +617,11 @@ class T(Distribution):
 
         self.df = np.broadcast_to(df, batch_shape)
         self.loc, self.scale = promote_shapes(loc, scale)
+        self._chi2 = Chi2(
+            df=self.df,
+            check_parameters=self.check_parameters,
+            check_support=self.check_support,
+        )
 
     @property
     def mean(self) -> Parameter:
@@ -622,8 +646,12 @@ class T(Distribution):
             + normalizer
         )
 
-    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        epsilon = random_state.standard_t(self.df, sample_shape + self.batch_shape)
+    def _sample(self, sample_shape: Shape, key: PRNGKey) -> Variate:
+        chi2_key, norm_key = random.split(key)
+        normal_samples = random.normal(norm_key, shape=sample_shape + self.batch_shape)
+        chi2_samples = self._chi2.sample(sample_shape=sample_shape, key=chi2_key)
+
+        epsilon = normal_samples * np.sqrt(self.df / chi2_samples)
         return self.loc + self.scale * epsilon
 
 
@@ -649,7 +677,7 @@ class TruncatedNormal(Distribution):
                 "All the lower bounds must be strictly lower than the upper bounds."
             )
 
-        batch_shape = broadcast_shapes(
+        batch_shape = lax.broadcast_shapes(
             np.shape(loc), np.shape(scale), np.shape(lower), np.shape(upper)
         )
         rv_shape = ()
@@ -672,12 +700,6 @@ class TruncatedNormal(Distribution):
         self._phi_beta = self._phi(self._beta)
         self._Phi_alpha = ndtr(self._alpha)
 
-        self._standard_uniform = _StandardUniform(
-            batch_shape=batch_shape,
-            check_parameters=check_parameters,
-            check_support=check_support,
-        )
-
     @property
     def support(self) -> Constraint:
         return interval(lower=self.lower, upper=self.upper)
@@ -696,8 +718,8 @@ class TruncatedNormal(Distribution):
         xi = (x - self.loc) / self.scale
         return self._log_phi(xi) - np.log(self.scale) - np.log(self._Z)
 
-    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        epsilon = self._standard_uniform.sample(sample_shape, random_state)
+    def _sample(self, sample_shape: Shape, key: PRNGKey) -> Variate:
+        epsilon = random.uniform(key, shape=sample_shape + self.batch_shape)
         return ndtri(self._Phi_alpha + epsilon * self._Z) * self.scale + self.loc
 
     def _phi(self, x: Variate) -> ArrayLike:
@@ -734,11 +756,11 @@ class _StandardUniform(Distribution):
         return np.full(shape=self.batch_shape, fill_value=1.0 / 12.0)
 
     def _log_prob(self, x: Variate) -> ArrayLike:
-        batch_shape = broadcast_shapes(self.batch_shape, np.shape(x))
+        batch_shape = lax.broadcast_shapes(self.batch_shape, np.shape(x))
         return np.zeros(batch_shape)
 
-    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        return random_state.random_sample(sample_shape + self.batch_shape)
+    def _sample(self, sample_shape: Shape, key: PRNGKey) -> Variate:
+        return random.uniform(key, shape=sample_shape + self.batch_shape)
 
 
 class Uniform(TransformedDistribution):
@@ -756,7 +778,7 @@ class Uniform(TransformedDistribution):
                 "All the lower bounds must be strictly lower than the upper bounds."
             )
 
-        batch_shape = broadcast_shapes(np.shape(lower), np.shape(upper))
+        batch_shape = lax.broadcast_shapes(np.shape(lower), np.shape(upper))
 
         base_distribution = _StandardUniform(
             batch_shape=batch_shape,

@@ -1,8 +1,8 @@
 from functools import partial
 from typing import Callable
 
-import numpy as np
-from numpy.random import RandomState
+import jax.numpy as np
+from jax.random import PRNGKey
 
 from pynference.constants import Sample, Shape, Variate
 from pynference.distributions import TransformedDistribution, Uniform
@@ -22,13 +22,9 @@ __all__ = ["initialize", "init_to_mean", "init_to_prior", "init_to_uniform"]
 
 
 def initialize(
-    model,
-    initializer: Callable[[Message], Variate],
-    random_state: RandomState,
-    *args,
-    **kwargs
+    model, initializer: Callable[[Message], Variate], key: PRNGKey, *args, **kwargs
 ) -> Sample:
-    model = Substitute(model, substitution=Block(Seed(initializer, random_state)))
+    model = Substitute(model, substitution=Block(Seed(initializer, key)))
     trace = Trace(model).trace(*args, **kwargs)
 
     constrained = {}

@@ -1,7 +1,7 @@
 from typing import Dict
 
-import numpy as np
-from numpy.random import RandomState
+import jax.numpy as np
+from jax.random import PRNGKey
 
 from pynference.constants import Sample
 from pynference.distributions.transformations import Transformation
@@ -16,9 +16,9 @@ __all__ = [
 
 
 def get_model_transformations(
-    model, random_state: RandomState, *args, **kwargs
+    model, key: PRNGKey, *args, **kwargs
 ) -> Dict[str, Transformation]:
-    model = Seed(model, random_state)
+    model = Seed(model, key)
     trace = Trace(model)
     return trace.transformations(*args, **kwargs)
 

@@ -1,8 +1,10 @@
 from typing import Dict, Tuple
 
-import numpy as np
-from numpy.random import RandomState
-from scipy.special import binom, gamma, gammaln
+import jax.numpy as np
+import jax.random as random
+from jax.random import PRNGKey
+from jax.scipy.special import gammaln
+from scipy.special import binom, gamma  # TODO: Implement using JAX.
 
 from pynference.constants import ArrayLike, Parameter, Shape, Variate
 from pynference.distributions.constraints import (
@@ -18,8 +20,11 @@ from pynference.distributions.constraints import (
 )
 from pynference.distributions.distribution import Distribution, ExponentialFamily
 from pynference.distributions.utils import (
+    binomial,
     broadcast_shapes,
     log_binomial_coefficient,
+    negative_binomial,
+    poisson,
     promote_shapes,
     sum_last,
 )
@@ -55,10 +60,8 @@ class Bernoulli(ExponentialFamily):
     def _log_prob(self, x: Variate) -> ArrayLike:
         return x * np.log(self.p) + (1.0 - x) * np.log1p(-self.p)
 
-    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        return random_state.binomial(
-            n=1, p=self.p, size=sample_shape + self.batch_shape
-        )
+    def _sample(self, sample_shape: Shape, key: PRNGKey) -> Variate:
+        return random.bernoulli(key, p=self.p, shape=sample_shape + self.batch_shape)
 
     @property
     def natural_parameter(self) -> Tuple[Parameter, ...]:
@@ -116,10 +119,8 @@ class Binomial(ExponentialFamily):
             + (self.n - x) * np.log1p(-self.p)
         )
 
-    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        return random_state.binomial(
-            n=self.n, p=self.p, size=sample_shape + self.batch_shape
-        )
+    def _sample(self, sample_shape: Shape, key: PRNGKey) -> Variate:
+        return binomial(key, n=self.n, p=self.p, shape=sample_shape + self.batch_shape)
 
     @property
     def natural_parameter(self) -> Tuple[Parameter, ...]:
@@ -172,7 +173,7 @@ class Dirac(Distribution):
         log_prob = np.log(x == self.x)
         return sum_last(log_prob, len(self.rv_shape))
 
-    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
+    def _sample(self, sample_shape: Shape, key: PRNGKey) -> Variate:
         shape = sample_shape + self.batch_shape + self.rv_shape
         return np.broadcast_to(self.x, shape)
 
@@ -221,11 +222,12 @@ class DiscreteUniform(Distribution):
     def _log_prob(self, x: Variate) -> ArrayLike:
         return -np.log(self.upper - self.lower + 1.0)
 
-    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        return random_state.randint(
-            low=self.lower,
-            high=self.upper + 1,
-            size=sample_shape + self.batch_shape,
+    def _sample(self, sample_shape: Shape, key: PRNGKey) -> Variate:
+        return random.randint(
+            key,
+            minval=self.lower,
+            maxval=self.upper + 1,
+            shape=sample_shape + self.batch_shape,
             dtype=self.lower.dtype,
         )
 
@@ -260,9 +262,9 @@ class Geometric(ExponentialFamily):
     def _log_prob(self, x: Variate) -> ArrayLike:
         return x * np.log1p(-self.p) + np.log(self.p)
 
-    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        return random_state.negative_binomial(
-            n=1, p=self.p, size=sample_shape + self.batch_shape
+    def _sample(self, sample_shape: Shape, key: PRNGKey) -> Variate:
+        return negative_binomial(
+            key, n=1, p=self.p, shape=sample_shape + self.batch_shape
         )
 
     @property
@@ -318,9 +320,9 @@ class NegativeBinomial(ExponentialFamily):
             + x * np.log(self.p)
         )
 
-    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        return random_state.negative_binomial(
-            n=self.r, p=1.0 - self.p, size=sample_shape + self.batch_shape
+    def _sample(self, sample_shape: Shape, key: PRNGKey) -> Variate:
+        return negative_binomial(
+            key, n=self.r, p=1.0 - self.p, shape=sample_shape + self.batch_shape
         )
 
     @property
@@ -368,8 +370,8 @@ class Poisson(ExponentialFamily):
     def _log_prob(self, x: Variate) -> ArrayLike:
         return x * np.log(self.rate) - gammaln(x + 1) - self.rate
 
-    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        return random_state.poisson(lam=self.rate, size=sample_shape + self.batch_shape)
+    def _sample(self, sample_shape: Shape, key: PRNGKey) -> Variate:
+        return poisson(key, rate=self.rate, shape=sample_shape + self.batch_shape)
 
     @property
     def natural_parameter(self) -> Tuple[Parameter, ...]:

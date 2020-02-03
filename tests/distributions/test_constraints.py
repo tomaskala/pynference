@@ -206,7 +206,7 @@ def test_integer_like():
 def test_integer_not():
     integer = constraints.Integer()
     x = 10.01
-    y = -2.00000000001
+    y = -2.00001
     z = 0.15
 
     assert not integer(x)

@@ -7,6 +7,8 @@ sys.path.append(str(Path(__file__).parent.parent.parent.resolve()))
 
 import matplotlib.pyplot as plt
 import numpy as np
+from jax import device_put
+from jax.random import PRNGKey
 
 from pynference.distributions import InverseGamma, MultivariateNormal
 from pynference.inference import Metropolis, init_to_uniform
@@ -25,6 +27,7 @@ def model(X, y, a0, b0, Sigma0):
 
 def main():
     random_state = check_random_state(123)
+    key = PRNGKey(123)
 
     n = 100
     X = np.ones(shape=(n, 2))
@@ -45,6 +48,12 @@ def main():
     init = init_to_uniform()
     tune = True
 
+    X = device_put(X)
+    y = device_put(y)
+    a0 = device_put(a0)
+    b0 = device_put(b0)
+    Sigma0 = device_put(Sigma0)
+
     mcmc = Metropolis(
         model=model,
         n_samples=n_samples,
@@ -52,9 +61,8 @@ def main():
         scale_init=scale_init,
         init=init,
         tune=tune,
-        random_state=random_state,
     )
-    samples = mcmc.run(X=X, y=y, a0=a0, b0=b0, Sigma0=Sigma0)
+    samples = mcmc.run(key=key, X=X, y=y, a0=a0, b0=b0, Sigma0=Sigma0)
 
     sigma2s = np.zeros(shape=n_samples)
     betas = np.zeros(shape=(n_samples, 2))

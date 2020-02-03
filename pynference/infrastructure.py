@@ -3,10 +3,10 @@ import collections
 from copy import copy
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any, Callable, Dict, List, Optional, OrderedDict, Tuple
+from typing import Any, Callable, Dict, List, Optional, OrderedDict, Tuple, Union
 
-import numpy as np
-from numpy.random import RandomState
+import jax.numpy as np
+import jax.random as random
 
 from pynference.constants import Parameter, Shape, Variate
 from pynference.distributions.constraints import real
@@ -92,16 +92,16 @@ def sample(
     dist: Distribution,
     observation: Optional[Variate] = None,
     sample_shape: Shape = (),
-    random_state: RandomState = None,
+    key: random.PRNGKey = None,
 ) -> Variate:
     if not _MESSENGER_STACK:
-        return dist(sample_shape=sample_shape, random_state=random_state)
+        return dist(sample_shape=sample_shape, key=key)
     else:
         message = Message(
             message_type=MessageType.SAMPLE,
             name=name,
             fun=dist,
-            kwargs={"sample_shape": sample_shape, "random_state": random_state},
+            kwargs={"sample_shape": sample_shape, "key": key},
             value=observation,
             is_observed=observation is not None,
         )
@@ -187,17 +187,30 @@ class Block(Messenger):
 
 
 class Seed(Messenger):
-    def __init__(self, fun: Callable[..., Variate], random_state: RandomState):
+    def __init__(
+        self, fun: Callable[..., Variate], key: Union[int, np.ndarray, random.PRNGKey]
+    ):
         super().__init__(fun=fun)
-        self.random_state = random_state
+
+        if isinstance(key, int) or (isinstance(key, np.ndarray) and np.shape(key) == ()):
+            key = random.PRNGKey(key)
+
+        if not (isinstance(key, np.ndarray) and np.shape(key) == (2,)):
+            raise ValueError(
+                "The provided argument {} cannot be used as a pseudo-random "
+                "generator or a seed for one.".format(key)
+            )
+
+        self.key = key
 
     def process_message(self, message: Message):
         if (
             message.message_type is MessageType.SAMPLE
             and not message.is_observed
-            and message.kwargs["random_state"] is None
+            and message.kwargs["key"] is None
         ):
-            message.kwargs["random_state"] = self.random_state
+            self.key, key = random.split(self.key)
+            message.kwargs["key"] = key
 
 
 class Condition(Messenger):

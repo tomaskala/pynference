@@ -1,9 +1,11 @@
 from typing import Dict, List, Optional, Union
 
-import numpy as np
+import jax.numpy as np
+import jax.random as random
 import pytest
 import scipy.stats as stats
-from pytest import approx, raises
+from numpy.testing import assert_allclose
+from pytest import raises
 
 from pynference.constants import Parameter, Shape
 from pynference.distributions import (
@@ -22,11 +24,10 @@ from pynference.distributions import (
     Uniform,
 )
 from pynference.distributions.constraints import interval, positive
-from pynference.utils import check_random_state
 
 
 def generate(
-    random_state: np.random.RandomState,
+    key: random.PRNGKey,
     shape: Union[None, Shape],
     positive: Optional[Union[str, List[str]]] = None,
     real: Optional[Union[str, List[str]]] = None,
@@ -57,8 +58,11 @@ def generate(
             positive = [positive]
 
         for p in positive:
-            parameters[p] = random_state.uniform(
-                low=limits["positive_low"], high=limits["positive_high"], size=shape
+            parameters[p] = random.uniform(
+                key,
+                minval=limits["positive_low"],
+                maxval=limits["positive_high"],
+                shape=shape,
             )
 
     if real is not None:
@@ -66,8 +70,8 @@ def generate(
             real = [real]
 
         for p in real:
-            parameters[p] = random_state.uniform(
-                low=limits["real_low"], high=limits["real_high"], size=shape
+            parameters[p] = random.uniform(
+                key, minval=limits["real_low"], maxval=limits["real_high"], shape=shape
             )
 
     if lower is not None:
@@ -75,8 +79,11 @@ def generate(
             lower = [lower]
 
         for p in lower:
-            parameters[p] = random_state.uniform(
-                low=limits["lower_low"], high=limits["lower_high"], size=shape
+            parameters[p] = random.uniform(
+                key,
+                minval=limits["lower_low"],
+                maxval=limits["lower_high"],
+                shape=shape,
             )
 
     if upper is not None:
@@ -84,15 +91,97 @@ def generate(
             upper = [upper]
 
         for p in upper:
-            parameters[p] = random_state.uniform(
-                low=limits["upper_low"], high=limits["upper_high"], size=shape
+            parameters[p] = random.uniform(
+                key,
+                minval=limits["upper_low"],
+                maxval=limits["upper_high"],
+                shape=shape,
             )
 
     return parameters
 
 
+key = random.PRNGKey(123)
+
+DISTRIBUTIONS_WITH_MOMENTS = [
+    Beta(**generate(key, shape=(), positive=["shape1", "shape2"])),
+    Beta(**generate(key, shape=(2,), positive=["shape1", "shape2"])),
+    Beta(**generate(key, shape=(2, 3), positive=["shape1", "shape2"])),
+    Exponential(**generate(key, shape=(), positive="rate")),
+    Exponential(**generate(key, shape=(2,), positive="rate")),
+    Exponential(**generate(key, shape=(2, 3), positive="rate")),
+    Gamma(**generate(key, shape=(), positive=["shape", "rate"])),
+    Gamma(**generate(key, shape=(2,), positive=["shape", "rate"])),
+    Gamma(**generate(key, shape=(2, 3), positive=["shape", "rate"])),
+    InverseGamma(
+        **generate(key, shape=(), positive=["shape", "scale"], positive_low=2.0)
+    ),
+    InverseGamma(
+        **generate(key, shape=(2,), positive=["shape", "scale"], positive_low=2.0)
+    ),
+    InverseGamma(
+        **generate(key, shape=(2, 3), positive=["shape", "scale"], positive_low=2.0)
+    ),
+    Laplace(**generate(key, shape=(), positive="scale", real="loc")),
+    Laplace(**generate(key, shape=(2,), positive="scale", real="loc")),
+    Laplace(**generate(key, shape=(2, 3), positive="scale", real="loc")),
+    Logistic(**generate(key, shape=(), positive="scale", real="loc")),
+    Logistic(**generate(key, shape=(2,), positive="scale", real="loc")),
+    Logistic(**generate(key, shape=(2, 3), positive="scale", real="loc")),
+    LogNormal(
+        **generate(key, shape=(), positive="scale", real="loc", positive_high=2.0)
+    ),
+    LogNormal(
+        **generate(key, shape=(2,), positive="scale", real="loc", positive_high=2.0,)
+    ),
+    LogNormal(
+        **generate(key, shape=(2, 2), positive="scale", real="loc", positive_high=2.0,)
+    ),
+    Normal(**generate(key, shape=(), positive="std", real="mean")),
+    Normal(**generate(key, shape=(2,), positive="std", real="mean")),
+    Normal(**generate(key, shape=(2, 3), positive="std", real="mean")),
+    Pareto(**generate(key, shape=(), positive=["scale", "shape"], positive_low=2.1)),
+    Pareto(**generate(key, shape=(2,), positive=["scale", "shape"], positive_low=2.1)),
+    Pareto(
+        **generate(key, shape=(2, 3), positive=["scale", "shape"], positive_low=2.1,)
+    ),
+    TruncatedNormal(
+        **generate(
+            key, shape=(), positive="scale", real="loc", lower="lower", upper="upper",
+        )
+    ),
+    TruncatedNormal(
+        **generate(
+            key, shape=(2,), positive="scale", real="loc", lower="lower", upper="upper",
+        )
+    ),
+    TruncatedNormal(
+        **generate(
+            key,
+            shape=(2, 3),
+            positive="scale",
+            real="loc",
+            lower="lower",
+            upper="upper",
+        )
+    ),
+    Uniform(**generate(key, shape=(), lower="lower", upper="upper")),
+    Uniform(**generate(key, shape=(2,), lower="lower", upper="upper")),
+    Uniform(**generate(key, shape=(2, 3), lower="lower", upper="upper")),
+]
+
+DISTRIBUTIONS = DISTRIBUTIONS_WITH_MOMENTS + [
+    Cauchy(**generate(key, shape=(), positive="scale", real="loc")),
+    Cauchy(**generate(key, shape=(2,), positive="scale", real="loc")),
+    Cauchy(**generate(key, shape=(2, 3), positive="scale", real="loc")),
+    T(**generate(key, shape=(), positive=["df", "scale"], real="loc")),
+    T(**generate(key, shape=(2,), positive=["df", "scale"], real="loc")),
+    T(**generate(key, shape=(2, 3), positive=["df", "scale"], real="loc")),
+]
+
+
 class TestBroadcasting:
-    random_state = check_random_state(123)
+    key = random.PRNGKey(123)
 
     distributions = {
         Beta: ["shape1", "shape2"],
@@ -158,50 +247,43 @@ class TestBroadcasting:
                 fst = distribution_cls(**fst_params)
                 snd = distribution_cls(**snd_params)
 
-                samples = fst.sample(
-                    sample_shape=(self.n_samples,), random_state=self.random_state
-                )
+                samples = fst.sample(sample_shape=(self.n_samples,), key=self.key)
 
-                assert fst.log_prob(samples) == approx(
-                    snd.log_prob(samples), rel=self.rtol, abs=self.atol
-                ), f"log_prob of {fst}"
+                assert_allclose(
+                    fst.log_prob(samples),
+                    snd.log_prob(samples),
+                    atol=self.atol,
+                    rtol=self.rtol,
+                    err_msg=f"log_prob of {fst}",
+                )
 
 
 class TestExponentialFamilies:
-    random_state = check_random_state(123)
+    key = random.PRNGKey(123)
 
-    distributions = {
-        Beta: generate(random_state, shape=(), positive=["shape1", "shape2"]),
-        Exponential: generate(random_state, shape=(), positive="rate"),
-        Gamma: generate(random_state, shape=(), positive=["shape", "rate"]),
-        InverseGamma: generate(random_state, shape=(), positive=["shape", "scale"]),
-        LogNormal: generate(random_state, shape=(), positive="scale", real="loc"),
-        Normal: generate(random_state, shape=(), positive="std", real="mean"),
-    }
+    distributions = {Beta, Exponential, Gamma, InverseGamma, LogNormal, Normal}
 
     n_samples = 100
     atol = 1e-6
     rtol = 1e-6
 
     def test_base_measure_positive_within_support(self):
-        for distribution_cls, parameters in self.distributions.items():
-            distribution = distribution_cls(**parameters)
-
-            samples = distribution.sample(
-                sample_shape=(self.n_samples,), random_state=self.random_state
-            )
+        for distribution in filter(
+            lambda dist: type(dist) in self.distributions and dist.batch_shape == (),
+            DISTRIBUTIONS,
+        ):
+            samples = distribution.sample(sample_shape=(self.n_samples,), key=self.key)
 
             assert np.all(
                 distribution.base_measure(samples) > 0
             ), f"base measure of {distribution}"
 
     def test_log_probs_equal(self):
-        for distribution_cls, parameters in self.distributions.items():
-            distribution = distribution_cls(**parameters)
-
-            samples = distribution.sample(
-                sample_shape=(self.n_samples,), random_state=self.random_state
-            )
+        for distribution in filter(
+            lambda dist: type(dist) in self.distributions and dist.batch_shape == (),
+            DISTRIBUTIONS,
+        ):
+            samples = distribution.sample(sample_shape=(self.n_samples,), key=self.key)
 
             h_x = distribution.base_measure(samples)
             eta = distribution.natural_parameter
@@ -211,163 +293,43 @@ class TestExponentialFamilies:
             dot_product = sum(e * t for e, t in zip(eta, t_x))
             expected_log_prob = np.log(h_x) + dot_product - a_eta
 
-            assert distribution.log_prob(samples) == approx(
-                expected_log_prob, rel=self.rtol, abs=self.atol
-            ), f"log_prob of {distribution}"
+            assert_allclose(
+                distribution.log_prob(samples),
+                expected_log_prob,
+                atol=self.atol,
+                rtol=self.rtol,
+                err_msg=f"log_prob of {distribution}",
+            )
 
 
 class TestFirstTwoMoments:
-    random_state = check_random_state(123)
-
-    distributions = {
-        Beta: (
-            generate(random_state, shape=(), positive=["shape1", "shape2"]),
-            generate(random_state, shape=(2,), positive=["shape1", "shape2"]),
-            generate(random_state, shape=(2, 3), positive=["shape1", "shape2"]),
-        ),
-        Exponential: (
-            generate(random_state, shape=(), positive="rate"),
-            generate(random_state, shape=(2,), positive="rate"),
-            generate(random_state, shape=(2, 3), positive="rate"),
-        ),
-        Gamma: (
-            generate(random_state, shape=(), positive=["shape", "rate"]),
-            generate(random_state, shape=(2,), positive=["shape", "rate"]),
-            generate(random_state, shape=(2, 3), positive=["shape", "rate"]),
-        ),
-        InverseGamma: (
-            generate(random_state, shape=(), positive=["shape", "scale"]),
-            generate(random_state, shape=(2,), positive=["shape", "scale"]),
-            generate(random_state, shape=(2, 3), positive=["shape", "scale"]),
-        ),
-        Laplace: (
-            generate(random_state, shape=(), positive="scale", real="loc"),
-            generate(random_state, shape=(2,), positive="scale", real="loc"),
-            generate(random_state, shape=(2, 3), positive="scale", real="loc"),
-        ),
-        Logistic: (
-            generate(random_state, shape=(), positive="scale", real="loc"),
-            generate(random_state, shape=(2,), positive="scale", real="loc"),
-            generate(random_state, shape=(2, 3), positive="scale", real="loc"),
-        ),
-        LogNormal: (
-            generate(
-                random_state, shape=(), positive="scale", real="loc", positive_high=3.0
-            ),
-            generate(
-                random_state,
-                shape=(2,),
-                positive="scale",
-                real="loc",
-                positive_high=3.0,
-            ),
-            generate(
-                random_state,
-                shape=(2, 2),
-                positive="scale",
-                real="loc",
-                positive_high=3.0,
-            ),
-        ),
-        Normal: (
-            generate(random_state, shape=(), positive="std", real="mean"),
-            generate(random_state, shape=(2,), positive="std", real="mean"),
-            generate(random_state, shape=(2, 3), positive="std", real="mean"),
-        ),
-        Pareto: (
-            generate(
-                random_state, shape=(), positive=["scale", "shape"], positive_low=2.1
-            ),
-            generate(
-                random_state, shape=(2,), positive=["scale", "shape"], positive_low=2.1
-            ),
-            generate(
-                random_state,
-                shape=(2, 3),
-                positive=["scale", "shape"],
-                positive_low=2.1,
-            ),
-        ),
-        TruncatedNormal: (
-            generate(
-                random_state,
-                shape=(),
-                positive="scale",
-                real="loc",
-                lower="lower",
-                upper="upper",
-            ),
-            generate(
-                random_state,
-                shape=(2,),
-                positive="scale",
-                real="loc",
-                lower="lower",
-                upper="upper",
-            ),
-            generate(
-                random_state,
-                shape=(2, 3),
-                positive="scale",
-                real="loc",
-                lower="lower",
-                upper="upper",
-            ),
-        ),
-        Uniform: (
-            generate(random_state, shape=(), lower="lower", upper="upper"),
-            generate(random_state, shape=(2,), lower="lower", upper="upper"),
-            generate(random_state, shape=(2, 3), lower="lower", upper="upper"),
-        ),
-    }
-
-    n_samples = 200000
+    key = random.PRNGKey(123)
+    n_samples = 20000
     atol = 1e-4
     rtol = 0.75
 
     def test_mean_and_variance(self):
-        for distribution_cls, parameter_set in self.distributions.items():
-            for i, parameters in enumerate(parameter_set):
-                distribution = distribution_cls(**parameters)
+        for distribution in DISTRIBUTIONS_WITH_MOMENTS:
+            samples = distribution.sample(sample_shape=(self.n_samples,), key=self.key)
 
-                samples = distribution.sample(
-                    sample_shape=(self.n_samples,), random_state=self.random_state
-                )
-
-                assert np.mean(samples, axis=0) == approx(
-                    distribution.mean, rel=self.rtol, abs=self.atol
-                ), f"mean of {distribution}"
-
-                assert np.var(samples, axis=0) == approx(
-                    distribution.variance, rel=self.rtol, abs=self.atol
-                ), f"variance of {distribution}"
+            assert_allclose(
+                np.mean(samples, axis=0),
+                distribution.mean,
+                atol=self.atol,
+                rtol=self.rtol,
+                err_msg=f"mean of {distribution}",
+            )
+            assert_allclose(
+                np.std(samples, axis=0),
+                np.sqrt(distribution.variance),
+                atol=self.atol,
+                rtol=self.rtol,
+                err_msg=f"variance of {distribution}",
+            )
 
 
 class TestLogProb:
-    random_state = check_random_state(123)
-
-    distributions = {
-        Beta: generate(random_state, shape=(), positive=["shape1", "shape2"]),
-        Cauchy: generate(random_state, shape=(), positive="scale", real="loc"),
-        Exponential: generate(random_state, shape=(), positive="rate"),
-        Gamma: generate(random_state, shape=(), positive=["shape", "rate"]),
-        InverseGamma: generate(random_state, shape=(), positive=["shape", "scale"]),
-        Laplace: generate(random_state, shape=(), positive="scale", real="loc"),
-        Logistic: generate(random_state, shape=(), positive="scale", real="loc"),
-        LogNormal: generate(random_state, shape=(), positive="scale", real="loc"),
-        Normal: generate(random_state, shape=(), positive="std", real="mean"),
-        Pareto: generate(random_state, shape=(), positive=["scale", "shape"]),
-        T: generate(random_state, shape=(), positive=["df", "scale"], real="loc"),
-        TruncatedNormal: generate(
-            random_state,
-            shape=(),
-            positive="scale",
-            real="loc",
-            lower="lower",
-            upper="upper",
-        ),
-        Uniform: generate(random_state, shape=(), lower="lower", upper="upper"),
-    }
+    key = random.PRNGKey(123)
 
     dist2scipy = {
         Beta: lambda dist: stats.beta(a=dist.shape1, b=dist.shape2),
@@ -397,19 +359,19 @@ class TestLogProb:
     rtol = 1e-6
 
     def test_log_prob(self):
-        for distribution_cls, parameters in self.distributions.items():
-            distribution = distribution_cls(**parameters)
-
-            if distribution_cls not in self.dist2scipy:
+        for distribution in filter(lambda dist: dist.batch_shape == (), DISTRIBUTIONS):
+            if type(distribution) not in self.dist2scipy:
                 continue
-            scipy_distribution = self.dist2scipy[distribution_cls](distribution)
+            scipy_distribution = self.dist2scipy[type(distribution)](distribution)
 
-            samples = distribution.sample(
-                sample_shape=(self.n_samples,), random_state=self.random_state
+            samples = distribution.sample(sample_shape=(self.n_samples,), key=self.key)
+            assert_allclose(
+                distribution.log_prob(samples),
+                scipy_distribution.logpdf(samples),
+                atol=self.atol,
+                rtol=self.rtol,
+                err_msg=f"log_prob of {distribution}",
             )
-            assert distribution.log_prob(samples) == approx(
-                scipy_distribution.logpdf(samples), rel=self.rtol, abs=self.atol
-            ), f"log_prob of {distribution}"
 
 
 class TestParameterConstraints:
@@ -594,178 +556,29 @@ class TestParameterConstraints:
             Uniform(lower=-np.inf, upper=-np.inf)
 
 
-class TestSamplingShapes:
-    random_state = check_random_state(123)
-
-    distributions = {
-        Beta: (
-            generate(random_state, shape=(), positive=["shape1", "shape2"]),
-            generate(random_state, shape=(2,), positive=["shape1", "shape2"]),
-            generate(random_state, shape=(2, 3), positive=["shape1", "shape2"]),
-        ),
-        Cauchy: (
-            generate(random_state, shape=(), positive="scale", real="loc"),
-            generate(random_state, shape=(2,), positive="scale", real="loc"),
-            generate(random_state, shape=(2, 3), positive="scale", real="loc"),
-        ),
-        Exponential: (
-            generate(random_state, shape=(), positive="rate"),
-            generate(random_state, shape=(2,), positive="rate"),
-            generate(random_state, shape=(2, 3), positive="rate"),
-        ),
-        Gamma: (
-            generate(random_state, shape=(), positive=["shape", "rate"]),
-            generate(random_state, shape=(2,), positive=["shape", "rate"]),
-            generate(random_state, shape=(2, 3), positive=["shape", "rate"]),
-        ),
-        InverseGamma: (
-            generate(random_state, shape=(), positive=["shape", "scale"]),
-            generate(random_state, shape=(2,), positive=["shape", "scale"]),
-            generate(random_state, shape=(2, 3), positive=["shape", "scale"]),
-        ),
-        Laplace: (
-            generate(random_state, shape=(), positive="scale", real="loc"),
-            generate(random_state, shape=(2,), positive="scale", real="loc"),
-            generate(random_state, shape=(2, 3), positive="scale", real="loc"),
-        ),
-        Logistic: (
-            generate(random_state, shape=(), positive="scale", real="loc"),
-            generate(random_state, shape=(2,), positive="scale", real="loc"),
-            generate(random_state, shape=(2, 3), positive="scale", real="loc"),
-        ),
-        LogNormal: (
-            generate(random_state, shape=(), positive="scale", real="loc"),
-            generate(random_state, shape=(2,), positive="scale", real="loc"),
-            generate(random_state, shape=(2, 3), positive="scale", real="loc"),
-        ),
-        Normal: (
-            generate(random_state, shape=(), positive="std", real="mean"),
-            generate(random_state, shape=(2,), positive="std", real="mean"),
-            generate(random_state, shape=(2, 3), positive="std", real="mean"),
-        ),
-        Pareto: (
-            generate(random_state, shape=(), positive=["scale", "shape"]),
-            generate(random_state, shape=(2,), positive=["scale", "shape"]),
-            generate(random_state, shape=(2, 3), positive=["scale", "shape"]),
-        ),
-        T: (
-            generate(random_state, shape=(), positive=["df", "scale"], real="loc"),
-            generate(random_state, shape=(2,), positive=["df", "scale"], real="loc"),
-            generate(random_state, shape=(2, 3), positive=["df", "scale"], real="loc"),
-        ),
-        TruncatedNormal: (
-            generate(
-                random_state,
-                shape=(),
-                positive="scale",
-                real="loc",
-                lower="lower",
-                upper="upper",
-            ),
-            generate(
-                random_state,
-                shape=(2,),
-                positive="scale",
-                real="loc",
-                lower="lower",
-                upper="upper",
-            ),
-            generate(
-                random_state,
-                shape=(2, 3),
-                positive="scale",
-                real="loc",
-                lower="lower",
-                upper="upper",
-            ),
-        ),
-        Uniform: (
-            generate(random_state, shape=(), lower="lower", upper="upper"),
-            generate(random_state, shape=(2,), lower="lower", upper="upper"),
-            generate(random_state, shape=(2, 3), lower="lower", upper="upper"),
-        ),
-    }
-
-    def test_sampling_shapes_0d(self):
-        batch_shapes = [(), (2,), (2, 3)]
-
-        for distribution_cls, parameter_set in self.distributions.items():
-            for i, parameters in enumerate(parameter_set):
-                distribution = distribution_cls(**parameters)
-
-                samples = distribution.sample(
-                    sample_shape=(), random_state=self.random_state
-                )
-                assert (
-                    samples.shape == batch_shapes[i]
-                ), f"sampling shape of {distribution}"
-
-    def test_sampling_shapes_1d(self):
-        batch_shapes = [(), (2,), (2, 3)]
-
-        for distribution_cls, parameter_set in self.distributions.items():
-            for i, parameters in enumerate(parameter_set):
-                distribution = distribution_cls(**parameters)
-
-                samples = distribution.sample(
-                    sample_shape=(100,), random_state=self.random_state
-                )
-                assert (
-                    samples.shape == (100,) + batch_shapes[i]
-                ), f"sampling shape of {distribution}"
-
-    def test_sampling_shapes_2d(self):
-        batch_shapes = [(), (2,), (2, 3)]
-
-        for distribution_cls, parameter_set in self.distributions.items():
-            for i, parameters in enumerate(parameter_set):
-                distribution = distribution_cls(**parameters)
-
-                samples = distribution.sample(
-                    sample_shape=(10, 10), random_state=self.random_state
-                )
-                assert (
-                    samples.shape == (10, 10) + batch_shapes[i]
-                ), f"sampling shape of {distribution}"
-
-    def test_sampling_shapes_3d(self):
-        batch_shapes = [(), (2,), (2, 3)]
-
-        for distribution_cls, parameter_set in self.distributions.items():
-            for i, parameters in enumerate(parameter_set):
-                distribution = distribution_cls(**parameters)
-
-                samples = distribution.sample(
-                    sample_shape=(10, 10, 2), random_state=self.random_state
-                )
-                assert (
-                    samples.shape == (10, 10, 2) + batch_shapes[i]
-                ), f"sampling shape of {distribution}"
-
-
 class TestTransformedDistributions:
-    random_state = check_random_state(123)
+    key = random.PRNGKey(123)
 
     distributions = {
         InverseGamma: (
-            generate(random_state, shape=(), positive=["shape", "scale"]),
-            generate(random_state, shape=(2,), positive=["shape", "scale"]),
-            generate(random_state, shape=(2, 3), positive=["shape", "scale"]),
+            generate(key, shape=(), positive=["shape", "scale"]),
+            generate(key, shape=(2,), positive=["shape", "scale"]),
+            generate(key, shape=(2, 3), positive=["shape", "scale"]),
         ),
         LogNormal: (
-            generate(random_state, shape=(), positive="scale", real="loc"),
-            generate(random_state, shape=(2,), positive="scale", real="loc"),
-            generate(random_state, shape=(2, 3), positive="scale", real="loc"),
+            generate(key, shape=(), positive="scale", real="loc"),
+            generate(key, shape=(2,), positive="scale", real="loc"),
+            generate(key, shape=(2, 3), positive="scale", real="loc"),
         ),
         Pareto: (
-            generate(random_state, shape=(), positive=["scale", "shape"]),
-            generate(random_state, shape=(2,), positive=["scale", "shape"]),
-            generate(random_state, shape=(2, 3), positive=["scale", "shape"]),
+            generate(key, shape=(), positive=["scale", "shape"]),
+            generate(key, shape=(2,), positive=["scale", "shape"]),
+            generate(key, shape=(2, 3), positive=["scale", "shape"]),
         ),
         Uniform: (
-            generate(random_state, shape=(), lower="lower", upper="upper"),
-            generate(random_state, shape=(2,), lower="lower", upper="upper"),
-            generate(random_state, shape=(2, 3), lower="lower", upper="upper"),
+            generate(key, shape=(), lower="lower", upper="upper"),
+            generate(key, shape=(2,), lower="lower", upper="upper"),
+            generate(key, shape=(2, 3), lower="lower", upper="upper"),
         ),
     }
 

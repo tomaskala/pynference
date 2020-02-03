@@ -1,8 +1,8 @@
 import abc
 from typing import Union
 
-import numpy as np
-import numpy.linalg as la  # Not SciPy, NumPy works for batches of matrices.
+import jax.numpy as np
+import jax.numpy.linalg as la  # Not SciPy, NumPy works for batches of matrices.
 
 from pynference.constants import ArrayLike
 

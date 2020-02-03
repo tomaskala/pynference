@@ -1,9 +1,25 @@
 from typing import Iterable
 
-import numpy as np
-from scipy.special import gammaln
+import jax.numpy as np
+from jax.ops import index, index_update
+from jax.random import PRNGKey
+from jax.scipy.special import gammaln
 
 from pynference.constants import ArrayLike, Parameter, Shape, Variate
+
+
+def binomial(key: PRNGKey, n: Parameter, p: Parameter, shape: Shape) -> Variate:
+    raise NotImplementedError()
+
+
+def negative_binomial(
+    key: PRNGKey, n: Parameter, p: Parameter, shape: Shape
+) -> Variate:
+    raise NotImplementedError()
+
+
+def poisson(key: PRNGKey, rate: Parameter, shape: Shape) -> Variate:
+    raise NotImplementedError()
 
 
 def broadcast_shapes(*shapes: Shape) -> Shape:
@@ -55,9 +71,7 @@ def arraywise_diagonal(diagonals: np.ndarray) -> np.ndarray:
     out = np.zeros(out_shape)
 
     diag_indices = np.arange(diagonals.shape[-1])
-    out[..., diag_indices, diag_indices] = diagonals
-
-    return out
+    return index_update(out, index[..., diag_indices, diag_indices], diagonals)
 
 
 def replicate_along_last_axis(array: np.ndarray, last_dim: Shape) -> np.ndarray:
