@@ -55,7 +55,7 @@ class Metropolis:
         model,
         n_samples: int,
         proposal: str,
-        scale_init: float = 1.0,
+        proposal_scale: float = 1.0,
         init_strategy: str = "uniform",
         tune: bool = True,
         tune_interval: int = 100,
@@ -65,7 +65,7 @@ class Metropolis:
         self.n_samples = n_samples
 
         if proposal in self._proposal_map:
-            self.proposal = self._proposal_map[proposal](scale=scale_init)
+            self.proposal = self._proposal_map[proposal](scale=proposal_scale)
         else:
             raise ValueError("Unknown proposal type: {}.".format(proposal))
 
@@ -85,11 +85,13 @@ class Metropolis:
         theta, potential_energy, transformations = initialize_model(
             self.model, self.init_strategy, *args, **kwargs
         )
-
+        theta_constrained = {k: transformations[k](v) for k, v in theta.items()}
         samples = []
 
         for i in range(self.n_samples):
-            theta, stats = self.step(theta, potential_energy, transformations)
+            theta, theta_constrained, stats = self.step(
+                theta, theta_constrained, potential_energy, transformations
+            )
             samples.append(theta)
 
             if self.track_stats:
@@ -113,26 +115,22 @@ class Metropolis:
     def step(
         self,
         theta: Sample,
+        theta_constrained: Sample,
         potential_energy: Callable[[Sample], float],
         transformations: Dict[str, Transform],
-    ) -> Tuple[Sample, Dict[str, Any]]:
+    ) -> Tuple[Sample, Sample, Dict[str, Any]]:
         if self._steps_until_tune == 0 and self.tune:
             self._tune_scaling()
             self._accepted_since_tune = 0
             self._steps_until_tune = self.tune_interval
 
-        # TODO: These commands (up to acceptance ratio) can all be done in a single loop.
         theta_prop = {}
+        theta_prop_constrained = {}
 
         for name, param in theta.items():
             theta_prop[name] = param + self.proposal(param.shape) * self._scaling
+            theta_prop_constrained[name] = transformations[name](theta_prop[name])
 
-        theta_constrained = {k: transformations[k](v) for k, v in theta.items()}
-        theta_prop_constrained = {
-            k: transformations[k](v) for k, v in theta_prop.items()
-        }
-
-        # Reversed order than usual because the potential energy is minus log_prob.
         acceptance_ratio = potential_energy(theta_constrained) - potential_energy(
             theta_prop_constrained
         )
@@ -143,6 +141,7 @@ class Metropolis:
         ):
             accepted = True
             theta = theta_prop
+            theta_constrained = theta_prop_constrained
         else:
             accepted = False
 
@@ -156,7 +155,7 @@ class Metropolis:
             "scaling": self._scaling,
         }
 
-        return theta, stats
+        return theta, theta_constrained, stats
 
     def _tune_scaling(self):
         acceptance_rate = self._accepted_since_tune / self.tune_interval

@@ -16,4 +16,4 @@ Variate = torch.Tensor
 Sample = Dict[str, torch.Tensor]
 
 # Either an empty tuple (scalar) or a tuple of dimensions (array).
-Shape = Tuple[int, ...]
+Shape = Union[Tuple[int, ...], torch.Size]

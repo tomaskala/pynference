@@ -4,36 +4,9 @@ import torch
 from torch.distributions import Transform, Uniform, biject_to
 
 from pynference.constants import Sample
-from pynference.infrastructure import MessageType, Substitute, Trace
+from pynference.infrastructure import Condition, MessageType, Trace
 
-__all__ = [
-    "initialize_model",
-]
-
-
-def transform_parameters(
-    parameters: Sample, transformations: Dict[str, Transform], inverse: bool = False,
-) -> Sample:
-    """
-    Apply the given transformations to the sampled parameters. If a parameter without
-    a defined transformation is present, it is left untransformed.
-
-    If inverse is False, the forward transformation (unconstrained -> constraint) is applied.
-    Otherwise, the inverse transformation (constraint -> unconstrained) is applied.
-    :param parameters: dictionary of parameters
-    :param transformations: dictionary of transformations
-    :param inverse: whether to apply inverse or forward transformations
-    """
-    if inverse:
-        return {
-            k: transformations[k].inv(v) if k in transformations else v
-            for k, v in parameters.items()
-        }
-    else:
-        return {
-            k: transformations[k](v) if k in transformations else v
-            for k, v in parameters.items()
-        }
+__all__ = ["initialize_model"]
 
 
 def initialize_model(
@@ -80,7 +53,7 @@ def _get_potential_energy_fun(
 
 
 def _log_prob(model, theta_constrained: Sample, *args, **kwargs) -> float:
-    model = Substitute(model, condition=theta_constrained)
+    model = Condition(model, condition=theta_constrained)
     trace = Trace(model)
     return trace.log_prob(*args, **kwargs)
 

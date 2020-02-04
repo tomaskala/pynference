@@ -50,7 +50,7 @@ def main():
 
     n_samples = 10000
     proposal = "normal"
-    scale_init = 0.05
+    proposal_scale = 0.05
     init_strategy = "uniform"
     tune = True
 
@@ -58,7 +58,7 @@ def main():
         model=model,
         n_samples=n_samples,
         proposal=proposal,
-        scale_init=scale_init,
+        proposal_scale=proposal_scale,
         init_strategy=init_strategy,
         tune=tune,
     )

@@ -8,9 +8,9 @@ from typing import Any, Callable, Dict, List, Optional, OrderedDict, Tuple, Unio
 
 import numpy as np
 import torch
-from torch.distributions import Distribution, Transform, biject_to
+from torch.distributions import Distribution
 
-from pynference.constants import Parameter, Shape, Variate
+from pynference.constants import Parameter, Variate
 
 __all__ = [
     "sample",
@@ -20,12 +20,10 @@ __all__ = [
     "Block",
     "Seed",
     "Condition",
-    "Substitute",
 ]
 
 
 class MessageType(Enum):
-    PARAM = auto()
     SAMPLE = auto()
 
 
@@ -39,6 +37,7 @@ class Message:
     args: Tuple[Any, ...] = field(default_factory=tuple)
     kwargs: Dict[str, Any] = field(default_factory=dict)
     block: bool = field(default=False)
+    log_prob_sum: Union[float, None] = field(default=None)
 
 
 _MESSENGER_STACK: List["Messenger"] = []
@@ -92,16 +91,20 @@ def sample(
     name: str,
     dist: Distribution,
     observation: Optional[Variate] = None,
-    sample_shape: Shape = (),
+    *args,
+    **kwargs
 ) -> Variate:
     if not _MESSENGER_STACK:
-        return dist(sample_shape=sample_shape)
+        if callable(dist):
+            return dist(*args, **kwargs)
+        else:
+            return dist.sample(*args, **kwargs)
     else:
         message = Message(
             message_type=MessageType.SAMPLE,
             name=name,
             fun=dist,
-            kwargs={"sample_shape": sample_shape},
+            kwargs={},
             value=observation,
             is_observed=observation is not None,
         )
@@ -129,28 +132,14 @@ class Trace(Messenger):
 
         for name, message in trace.items():
             if message.message_type is MessageType.SAMPLE:
-                # TODO: Memoize inside messages?
-                log_prob += torch.sum(message.fun.log_prob(message.value))
+                if message.log_prob_sum is None:
+                    message.log_prob_sum = torch.sum(
+                        message.fun.log_prob(message.value)
+                    )
+
+                log_prob += message.log_prob_sum
 
         return log_prob
-
-    def transformations(self, *args, **kwargs) -> Dict[str, Transform]:
-        trace = self.trace(*args, **kwargs)
-        inv_transforms = {}
-
-        for name, message in trace.items():
-            if message.message_type is MessageType.SAMPLE and not message.is_observed:
-                # TODO: Add a condition for isinstance transformed distribution.
-                # TODO: If yes, replay_model=True and only biject to the base
-                # TODO: distribution support. Then use base_distribution_condition
-                # TODO: in inference/utils/log_prob.
-                inv_transforms[name] = biject_to(message.fun.support)
-            elif message.message_type is MessageType.PARAM:
-                constraint = kwargs.pop("constraint", real)
-                transformation = biject_to(constraint)
-                inv_transforms[name] = transformation
-
-        return inv_transforms
 
     def postprocess_message(self, message: Message):
         if message.message_type != MessageType.SAMPLE:
@@ -168,8 +157,24 @@ class Replay(Messenger):
         self.trace = trace
 
     def process_message(self, message: Message):
-        if message.name in self.trace and message.message_type is MessageType.SAMPLE:
-            message.value = self.trace[message.name].value
+        name = message.name
+
+        if name in self.trace and message.message_type is MessageType.SAMPLE:
+            trace_message = self.trace[name]
+
+            if message.is_observed:
+                return
+
+            if (
+                trace_message.message_type is not MessageType.SAMPLE
+                or trace_message.is_observed
+            ):
+                raise ValueError(
+                    "The message under the name {} must be a sample site "
+                    "in the replayed trace.".format(name)
+                )
+
+            message.value = trace_message.value
 
 
 class Block(Messenger):
@@ -210,93 +215,14 @@ class Seed(Messenger):
 
 
 class Condition(Messenger):
-    def __init__(
-        self,
-        fun: Callable[..., Variate],
-        condition: Optional[Dict[str, Parameter]] = None,
-        substitution: Optional[Callable[[OrderedDict[str, Message]], Parameter]] = None,
-    ):
-        if (condition is not None) + (substitution is not None) != 1:
-            raise ValueError(
-                "Provide exactly one of the condition dictionary or substitution function."
-            )
-
+    def __init__(self, fun: Callable[..., Variate], condition: Dict[str, Parameter]):
         super().__init__(fun=fun)
         self.condition = condition
-        self.substitution = substitution
 
     def process_message(self, message: Message):
         if message.message_type is MessageType.SAMPLE:
-            if message.is_observed:
-                raise ValueError(
-                    "Cannot condition an already observed sample site {}.".format(
-                        message.name
-                    )
-                )
+            name = message.name
 
-            if self.condition is not None:
-                if message.name in self.condition:
-                    value = self.condition[message.name]
-            else:
-                value = self.substitution(message)  # type: ignore
-
-            if value is not None:
-                message.value = value
-                message.is_observed = True
-
-
-class Substitute(Messenger):
-    def __init__(
-        self,
-        fun: Callable[..., Variate],
-        condition: Optional[Dict[str, Parameter]] = None,
-        base_distribution_condition: Optional[Dict[str, Parameter]] = None,
-        substitution: Optional[Callable[[OrderedDict[str, Message]], Parameter]] = None,
-    ):
-        if (condition is not None) + (base_distribution_condition is not None) + (
-            substitution is not None
-        ) != 1:
-            raise ValueError(
-                "Provide exactly one of the condition dictionary, base "
-                "distribution condition dictionary or substitution function."
-            )
-
-        super().__init__(fun=fun)
-        self.condition = condition
-        self.base_distribution_condition = base_distribution_condition
-        self.substitution = substitution
-
-    def process_message(self, message: Message):
-        if (
-            message.message_type is MessageType.SAMPLE
-            or message.message_type is MessageType.PARAM
-        ):
-            if self.condition is not None:
-                if message.name in self.condition:
-                    message.value = self.condition[message.name]
-            else:
-                if self.substitution is not None:
-                    base_value = self.substitution(message)
-                else:
-                    base_value = self.base_distribution_condition.get(  # type: ignore
-                        message.name, None
-                    )
-
-                if base_value is not None:
-                    if message.message_type is MessageType.SAMPLE:
-                        if isinstance(message.fun, TransformedDistribution):
-                            for t in message.fun.transformation:
-                                base_value = t(base_value)
-
-                        message.value = base_value
-                    else:
-                        constraint = message.kwargs.pop("constraint", real)
-                        transformation = biject_to(constraint)
-
-                        # if isinstance(transformation, ComposeTransformation):
-                            # skip_first = ComposeTransformation(
-                                # transformation.transformations[1:]
-                            # )
-                            # message.value = skip_first(base_value)
-                        # else:
-                        message.value = base_value
+            if name in self.condition:
+                message.value = self.condition[name]
+                message.is_observed = message.value is not None
