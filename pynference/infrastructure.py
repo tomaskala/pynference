@@ -8,15 +8,9 @@ from typing import Any, Callable, Dict, List, Optional, OrderedDict, Tuple, Unio
 
 import numpy as np
 import torch
+from torch.distributions import Distribution, Transform, biject_to
 
 from pynference.constants import Parameter, Shape, Variate
-from pynference.distributions.constraints import real
-from pynference.distributions.distribution import Distribution, TransformedDistribution
-from pynference.distributions.transformations import (
-    ComposeTransformation,
-    Transformation,
-    biject_to,
-)
 
 __all__ = [
     "sample",
@@ -140,7 +134,7 @@ class Trace(Messenger):
 
         return log_prob
 
-    def transformations(self, *args, **kwargs) -> Dict[str, Transformation]:
+    def transformations(self, *args, **kwargs) -> Dict[str, Transform]:
         trace = self.trace(*args, **kwargs)
         inv_transforms = {}
 
@@ -299,10 +293,10 @@ class Substitute(Messenger):
                         constraint = message.kwargs.pop("constraint", real)
                         transformation = biject_to(constraint)
 
-                        if isinstance(transformation, ComposeTransformation):
-                            skip_first = ComposeTransformation(
-                                transformation.transformations[1:]
-                            )
-                            message.value = skip_first(base_value)
-                        else:
-                            message.value = base_value
+                        # if isinstance(transformation, ComposeTransformation):
+                            # skip_first = ComposeTransformation(
+                                # transformation.transformations[1:]
+                            # )
+                            # message.value = skip_first(base_value)
+                        # else:
+                        message.value = base_value
