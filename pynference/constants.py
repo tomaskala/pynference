@@ -1,19 +1,19 @@
 from typing import Dict, Tuple, Union
 
-import numpy as np
+import torch
 
 # Return type of a probability evaluation.
-ArrayLike = Union[float, np.ndarray]
+ArrayLike = Union[float, torch.Tensor]
 
 # Parameters of probability distributions.
-Parameter = np.ndarray
+Parameter = torch.Tensor
 
 # Return type of distribution sampling.
-Variate = np.ndarray
+Variate = torch.Tensor
 
 # Output of inference algorithms. The log-prob of
 # these is evaluated within probabilistic models.
-Sample = Dict[str, np.ndarray]
+Sample = Dict[str, torch.Tensor]
 
 # Either an empty tuple (scalar) or a tuple of dimensions (array).
 Shape = Tuple[int, ...]

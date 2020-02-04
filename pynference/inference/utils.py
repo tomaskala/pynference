@@ -1,50 +1,18 @@
-from typing import Dict
+from typing import Callable, Dict, Tuple
 
-import numpy as np
-from numpy.random import RandomState
+import torch
+from torch.distributions import Transform, Uniform, biject_to
 
 from pynference.constants import Sample
-from pynference.distributions.transformations import Transformation
-from pynference.infrastructure import Seed, Substitute, Trace
+from pynference.infrastructure import MessageType, Substitute, Trace
 
 __all__ = [
-    "get_model_transformations",
-    "potential_energy",
-    "log_prob",
-    "transform_parameters",
+    "initialize_model",
 ]
 
 
-def get_model_transformations(
-    model, random_state: RandomState, *args, **kwargs
-) -> Dict[str, Transformation]:
-    model = Seed(model, random_state)
-    trace = Trace(model)
-    return trace.transformations(*args, **kwargs)
-
-
-def potential_energy(
-    model, transformations: Dict[str, Transformation], theta: Sample, *args, **kwargs
-) -> float:
-    theta_constrained = transform_parameters(theta, transformations, inverse=False)
-    log_p = log_prob(model, theta_constrained, *args, **kwargs)
-
-    for name, transformation in transformations.items():
-        log_p += np.sum(transformation.log_abs_J(theta[name], theta_constrained[name]))
-
-    return -log_p
-
-
-def log_prob(model, theta_constrained: Sample, *args, **kwargs) -> float:
-    model = Substitute(model, condition=theta_constrained)
-    trace = Trace(model)
-    return trace.log_prob(*args, **kwargs)
-
-
 def transform_parameters(
-    parameters: Sample,
-    transformations: Dict[str, Transformation],
-    inverse: bool = False,
+    parameters: Sample, transformations: Dict[str, Transform], inverse: bool = False,
 ) -> Sample:
     """
     Apply the given transformations to the sampled parameters. If a parameter without
@@ -58,7 +26,7 @@ def transform_parameters(
     """
     if inverse:
         return {
-            k: transformations[k].inverse(v) if k in transformations else v
+            k: transformations[k].inv(v) if k in transformations else v
             for k, v in parameters.items()
         }
     else:
@@ -66,3 +34,82 @@ def transform_parameters(
             k: transformations[k](v) if k in transformations else v
             for k, v in parameters.items()
         }
+
+
+def initialize_model(
+    model, init_strategy: str, *args, **kwargs
+) -> Tuple[Sample, Callable[[Sample], float], Dict[str, Transform]]:
+    trace = Trace(model).trace(*args, **kwargs)
+    dummy_samples = {}
+    transformations = {}
+
+    for name, message in trace.items():
+        if message.message_type is MessageType.SAMPLE and not message.is_observed:
+            dummy_samples[name] = message.value.detach()
+            transformations[name] = biject_to(message.fun.support)
+
+    potential_energy = _get_potential_energy_fun(
+        model, transformations, *args, **kwargs
+    )
+    initial_samples = _get_initial_samples(
+        model, init_strategy, dummy_samples, transformations, *args, **kwargs
+    )
+
+    return initial_samples, potential_energy, transformations
+
+
+def _get_potential_energy_fun(
+    model, transformations: Dict[str, Transform], *args, **kwargs
+) -> Callable[[Sample], float]:
+    def _potential_energy(theta: Sample) -> float:
+        nonlocal model, transformations, args, kwargs
+
+        theta_constrained = {k: transformations[k](v) for k, v in theta.items()}
+        log_p = _log_prob(model, theta_constrained, *args, **kwargs)
+
+        for name, transformation in transformations.items():
+            log_p += torch.sum(
+                transformation.log_abs_det_jacobian(
+                    theta[name], theta_constrained[name]
+                )
+            )
+
+        return -log_p
+
+    return _potential_energy
+
+
+def _log_prob(model, theta_constrained: Sample, *args, **kwargs) -> float:
+    model = Substitute(model, condition=theta_constrained)
+    trace = Trace(model)
+    return trace.log_prob(*args, **kwargs)
+
+
+def _get_initial_samples(
+    model,
+    init_strategy: str,
+    dummy_samples: Sample,
+    transformations: Dict[str, Transform],
+    *args,
+    **kwargs
+) -> Sample:
+    if init_strategy == "prior":
+        trace = Trace(model).trace(*args, **kwargs)
+        samples = {name: trace[name].value.detach() for name in dummy_samples}
+        return {
+            name: transformations[name].inv(sample) for name, sample in samples.items()
+        }
+    elif init_strategy == "uniform":
+        radius = 2.0
+        return {
+            name: Uniform(
+                sample.new_full(sample.shape, -radius),
+                sample.new_full(sample.shape, radius),
+            ).sample()
+            for name, sample in dummy_samples.items()
+        }
+    else:
+        raise ValueError(
+            "Unrecognized initialization strategy: {}. Only `prior` "
+            "and `uniform` are supported.".format(init_strategy)
+        )

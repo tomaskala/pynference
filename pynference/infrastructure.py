@@ -1,12 +1,13 @@
 import abc
 import collections
+import random
 from copy import copy
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any, Callable, Dict, List, Optional, OrderedDict, Tuple
+from typing import Any, Callable, Dict, List, Optional, OrderedDict, Tuple, Union
 
 import numpy as np
-from numpy.random import RandomState
+import torch
 
 from pynference.constants import Parameter, Shape, Variate
 from pynference.distributions.constraints import real
@@ -39,7 +40,7 @@ class Message:
     message_type: MessageType
     name: str
     fun: Callable[..., Variate]
-    value: Variate
+    value: Optional[Variate]
     is_observed: bool
     args: Tuple[Any, ...] = field(default_factory=tuple)
     kwargs: Dict[str, Any] = field(default_factory=dict)
@@ -62,7 +63,10 @@ class Messenger(abc.ABC):
 
     def __call__(self, *args, **kwargs) -> Variate:
         with self:
-            return self.fun(*args, **kwargs)
+            if callable(self.fun):
+                return self.fun(*args, **kwargs)
+            else:
+                return self.fun.sample(*args, **kwargs)
 
     def process_message(self, message: Message):
         pass
@@ -79,7 +83,10 @@ def _apply_stack(message: Message) -> Message:
             break
 
     if message.value is None:
-        message.value = message.fun(*message.args, **message.kwargs)
+        if callable(message.fun):
+            message.value = message.fun(*message.args, **message.kwargs)
+        else:
+            message.value = message.fun.sample(*message.args, **message.kwargs)
 
     for messenger in _MESSENGER_STACK[-i - 1 :]:
         messenger.postprocess_message(message)
@@ -92,16 +99,15 @@ def sample(
     dist: Distribution,
     observation: Optional[Variate] = None,
     sample_shape: Shape = (),
-    random_state: RandomState = None,
 ) -> Variate:
     if not _MESSENGER_STACK:
-        return dist(sample_shape=sample_shape, random_state=random_state)
+        return dist(sample_shape=sample_shape)
     else:
         message = Message(
             message_type=MessageType.SAMPLE,
             name=name,
             fun=dist,
-            kwargs={"sample_shape": sample_shape, "random_state": random_state},
+            kwargs={"sample_shape": sample_shape},
             value=observation,
             is_observed=observation is not None,
         )
@@ -130,7 +136,7 @@ class Trace(Messenger):
         for name, message in trace.items():
             if message.message_type is MessageType.SAMPLE:
                 # TODO: Memoize inside messages?
-                log_prob += np.sum(message.fun.log_prob(message.value))
+                log_prob += torch.sum(message.fun.log_prob(message.value))
 
         return log_prob
 
@@ -187,17 +193,26 @@ class Block(Messenger):
 
 
 class Seed(Messenger):
-    def __init__(self, fun: Callable[..., Variate], random_state: RandomState):
+    def __init__(self, fun: Callable[..., Variate], random_seed: Union[int, None]):
         super().__init__(fun=fun)
-        self.random_state = random_state
+        self.random_seed = random_seed
+        self.old_state: Dict[str, Any] = {}
 
-    def process_message(self, message: Message):
-        if (
-            message.message_type is MessageType.SAMPLE
-            and not message.is_observed
-            and message.kwargs["random_state"] is None
-        ):
-            message.kwargs["random_state"] = self.random_state
+    def __enter__(self):
+        self.old_state = {
+            "torch": torch.get_rng_state(),
+            "random": random.getstate(),
+            "numpy": np.random.get_state(),
+        }
+
+        torch.manual_seed(self.random_seed)
+        random.seed(self.random_seed)
+        np.random.seed(self.random_seed)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        torch.set_rng_state(self.old_state["torch"])
+        random.setstate(self.old_state["random"])
+        np.random.set_state(self.old_state["numpy"])
 
 
 class Condition(Messenger):

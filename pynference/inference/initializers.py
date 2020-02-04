@@ -1,12 +1,10 @@
 from functools import partial
-from typing import Callable
+from typing import Callable, Optional
 
-import numpy as np
-from numpy.random import RandomState
+from torch.distributions import Uniform, biject_to
 
 from pynference.constants import Sample, Shape, Variate
-from pynference.distributions import TransformedDistribution, Uniform
-from pynference.distributions.transformations import biject_to
+from pynference.distributions import TransformedDistribution
 from pynference.inference.utils import transform_parameters
 from pynference.infrastructure import (
     Block,
@@ -18,17 +16,17 @@ from pynference.infrastructure import (
     sample,
 )
 
-__all__ = ["initialize", "init_to_mean", "init_to_prior", "init_to_uniform"]
+__all__ = ["initialize", "init_to_prior", "init_to_uniform"]
 
 
 def initialize(
     model,
     initializer: Callable[[Message], Variate],
-    random_state: RandomState,
+    random_seed: Optional[int] = None,
     *args,
     **kwargs
 ) -> Sample:
-    model = Substitute(model, substitution=Block(Seed(initializer, random_state)))
+    model = Substitute(model, substitution=Block(Seed(initializer, random_seed)))
     trace = Trace(model).trace(*args, **kwargs)
 
     constrained = {}
@@ -63,13 +61,12 @@ def _sample_from_message(message: Message, sample_shape: Shape) -> Variate:
         )
 
 
+# TODO: Init to prior: sample from the prior distribution, unconstrain (.inv).
+# TODO: Init to uniform: sample from uniform, keep unconstrained.
+
+
 def _init_to_prior(message: Message) -> Variate:
     return _sample_from_message(message, sample_shape=())
-
-
-def _init_to_mean(message: Message, n_samples: int) -> Variate:
-    samples = _sample_from_message(message, sample_shape=(n_samples,))
-    return np.mean(samples, axis=0)
 
 
 def _init_to_uniform(message: Message, radius: float) -> Variate:
@@ -83,11 +80,12 @@ def _init_to_uniform(message: Message, radius: float) -> Variate:
             "_initialization", dist, sample_shape=message.kwargs["sample_shape"]
         )
         transformation = biject_to(dist.support)
+        uniform_sample = Uniform().sample()
 
         uniform_sample = sample(
             "_uniform",
             Uniform(lower=-radius, upper=radius),
-            sample_shape=np.shape(transformation.inverse(dummy)),
+            sample_shape=transformation.inv(dummy).shape,
         )
         return transformation(uniform_sample)
     else:
@@ -100,10 +98,6 @@ def _init_to_uniform(message: Message, radius: float) -> Variate:
 
 def init_to_prior() -> Callable[[Message], Variate]:
     return _init_to_prior
-
-
-def init_to_mean(n_samples: int = 20) -> Callable[[Message], Variate]:
-    return partial(_init_to_mean, n_samples=n_samples)
 
 
 def init_to_uniform(radius: float = 2.0) -> Callable[[Message], Variate]:

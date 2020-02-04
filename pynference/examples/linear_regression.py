@@ -1,48 +1,57 @@
 """
 isort:skip
 """
+import math
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent.parent.resolve()))
 
 import matplotlib.pyplot as plt
-import numpy as np
+import torch
+import torch.distributions as dist
 
-from pynference.distributions import InverseGamma, MultivariateNormal
-from pynference.inference import Metropolis, init_to_uniform
+from pynference.inference import Metropolis
 from pynference.infrastructure import sample
-from pynference.utils import check_random_state
 
 
 def model(X, y, a0, b0, Sigma0):
-    sigma2 = sample("sigma2", InverseGamma(shape=a0, scale=b0))
+    sigma2 = sample("sigma2", dist.Gamma(concentration=a0, rate=b0))
     beta = sample(
         "beta",
-        MultivariateNormal(mean=np.zeros(Sigma0.shape[0]), covariance_matrix=Sigma0),
+        dist.MultivariateNormal(
+            loc=torch.zeros(Sigma0.shape[0]), covariance_matrix=Sigma0
+        ),
     )
-    sample("y", MultivariateNormal(mean=X @ beta, variance=sigma2), observation=y)
+    sample(
+        "y",
+        dist.MultivariateNormal(
+            loc=X @ beta, precision_matrix=sigma2 * torch.eye(X.shape[0])
+        ),
+        observation=y,
+    )
 
 
 def main():
-    random_state = check_random_state(123)
+    torch.manual_seed(123)
 
     n = 100
-    X = np.ones(shape=(n, 2))
-    X[:, 1] = random_state.normal(scale=2.0, size=n)
+    X = torch.ones(size=(n, 2))
+    X[:, 1] = torch.normal(mean=torch.zeros(n), std=2.0)
 
     sigma2_true = 0.5
-    beta_true = np.array([2.0, 1.0])
+    beta_true = torch.tensor([2.0, 1.0])
 
-    y = X @ beta_true + random_state.normal(scale=np.sqrt(sigma2_true), size=n)
+    eps = torch.normal(mean=torch.zeros(n), std=math.sqrt(sigma2_true))
+    y = X @ beta_true + eps
 
     a0 = 2.0
     b0 = 1.0
-    Sigma0 = np.array([[1.0, 0.0], [0.0, 1.0]])
+    Sigma0 = torch.tensor([[1.0, 0.0], [0.0, 1.0]])
 
     n_samples = 10000
     proposal = "normal"
     scale_init = 0.05
-    init = init_to_uniform()
+    init_strategy = "uniform"
     tune = True
 
     mcmc = Metropolis(
@@ -50,14 +59,13 @@ def main():
         n_samples=n_samples,
         proposal=proposal,
         scale_init=scale_init,
-        init=init,
+        init_strategy=init_strategy,
         tune=tune,
-        random_state=random_state,
     )
     samples = mcmc.run(X=X, y=y, a0=a0, b0=b0, Sigma0=Sigma0)
 
-    sigma2s = np.zeros(shape=n_samples)
-    betas = np.zeros(shape=(n_samples, 2))
+    sigma2s = torch.zeros(size=(n_samples,))
+    betas = torch.zeros(size=(n_samples, 2))
 
     for i, theta in enumerate(samples):
         sigma2s[i] = theta["sigma2"]
@@ -77,9 +85,9 @@ def main():
     ax3.axhline(sigma2_true, color="red")
 
     print("mean(sigma^2)")
-    print(np.mean(sigma2s))
+    print(torch.mean(sigma2s))
     print("mean(betas)")
-    print(np.mean(betas, axis=0))
+    print(torch.mean(betas, axis=0))
 
     plt.tight_layout()
     plt.show()
