@@ -1,191 +1,36 @@
-import abc
-from typing import Dict, List, Tuple, Union
+from abc import ABC, abstractmethod
 
-import numpy as np
-from numpy.random import RandomState
-
-from pynference.constants import ArrayLike, Parameter, Shape, Variate
-from pynference.distributions.constraints import Constraint
-from pynference.distributions.transformations import Transformation
-from pynference.distributions.utils import sum_last
-from pynference.utils import check_random_state
+import torch
+import torch.distributions as distributions
 
 
-class Distribution(abc.ABC):
-    _constraints: Dict[str, Constraint] = {}
-    _support: Constraint = None  # type: ignore
-
-    def __init__(
-        self,
-        batch_shape: Shape,
-        rv_shape: Shape,
-        check_parameters: bool = True,
-        check_support: bool = True,
-    ):
-        self.batch_shape = batch_shape
-        self.rv_shape = rv_shape
-        self.check_parameters = check_parameters
-        self.check_support = check_support
-
-    def __call__(self, sample_shape: Shape = (), random_state=None) -> Variate:
-        return self.sample(sample_shape=sample_shape, random_state=random_state)
-
-    def __setattr__(self, name, value):
-        if (
-            hasattr(self, "check_parameters")
-            and self.check_parameters
-            and name in self._constraints
-        ):
-            constraint = self._constraints[name]
-            self._check_parameter(constraint, name, value)
-
-        super().__setattr__(name, value)
-
-    def _check_parameter(self, constraint, name, value):
-        if not np.all(constraint(value)):
-            raise ValueError(
-                f"Invalid value for {name}: {value}. The parameter must satisfy the constraint '{constraint}'."
-            )
-
-    @property
-    def support(self) -> Constraint:
-        return self._support
-
-    @property
-    @abc.abstractmethod
-    def mean(self) -> Parameter:
+class DistributionABC(ABC):
+    @abstractmethod
+    def sample(self, sample_shape: torch.Size = torch.Size()) -> torch.Tensor:
         pass
 
-    @property
-    @abc.abstractmethod
-    def variance(self) -> Parameter:
+    @abstractmethod
+    def log_prob(self, x: torch.Tensor) -> torch.Tensor:
         pass
 
-    def log_prob(self, x: Variate) -> ArrayLike:
-        if self.check_support:
-            self._validate_input(x)
-
-        return self._log_prob(x)
-
-    @abc.abstractmethod
-    def _log_prob(self, x: Variate) -> ArrayLike:
-        pass
-
-    def sample(self, sample_shape: Shape = (), random_state=None) -> Variate:
-        random_state = check_random_state(random_state)
-        return self._sample(sample_shape, random_state)
-
-    @abc.abstractmethod
-    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        pass
-
-    def _validate_input(self, x: Variate):
-        if not np.all(self.support(x)):
-            raise ValueError(f"The variate {x} lies outside the support.")
+    def __call__(self, sample_shape: torch.Size = torch.Size()) -> torch.Tensor:
+        return self.sample(sample_shape)
 
 
-class ExponentialFamily(Distribution):
-    """
-    Exponential family distribution of the form
-        h(x) \exp{(\eta^T t(x) - a(\eta))},
-    where h(x) is the base measure;
-          \eta is the natural parameter;
-          t(x) is the sufficient statistic;
-          a(\eta) is the log-normalizer.
-
-    The natural parameters and sufficient statistics are given as tuples instead
-    of arrays since the batch dimensions of the individual parameters may differ.
-    """
-
-    @property
-    @abc.abstractmethod
-    def natural_parameter(self) -> Tuple[Parameter, ...]:
-        pass
-
-    @property
-    @abc.abstractmethod
-    def log_normalizer(self) -> Parameter:
-        pass
-
-    @abc.abstractmethod
-    def base_measure(self, x: Variate) -> ArrayLike:
-        pass
-
-    @abc.abstractmethod
-    def sufficient_statistic(self, x: Variate) -> Tuple[ArrayLike, ...]:
-        pass
-
-
-class TransformedDistribution(Distribution):
-    def __init__(
-        self,
-        base_distribution: Distribution,
-        transformation: Union[Transformation, List[Transformation]],
-        check_parameters: bool = True,
-        check_support: bool = True,
-    ):
-        if isinstance(transformation, Transformation):
-            transformation = [transformation]
-
-        self.base_distribution: Distribution
-        self.transformation: List[Transformation]
-
-        if isinstance(base_distribution, TransformedDistribution):
-            self.base_distribution = base_distribution.base_distribution
-            self.transformation = base_distribution.transformation + transformation
+class DistributionMixin(DistributionABC):
+    def __call__(self, sample_shape: torch.Size = torch.Size()) -> torch.Tensor:
+        if self.has_rsample:  # type: ignore
+            return self.rsample(sample_shape)  # type: ignore
         else:
-            self.base_distribution = base_distribution
-            self.transformation = transformation
+            return self.sample(sample_shape)
 
-        # Register batch and random variable shapes.
-        base_shape = base_distribution.batch_shape + base_distribution.rv_shape
-        max_shape = max(
-            [len(base_distribution.rv_shape)] + [t.rv_dim for t in transformation]
-        )
+    @property
+    def event_dim(self) -> int:
+        return len(self.event_shape)  # type: ignore
 
-        batch_shape = base_shape[: len(base_shape) - max_shape]
-        rv_shape = base_shape[len(base_shape) - max_shape :]
+    def shape(self, sample_shape: torch.Size = torch.Size()) -> torch.Size:
+        return sample_shape + self.batch_shape + self.event_shape  # type: ignore
 
-        # Register the support after transformation.
-        domain = base_distribution.support
 
-        for t in transformation:
-            t.domain = domain
-            domain = t.codomain
-
-        self._support = domain
-
-        super().__init__(
-            batch_shape=batch_shape,
-            rv_shape=rv_shape,
-            check_parameters=check_parameters,
-            check_support=check_support,
-        )
-
-    def _log_prob(self, x: Variate) -> ArrayLike:
-        # Transformation theorem in the log domain.
-        log_prob = 0.0
-        rv_dim = len(self.rv_shape)
-        y = x
-
-        for t in reversed(self.transformation):
-            x = t.inverse(y)
-            dim_diff = rv_dim - t.rv_dim
-
-            log_det = t.log_abs_J(x, y)
-            sum_log_det = sum_last(log_det, dim_diff)
-            log_prob -= sum_log_det
-
-            y = x
-
-        dim_diff = rv_dim - len(self.base_distribution.rv_shape)
-        log_prob += sum_last(self.base_distribution.log_prob(y), dim_diff)
-        return log_prob
-
-    def _sample(self, sample_shape: Shape, random_state: RandomState) -> Variate:
-        epsilon = self.base_distribution.sample(sample_shape, random_state)
-
-        for t in self.transformation:
-            epsilon = t(epsilon)
-
-        return epsilon
+class Distribution(distributions.Distribution, DistributionMixin):
+    pass

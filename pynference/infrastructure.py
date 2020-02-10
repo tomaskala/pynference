@@ -56,10 +56,7 @@ class Messenger(abc.ABC):
 
     def __call__(self, *args, **kwargs) -> Variate:
         with self:
-            if callable(self.fun):
-                return self.fun(*args, **kwargs)
-            else:
-                return self.fun.sample(*args, **kwargs)
+            return self.fun(*args, **kwargs)
 
     def process_message(self, message: Message):
         pass
@@ -76,10 +73,7 @@ def _apply_stack(message: Message) -> Message:
             break
 
     if message.value is None:
-        if callable(message.fun):
-            message.value = message.fun(*message.args, **message.kwargs)
-        else:
-            message.value = message.fun.sample(*message.args, **message.kwargs)
+        message.value = message.fun(*message.args, **message.kwargs)
 
     for messenger in _MESSENGER_STACK[-i - 1 :]:
         messenger.postprocess_message(message)
@@ -95,10 +89,7 @@ def sample(
     **kwargs
 ) -> Variate:
     if not _MESSENGER_STACK:
-        if callable(dist):
-            return dist(*args, **kwargs)
-        else:
-            return dist.sample(*args, **kwargs)
+        return dist(*args, **kwargs)
     else:
         message = Message(
             message_type=MessageType.SAMPLE,

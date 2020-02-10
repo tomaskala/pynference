@@ -1,3 +1,2 @@
-from pynference.distributions.continuous_multivariate import *  # noqa
-from pynference.distributions.continuous_univariate import *  # noqa
-from pynference.distributions.discrete_univariate import *  # noqa
+from pynference.distributions.torch_patch import *  # noqa F403
+from pynference.distributions.truncated_normal import TruncatedNormal
