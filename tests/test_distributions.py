@@ -22,7 +22,9 @@ SCIPY_DISTS = {
 
 def create_dist(dist_cls, *args):
     scipy_dist = SCIPY_DISTS.get(dist_cls, None)
-    scipy_instance = scipy_dist(*[arg if isinstance(arg, Number) else arg.numpy() for arg in args])
+    scipy_instance = scipy_dist(
+        *[arg if isinstance(arg, Number) else arg.numpy() for arg in args]
+    )
     return Dist(dist_cls, scipy_instance, args)
 
 

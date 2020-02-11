@@ -1,5 +1,4 @@
 import math
-from numbers import Number
 
 import torch
 from scipy.special import log_ndtr
@@ -97,7 +96,7 @@ class TruncatedNormal(Distribution):
 
         # Z
         Z = torch.zeros_like(self._alpha)
-        use_cdf = (self._alpha <= 0.0)
+        use_cdf = self._alpha <= 0.0
 
         cdf_a = self._normal.cdf(self._alpha)
         cdf_b = self._normal.cdf(self._beta)
@@ -164,7 +163,7 @@ class TruncatedNormal(Distribution):
         return self._normal.log_prob(self._xi(x)) - torch.log(self.scale) - self._log_Z
 
     def _phi(self, x):
-        return torch.exp(-x ** 2 / 2.0) / math.sqrt(2.0 * math.pi)
+        return torch.exp(-(x ** 2) / 2.0) / math.sqrt(2.0 * math.pi)
 
     def _log_Phi(self, x):
         return log_ndtr(x)
