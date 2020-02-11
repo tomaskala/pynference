@@ -1,15 +1,16 @@
+import inspect
 from collections import namedtuple
 from numbers import Number
-import inspect
 
 import pytest
 import torch
-from torch.distributions import constraints
 from scipy import stats
+from torch.distributions import constraints
+from torch.testing import assert_allclose
 
 from pynference.distributions import TruncatedNormal
 
-Dist = namedtuple("Dist", ["dist", "scipy_dist", "args"])
+Dist = namedtuple("Dist", ["dist", "scipy_instance", "args"])
 
 
 SCIPY_DISTS = {
@@ -21,10 +22,10 @@ SCIPY_DISTS = {
 
 def create_dist(dist_cls, *args):
     scipy_dist = SCIPY_DISTS.get(dist_cls, None)
-    return Dist(dist_cls, scipy_dist, args)
+    scipy_instance = scipy_dist(*[arg if isinstance(arg, Number) else arg.numpy() for arg in args])
+    return Dist(dist_cls, scipy_instance, args)
 
 
-# TODO: Handle the case when either bound is infinite.
 DISTRIBUTIONS = [
     create_dist(
         TruncatedNormal,
@@ -99,23 +100,33 @@ def generate_within(constraint, size):
 
     if isinstance(constraint, constraints._Real):
         return torch.normal(mean=torch.zeros(size), std=1.0)
-    elif isinstance(constraint, constraints._GreaterThan) and constraint.lower_bound == 0.0:
+    elif (
+        isinstance(constraint, constraints._GreaterThan)
+        and constraint.lower_bound == 0.0
+    ):
         return torch.rand(size) + eps
     elif isinstance(constraint, constraints._Dependent):
         return torch.normal(mean=torch.zeros(size), std=1.0)
     else:
-        raise NotImplementedError("Generating values within {} is not implemented.".format(constraint))
+        raise NotImplementedError(
+            "Generating values within {} is not implemented.".format(constraint)
+        )
 
 
 def generate_outside(constraint, size):
     if isinstance(constraint, constraints._Real):
         return torch.full(size, float("NaN"))
-    elif isinstance(constraint, constraints._GreaterThan) and constraint.lower_bound == 0.0:
+    elif (
+        isinstance(constraint, constraints._GreaterThan)
+        and constraint.lower_bound == 0.0
+    ):
         return -torch.rand(size)
     elif isinstance(constraint, constraints._Dependent):
         return torch.normal(mean=torch.zeros(size), std=1.0)
     else:
-        raise NotImplementedError("Generating values outside {} is not implemented.".format(constraint))
+        raise NotImplementedError(
+            "Generating values outside {} is not implemented.".format(constraint)
+        )
 
 
 @pytest.fixture(autouse=True)
@@ -123,8 +134,8 @@ def reset_rng_state():
     torch.manual_seed(123)
 
 
-@pytest.mark.parametrize("dist, scipy_dist, params", DISTRIBUTIONS)
-def test_constraints(dist, scipy_dist, params):
+@pytest.mark.parametrize("dist, scipy_instance, params", DISTRIBUTIONS)
+def test_constraints(dist, scipy_instance, params):
     dist_args = [param.name for param in inspect.signature(dist).parameters.values()]
     within = []
     outside = []
@@ -169,18 +180,62 @@ def test_constraints(dist, scipy_dist, params):
         pytest.fail("{} failed on parameters within the boundaries.".format(dist))
 
 
-@pytest.mark.parametrize("dist, scipy_dist, params", DISTRIBUTIONS)
-def test_moments(dist, scipy_dist, params):
-    pass
+@pytest.mark.parametrize("dist, scipy_instance, params", DISTRIBUTIONS)
+def test_moments(dist, scipy_instance, params):
+    n_samples = 50000
+    atol = 1e-2
+    rtol = 0.1
+
+    dist_instance = dist(*params)
+    samples = dist_instance.sample((n_samples,))
+
+    assert_allclose(dist_instance.mean, samples.mean(0), atol=atol, rtol=rtol)
+    # assert_allclose(dist_instance.stddev, samples.std(0), atol=atol, rtol=rtol)
 
 
-@pytest.mark.parametrize("dist, scipy_dist, params", DISTRIBUTIONS)
+@pytest.mark.parametrize("dist, scipy_instance, params", DISTRIBUTIONS)
 @pytest.mark.parametrize("sample_shape", [(), (2,), (2, 3)])
-def test_log_prob(dist, scipy_dist, params, sample_shape):
-    pass
+def test_prob(dist, scipy_instance, params, sample_shape):
+    atol = 1e-5
+    rtol = 0.05
+
+    if not scipy_instance:
+        pytest.skip("No corresponding SciPy distribution.")
+
+    dist_instance = dist(*params)
+    samples = dist_instance.sample(sample_shape)
+
+    dist_log_prob = dist_instance.log_prob(samples)
+    scipy_log_prob = scipy_instance.logpdf(samples.numpy())
+    assert_allclose(dist_log_prob, scipy_log_prob, atol=atol, rtol=rtol)
+
+    dist_cdf = dist_instance.cdf(samples)
+    scipy_cdf = scipy_instance.cdf(samples.numpy())
+    assert_allclose(dist_cdf, scipy_cdf, atol=atol, rtol=rtol)
+
+    if sample_shape == ():
+        uniform_samples = torch.rand(sample_shape)
+        dist_icdf = dist_instance.icdf(uniform_samples)
+        scipy_icdf = scipy_instance.ppf(uniform_samples)
+        assert_allclose(dist_icdf, scipy_icdf, atol=atol, rtol=rtol)
 
 
-@pytest.mark.parametrize("dist, scipy_dist, params", DISTRIBUTIONS)
+@pytest.mark.parametrize("dist, scipy_instance, params", DISTRIBUTIONS)
 @pytest.mark.parametrize("sample_shape", [(), (2,), (2, 3)])
-def test_sampling_shapes(dist, scipy_dist, params, sample_shape):
+def test_icdf(dist, scipy_instance, params, sample_shape):
+    atol = 1e-5
+    rtol = 0.05
+
+    dist_instance = dist(*params)
+    samples = dist_instance.sample(sample_shape)
+
+    cdf = dist_instance.cdf(samples)
+    icdf = dist_instance.icdf(cdf)
+
+    assert_allclose(icdf, samples, atol=atol, rtol=rtol)
+
+
+@pytest.mark.parametrize("dist, scipy_instance, params", DISTRIBUTIONS)
+@pytest.mark.parametrize("sample_shape", [(), (2,), (2, 3)])
+def test_sampling_shapes(dist, scipy_instance, params, sample_shape):
     pass
