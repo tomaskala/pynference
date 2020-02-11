@@ -21,6 +21,27 @@ class TruncatedNormal(Distribution):
 
     @property
     def mean(self):
+        phi_a = self._phi(self._alpha)
+        phi_b = self._phi(self._beta)
+
+        # Two-sided truncation.
+        A = phi_a / self._Z
+        B = phi_b / self._Z
+        result = A - B
+
+        # Right-sided truncation.
+        a_inf = torch.isinf(self._alpha)
+        B = phi_b / self._normal.cdf(self._beta)
+        result[a_inf] = -B[a_inf]
+
+        # Left-sided truncation.
+        b_inf = torch.isinf(self._beta)
+        A = phi_a / self._normal.cdf(-self._alpha)
+        result[b_inf] = A[b_inf]
+
+        # No truncation at all.
+        result[a_inf & b_inf] = 0.0
+
         result = (self._phi(self._alpha) - self._phi(self._beta)) / self._Z
         return self.loc + self.scale * result
 
