@@ -65,7 +65,7 @@ class TruncatedNormal(Distribution):
         Phi_alpha[self._alpha > self.TRIM] = 1.0
 
         # Z
-        Z = self._normal.cdf(self._beta) - Phi_alpha
+        Z = torch.zeros_like(self._alpha)
         use_cdf = (self._alpha <= 0.0)
 
         cdf_a = self._normal.cdf(self._alpha)
@@ -120,30 +120,13 @@ class TruncatedNormal(Distribution):
         return (self._normal.cdf(self._xi(x)) - self._Phi_alpha) / self._Z
 
     def entropy(self):
-        result = math.log(2.0 * math.pi)
-        result += 1.0
-        result += (
-            math.log(self.scale)
-            if isinstance(self.scale, Number)
-            else torch.log(self.scale)
-        )
-        result += (
-            math.log(self._Z) if isinstance(self._Z, Number) else torch.log(self._Z)
-        )
+        result = math.log(2.0 * math.pi) + 1.0 + torch.log(self.scale) + self._log_Z
         result += (
             self._alpha * self._phi(self._alpha) - self._beta * self._phi(self._beta)
         ) / (2.0 * self._Z)
         return result
 
     def icdf(self, x):
-        print("Z")
-        print(self._Z)
-        print("Phi alpha")
-        print(self._Phi_alpha)
-        print("icdf")
-        print(self._normal.icdf(self._Z * x + self._Phi_alpha))
-        print("icdf is inf")
-        print(torch.isinf(self._normal.icdf(self._Z * x + self._Phi_alpha)).any())
         return self.loc + self.scale * self._normal.icdf(self._Z * x + self._Phi_alpha)
 
     def log_prob(self, x):
