@@ -1,4 +1,5 @@
 import inspect
+import math
 from collections import namedtuple
 from numbers import Number
 
@@ -192,6 +193,25 @@ def test_moments(dist, scipy_instance, params):
 
     assert_allclose(dist_instance.mean, samples.mean(0), atol=1e-2, rtol=rtol)
     assert_allclose(dist_instance.stddev, samples.std(0), atol=1e-1, rtol=rtol)
+
+    if not scipy_instance:
+        pytest.skip("No corresponding SciPy distribution.")
+
+    if dist is TruncatedNormal and any(
+        math.isinf(param) if isinstance(param, Number) else torch.isinf(param).any()
+        for param in params
+    ):
+        return
+
+    scipy_mean = scipy_instance.mean()
+    scipy_var = scipy_instance.var()
+
+    assert_allclose(dist_instance.mean, scipy_mean, atol=1e-2, rtol=rtol)
+    assert_allclose(dist_instance.variance, scipy_var, atol=1e-2, rtol=rtol)
+
+
+# TODO: More samples!
+# TODO: Test entropy (compare to scipy).
 
 
 @pytest.mark.parametrize("dist, scipy_instance, params", DISTRIBUTIONS)
