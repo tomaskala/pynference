@@ -172,8 +172,6 @@ def test_constraints(dist, scipy_instance, params):
         outside[low_index] = torch.abs(outside[low_index])
         outside[high_index] = -torch.abs(outside[low_index])
 
-    print(outside)
-
     with pytest.raises(ValueError):
         dist(*outside, validate_args=True)
 
