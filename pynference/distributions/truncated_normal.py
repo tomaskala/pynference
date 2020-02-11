@@ -133,9 +133,7 @@ class TruncatedNormal(Distribution):
         return self._normal.log_prob(self._xi(x)) - torch.log(self.scale) - self._log_Z
 
     def _phi(self, x):
-        result = x.new_zeros(x.size())
-        result[torch.isfinite(x)] = torch.exp(-(x[torch.isfinite(x)] ** 2) / 2.0)
-        return result / math.sqrt(2.0 * math.pi)
+        return torch.exp(-x ** 2 / 2.0) / math.sqrt(2.0 * math.pi)
 
     def _log_Phi(self, x):
         return log_ndtr(x)
