@@ -21,23 +21,33 @@ class TruncatedNormal(Distribution):
 
     @property
     def mean(self):
-        return (
-            self.loc
-            + (self._phi(self._alpha) - self._phi(self._beta)) / self._Z * self.scale
-        )
-
-    @property
-    def stddev(self):
-        return self.variance.sqrt()
+        result = (self._phi(self._alpha) - self._phi(self._beta)) / self._Z
+        return self.loc + self.scale * result
 
     @property
     def variance(self):
-        result = 1.0
-        result += (
-            self._alpha * self._phi(self._alpha) - self._beta * self._phi(self._beta)
-        ) / self._Z
-        result -= ((self._phi(self._alpha) - self._phi(self._beta)) / self._Z) ** 2
-        return result * self.scale ** 2
+        phi_a = self._phi(self._alpha)
+        phi_b = self._phi(self._beta)
+
+        # Two-sided truncation.
+        A = phi_a / self._Z
+        B = phi_b / self._Z
+        phi = A - B
+        result = (self._alpha - phi) * A - (self._beta - phi) * B
+
+        # Right-sided truncation.
+        a_inf = torch.isinf(self._alpha)
+        B = phi_b / self._normal.cdf(self._beta)
+        result[a_inf] = (-B * (self._beta - B))[a_inf]
+
+        # Left-sided truncation.
+        b_inf = torch.isinf(self._beta)
+        A = phi_a / self._normal.cdf(-self._alpha)
+        result[b_inf] = (A * (self._alpha - A))[b_inf]
+
+        # No truncation at all.
+        result[a_inf & b_inf] = 0.0
+        return self.scale ** 2 * (1.0 + result)
 
     def __init__(
         self, loc, scale, low, high, validate_args=None,

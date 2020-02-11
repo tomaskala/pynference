@@ -183,21 +183,20 @@ def test_constraints(dist, scipy_instance, params):
 @pytest.mark.parametrize("dist, scipy_instance, params", DISTRIBUTIONS)
 def test_moments(dist, scipy_instance, params):
     n_samples = 50000
-    atol = 1e-2
-    rtol = 0.1
+    rtol = 1e-1
 
     dist_instance = dist(*params)
     samples = dist_instance.sample((n_samples,))
 
-    assert_allclose(dist_instance.mean, samples.mean(0), atol=atol, rtol=rtol)
-    # assert_allclose(dist_instance.stddev, samples.std(0), atol=atol, rtol=rtol)
+    assert_allclose(dist_instance.mean, samples.mean(0), atol=1e-2, rtol=rtol)
+    assert_allclose(dist_instance.stddev, samples.std(0), atol=1e-1, rtol=rtol)
 
 
 @pytest.mark.parametrize("dist, scipy_instance, params", DISTRIBUTIONS)
 @pytest.mark.parametrize("sample_shape", [(), (2,), (2, 3)])
 def test_prob(dist, scipy_instance, params, sample_shape):
     atol = 1e-5
-    rtol = 0.05
+    rtol = 5e-2
 
     if not scipy_instance:
         pytest.skip("No corresponding SciPy distribution.")
@@ -224,7 +223,7 @@ def test_prob(dist, scipy_instance, params, sample_shape):
 @pytest.mark.parametrize("sample_shape", [(), (2,), (2, 3)])
 def test_icdf(dist, scipy_instance, params, sample_shape):
     atol = 1e-5
-    rtol = 0.05
+    rtol = 5e-2
 
     dist_instance = dist(*params)
     samples = dist_instance.sample(sample_shape)
