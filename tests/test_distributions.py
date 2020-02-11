@@ -208,14 +208,13 @@ def test_moments(dist, scipy_instance, params):
     assert_allclose(dist_instance.variance, scipy_var, atol=1e-2, rtol=rtol)
 
 
-# TODO: More samples!
 # TODO: Test entropy (compare to scipy).
 
 
 @pytest.mark.parametrize("dist, scipy_instance, params", DISTRIBUTIONS)
-@pytest.mark.parametrize("sample_shape", [(), (2,), (2, 3)])
+@pytest.mark.parametrize("sample_shape", [(), (200,), (10, 20)])
 def test_prob(dist, scipy_instance, params, sample_shape):
-    atol = 1e-5
+    atol = 1e-2
     rtol = 5e-2
 
     if not scipy_instance:
@@ -240,7 +239,7 @@ def test_prob(dist, scipy_instance, params, sample_shape):
 
 
 @pytest.mark.parametrize("dist, scipy_instance, params", DISTRIBUTIONS)
-@pytest.mark.parametrize("sample_shape", [(), (2,), (2, 3)])
+@pytest.mark.parametrize("sample_shape", [(), (200,), (10, 20)])
 def test_icdf(dist, scipy_instance, params, sample_shape):
     atol = 1e-5
     rtol = 5e-2
@@ -255,6 +254,6 @@ def test_icdf(dist, scipy_instance, params, sample_shape):
 
 
 @pytest.mark.parametrize("dist, scipy_instance, params", DISTRIBUTIONS)
-@pytest.mark.parametrize("sample_shape", [(), (2,), (2, 3)])
+@pytest.mark.parametrize("sample_shape", [(), (200,), (10, 20)])
 def test_sampling_shapes(dist, scipy_instance, params, sample_shape):
     pass
