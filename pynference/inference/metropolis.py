@@ -4,7 +4,7 @@ from typing import Any, Callable, Dict, List, Tuple, Type
 import torch
 from torch.distributions import Cauchy, Laplace, Normal, Transform, Uniform
 
-from pynference.constants import Sample, Shape, Variate
+from pynference.constants import Sample, Shape
 from pynference.inference.utils import initialize_model
 
 __all__ = ["Metropolis"]
@@ -15,27 +15,27 @@ class Proposal(abc.ABC):
         self.scale = scale
 
     @abc.abstractmethod
-    def __call__(self, shape: Shape) -> Variate:
+    def __call__(self, shape: Shape):
         pass
 
 
 class CauchyProposal(Proposal):
-    def __call__(self, shape: Shape) -> Variate:
+    def __call__(self, shape: Shape):
         return Cauchy(loc=torch.zeros(shape), scale=self.scale).sample()
 
 
 class LaplaceProposal(Proposal):
-    def __call__(self, shape: Shape) -> Variate:
+    def __call__(self, shape: Shape):
         return Laplace(loc=torch.zeros(shape), scale=self.scale).sample()
 
 
 class NormalProposal(Proposal):
-    def __call__(self, shape: Shape) -> Variate:
+    def __call__(self, shape: Shape):
         return Normal(loc=torch.zeros(shape), scale=self.scale).sample()
 
 
 class UniformProposal(Proposal):
-    def __call__(self, shape: Shape) -> Variate:
+    def __call__(self, shape: Shape):
         return Uniform(
             low=torch.full(shape, -self.scale / 2.0),
             high=torch.full(shape, self.scale / 2.0),
@@ -116,7 +116,7 @@ class Metropolis:
         self,
         theta: Sample,
         theta_constrained: Sample,
-        potential_energy: Callable[[Sample], float],
+        potential_energy: Callable[[Sample], torch.Tensor],
         transformations: Dict[str, Transform],
     ) -> Tuple[Sample, Sample, Dict[str, Any]]:
         if self._steps_until_tune == 0 and self.tune:

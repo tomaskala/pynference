@@ -4,12 +4,12 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent.parent.resolve()))
 
-import matplotlib.pyplot as plt
-import torch
+import matplotlib.pyplot as plt  # noqa E402
+import torch  # noqa E402
 
-import pynference.distributions as dist
-from pynference.inference import Metropolis
-from pynference.infrastructure import sample
+import pynference.distributions as dist  # noqa E402
+from pynference.inference import Metropolis  # noqa E402
+from pynference.infrastructure import sample  # noqa E402
 
 
 def model(X, y, a0, b0, Sigma0):

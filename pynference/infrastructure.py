@@ -1,10 +1,18 @@
 import abc
-import collections
 import random
 from copy import copy
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any, Callable, Dict, List, Optional, OrderedDict, Tuple, Union
+from typing import (  # type: ignore
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    OrderedDict,
+    Tuple,
+    Union,
+)
 
 import numpy as np
 import torch
@@ -37,7 +45,7 @@ class Message:
     args: Tuple[Any, ...] = field(default_factory=tuple)
     kwargs: Dict[str, Any] = field(default_factory=dict)
     block: bool = field(default=False)
-    log_prob_sum: Union[float, None] = field(default=None)
+    log_prob_sum: Union[torch.Tensor, None] = field(default=None)
 
 
 _MESSENGER_STACK: List["Messenger"] = []
@@ -87,14 +95,14 @@ def sample(
     observation: Optional[Variate] = None,
     *args,
     **kwargs
-) -> Variate:
+):
     if not _MESSENGER_STACK:
-        return dist(*args, **kwargs)
+        return dist(*args, **kwargs)  # type: ignore
     else:
         message = Message(
             message_type=MessageType.SAMPLE,
             name=name,
-            fun=dist,
+            fun=dist,  # type: ignore
             kwargs={},
             value=observation,
             is_observed=observation is not None,
@@ -106,18 +114,18 @@ def sample(
 class Trace(Messenger):
     def __init__(self, fun: Callable[..., Variate]):
         super().__init__(fun=fun)
-        self._trace: OrderedDict[str, Message] = collections.OrderedDict()
+        self._trace = OrderedDict[str, Message]()
 
     def __enter__(self):
         super().__enter__()
-        self._trace = collections.OrderedDict()
+        self._trace = OrderedDict[str, Message]()
         return self._trace
 
     def trace(self, *args, **kwargs):
         self(*args, **kwargs)
         return self._trace
 
-    def log_prob(self, *args, **kwargs) -> float:
+    def log_prob(self, *args, **kwargs) -> torch.Tensor:
         trace = self.trace(*args, **kwargs)
         log_prob = 0.0
 
@@ -130,7 +138,7 @@ class Trace(Messenger):
 
                 log_prob += message.log_prob_sum
 
-        return log_prob
+        return log_prob  # type: ignore
 
     def postprocess_message(self, message: Message):
         if message.message_type != MessageType.SAMPLE:

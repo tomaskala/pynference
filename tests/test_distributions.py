@@ -37,10 +37,10 @@ def create_dist(dist_cls, *args):
 DISTRIBUTIONS = [
     create_dist(
         TruncatedNormal,
-        torch.Tensor([0.0]),
-        torch.Tensor([1.0]),
-        torch.Tensor([-1.0]),
-        torch.Tensor([1.0]),
+        torch.tensor([0.0]),
+        torch.tensor([1.0]),
+        torch.tensor([-1.0]),
+        torch.tensor([1.0]),
     ),
     create_dist(TruncatedNormal, 0.0, 1.0, -1.0, 1.0),
     create_dist(TruncatedNormal, torch.zeros((3,)), 1.0, -1.0, 1.0),
@@ -53,52 +53,52 @@ DISTRIBUTIONS = [
     ),
     create_dist(
         TruncatedNormal,
-        torch.Tensor([3.0, -2.0]),
-        torch.Tensor([0.5, 1.5]),
-        torch.Tensor([1.0, -3.0]),
-        torch.Tensor([5.0, 1.0]),
+        torch.tensor([3.0, -2.0]),
+        torch.tensor([0.5, 1.5]),
+        torch.tensor([1.0, -3.0]),
+        torch.tensor([5.0, 1.0]),
     ),
     create_dist(
         TruncatedNormal,
-        torch.Tensor([0.0]),
-        torch.Tensor([1.0]),
-        torch.Tensor([float("-inf")]),
-        torch.Tensor([1.0]),
+        torch.tensor([0.0]),
+        torch.tensor([1.0]),
+        torch.tensor([float("-inf")]),
+        torch.tensor([1.0]),
     ),
     create_dist(
         TruncatedNormal,
-        torch.Tensor([0.0]),
-        torch.Tensor([1.0]),
-        torch.Tensor([-1.0]),
-        torch.Tensor([float("inf")]),
+        torch.tensor([0.0]),
+        torch.tensor([1.0]),
+        torch.tensor([-1.0]),
+        torch.tensor([float("inf")]),
     ),
     create_dist(
         TruncatedNormal,
-        torch.Tensor([0.0]),
-        torch.Tensor([1.0]),
-        torch.Tensor([float("-inf")]),
-        torch.Tensor([float("inf")]),
+        torch.tensor([0.0]),
+        torch.tensor([1.0]),
+        torch.tensor([float("-inf")]),
+        torch.tensor([float("inf")]),
     ),
     create_dist(
         TruncatedNormal,
-        torch.Tensor([0.0]),
-        torch.Tensor([1.0]),
-        torch.Tensor([-3.0, float("-inf")]),
-        torch.Tensor([float("inf"), 1.0]),
+        torch.tensor([0.0]),
+        torch.tensor([1.0]),
+        torch.tensor([-3.0, float("-inf")]),
+        torch.tensor([float("inf"), 1.0]),
     ),
     create_dist(
         TruncatedNormal,
-        torch.Tensor([0.0]),
-        torch.Tensor([1.0]),
-        torch.Tensor([-1.0, 4.0]),
-        torch.Tensor([2.0, float("inf")]),
+        torch.tensor([0.0]),
+        torch.tensor([1.0]),
+        torch.tensor([-1.0, 4.0]),
+        torch.tensor([2.0, float("inf")]),
     ),
     create_dist(
         TruncatedNormal,
-        torch.Tensor([0.0]),
-        torch.Tensor([1.0]),
-        torch.Tensor([-1.0, float("-inf")]),
-        torch.Tensor([1.0, float("inf")]),
+        torch.tensor([0.0]),
+        torch.tensor([1.0]),
+        torch.tensor([-1.0, float("-inf")]),
+        torch.tensor([1.0, float("inf")]),
     ),
 ]
 
@@ -206,14 +206,19 @@ def test_moments(dist, scipy_instance, params):
     ):
         return
 
+    # SciPy truncated normal currently has issues with batched arguments.
+    if dist is TruncatedNormal and any(
+        param.dim() > 0 and param.size()[0] > 1
+        for param in params
+        if not isinstance(param, Number)
+    ):
+        return
+
     scipy_mean = scipy_instance.mean()
-    scipy_var = scipy_instance.var()
+    scipy_std = scipy_instance.std()
 
     assert_allclose(dist_instance.mean, scipy_mean, atol=1e-2, rtol=rtol)
-    assert_allclose(dist_instance.variance, scipy_var, atol=1e-2, rtol=rtol)
-
-
-# TODO: Test entropy (compare to scipy).
+    assert_allclose(dist_instance.stddev, scipy_std, atol=1e-2, rtol=rtol)
 
 
 @pytest.mark.parametrize("dist, scipy_instance, params", DISTRIBUTIONS)

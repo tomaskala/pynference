@@ -11,7 +11,7 @@ __all__ = ["initialize_model"]
 
 def initialize_model(
     model, init_strategy: str, *args, **kwargs
-) -> Tuple[Sample, Callable[[Sample], float], Dict[str, Transform]]:
+) -> Tuple[Sample, Callable[[Sample], torch.Tensor], Dict[str, Transform]]:
     trace = Trace(model).trace(*args, **kwargs)
     dummy_samples = {}
     transformations = {}
@@ -33,8 +33,8 @@ def initialize_model(
 
 def _get_potential_energy_fun(
     model, transformations: Dict[str, Transform], *args, **kwargs
-) -> Callable[[Sample], float]:
-    def _potential_energy(theta: Sample) -> float:
+) -> Callable[[Sample], torch.Tensor]:
+    def _potential_energy(theta: Sample) -> torch.Tensor:
         nonlocal model, transformations, args, kwargs
 
         theta_constrained = {k: transformations[k](v) for k, v in theta.items()}
@@ -52,7 +52,7 @@ def _get_potential_energy_fun(
     return _potential_energy
 
 
-def _log_prob(model, theta_constrained: Sample, *args, **kwargs) -> float:
+def _log_prob(model, theta_constrained: Sample, *args, **kwargs) -> torch.Tensor:
     model = Condition(model, condition=theta_constrained)
     trace = Trace(model)
     return trace.log_prob(*args, **kwargs)
