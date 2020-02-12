@@ -1,15 +1,13 @@
-"""
-isort:skip
-"""
 import math
 import sys
 from pathlib import Path
+
 sys.path.append(str(Path(__file__).parent.parent.parent.resolve()))
 
 import matplotlib.pyplot as plt
 import torch
-import torch.distributions as dist
 
+import pynference.distributions as dist
 from pynference.inference import Metropolis
 from pynference.infrastructure import sample
 

@@ -8,7 +8,7 @@ check:
 format:
 	black .
 	autoflake --in-place --recursive --remove-all-unused-imports --ignore-init-module-imports .
-	isort --recursive .
+	isort --recursive --filter-files .
 
 test:
 	py.test tests
