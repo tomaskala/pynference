@@ -150,11 +150,33 @@ class TruncatedNormal(Distribution):
         return (self._normal.cdf(self._xi(x)) - self._Phi_alpha) / self._Z
 
     def entropy(self):
-        result = math.log(2.0 * math.pi) + 1.0 + torch.log(self.scale) + self._log_Z
-        result += (
-            self._alpha * self._phi(self._alpha) - self._beta * self._phi(self._beta)
-        ) / (2.0 * self._Z)
-        return result
+        phi_a = self._phi(self._alpha)
+        phi_b = self._phi(self._beta)
+
+        # Two-sided truncation.
+        A = phi_a / self._Z / 2.0
+        B = phi_b / self._Z / 2.0
+        result = A * self._alpha - B * self._beta
+
+        # Right-sided truncation.
+        a_inf = torch.isinf(self._alpha)
+        B = phi_b / self._normal.cdf(self._beta) / 2.0
+        result[a_inf] = -(B * self._beta)[a_inf]
+
+        # Left-sided truncation.
+        b_inf = torch.isinf(self._beta)
+        A = phi_a / self._normal.cdf(-self._alpha) / 2.0
+        result[b_inf] = (A * self._alpha)[b_inf]
+
+        # No truncation at all.
+        result[a_inf & b_inf] = 0.0
+        return (
+            result
+            + 0.5 * math.log(2.0 * math.pi)
+            + 0.5
+            + torch.log(self.scale)
+            + self._log_Z
+        )
 
     def icdf(self, x):
         return self.loc + self.scale * self._normal.icdf(self._Z * x + self._Phi_alpha)

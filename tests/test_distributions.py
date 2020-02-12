@@ -254,6 +254,15 @@ def test_icdf(dist, scipy_instance, params, sample_shape):
 
 
 @pytest.mark.parametrize("dist, scipy_instance, params", DISTRIBUTIONS)
-@pytest.mark.parametrize("sample_shape", [(), (200,), (10, 20)])
-def test_sampling_shapes(dist, scipy_instance, params, sample_shape):
-    pass
+def test_entropy(dist, scipy_instance, params):
+    atol = 1e-5
+    rtol = 5e-2
+
+    if not scipy_instance:
+        pytest.skip("No corresponding SciPy distribution.")
+
+    dist_instance = dist(*params)
+    dist_entropy = dist_instance.entropy()
+    scipy_entropy = scipy_instance.entropy()
+
+    assert_allclose(dist_entropy, scipy_entropy, atol=atol, rtol=rtol)
