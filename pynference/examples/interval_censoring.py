@@ -22,14 +22,14 @@ def model(X, logL, logU, hypers, test):
     beta = sample("beta", dist.MultivariateNormal(loc=beta0, covariance_matrix=Sigma0))
     tau = sample("tau", dist.Gamma(concentration=a0, rate=b0))
 
-    # logT = sample(
-        # "logT",
-        # dist.TruncatedNormal(
-            # loc=X @ beta, scale=1.0 / torch.sqrt(tau), low=logL, high=logU
-        # ),
-    # )
-    # return logT
-    sample("test", dist.Normal(loc=X @ beta, scale=1.0 / torch.sqrt(tau)), obs=test)
+    logT = sample(
+        "logT",
+        dist.TruncatedNormal(
+            loc=X @ beta, scale=1.0 / torch.sqrt(tau), low=logL, high=logU
+        ),
+    )
+    return logT
+    # sample("test", dist.Normal(loc=X @ beta, scale=1.0 / torch.sqrt(tau)), obs=test)
 
 
 def load_dataframe(df_path: str, which: str) -> pd.DataFrame:

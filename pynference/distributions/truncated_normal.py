@@ -1,11 +1,11 @@
 import math
 
 import torch
-from scipy.special import log_ndtr
 from torch.distributions import Normal, constraints
 from torch.distributions.utils import broadcast_all
 
 from pynference.distributions.distribution import Distribution
+from truncated_normal_cpp import sample_truncated_normal
 
 
 class TruncatedNormal(Distribution):
@@ -86,7 +86,7 @@ class TruncatedNormal(Distribution):
         self._alpha = self._xi(self.low)
         self._beta = self._xi(self.high)
 
-        self._Phi_alpha, self._Z, self._log_Z = self._get_constants()
+        self._Phi_alpha, self._Z = self._get_constants()
 
     def _get_constants(self):
         # Phi(alpha)
@@ -109,42 +109,15 @@ class TruncatedNormal(Distribution):
         Z[self._beta < -self.TRIM] = 0.0
         Z = torch.max(Z, torch.zeros_like(Z))
 
-        # log(Z)
-        log_Z = torch.zeros_like(Z)
-        use_lcdf = (self._beta < 0.0) | (
-            torch.abs(self._alpha) >= torch.abs(self._beta)
-        )
-
-        lcdf_a = self._log_Phi(self._alpha)
-        lcdf_b = self._log_Phi(self._beta)
-        lsf_a = self._log_Phi(-self._alpha)
-        lsf_b = self._log_Phi(-self._beta)
-
-        log_Z[use_lcdf] = lcdf_b[use_lcdf] + torch.log1p(
-            -torch.exp(lcdf_a[use_lcdf] - lcdf_b[use_lcdf])
-        )
-        log_Z[~use_lcdf] = lsf_a[~use_lcdf] + torch.log1p(
-            -torch.exp(lsf_b[~use_lcdf] - lsf_a[~use_lcdf])
-        )
-
-        within_range = (self._alpha <= self.TRIM) & (self._beta >= -self.TRIM)
-        within_range_pos = within_range & (self._alpha > 0.0)
-        within_range_neg = within_range & (self._alpha <= 0.0)
-
-        log_Z[within_range_pos] = cdf_b[within_range_pos] - cdf_a[within_range_pos]
-        log_Z[within_range_neg] = sf_a[within_range_neg] - sf_b[within_range_neg]
-        log_Z[within_range] = torch.log(
-            torch.max(log_Z[within_range], torch.zeros_like(log_Z[within_range]))
-        )
-
-        return Phi_alpha, Z, log_Z
+        return Phi_alpha, Z
 
     def sample(self, sample_shape=torch.Size()):
-        shape = self._extended_shape(sample_shape)
+        return sample_truncated_normal(self.loc, self.scale, self.low, self.high)
+        # shape = self._extended_shape(sample_shape)
 
-        with torch.no_grad():
-            uniform = torch.rand(shape)
-            return self.icdf(uniform)
+        # with torch.no_grad():
+            # uniform = torch.rand(shape)
+            # return self.icdf(uniform)
 
     def cdf(self, x):
         return (self._normal.cdf(self._xi(x)) - self._Phi_alpha) / self._Z
@@ -175,20 +148,17 @@ class TruncatedNormal(Distribution):
             + 0.5 * math.log(2.0 * math.pi)
             + 0.5
             + torch.log(self.scale)
-            + self._log_Z
+            + torch.log(self._Z)
         )
 
     def icdf(self, x):
         return self.loc + self.scale * self._normal.icdf(self._Z * x + self._Phi_alpha)
 
     def log_prob(self, x):
-        return self._normal.log_prob(self._xi(x)) - torch.log(self.scale) - self._log_Z
+        return self._normal.log_prob(self._xi(x)) - torch.log(self.scale) - torch.log(self._Z)
 
     def _phi(self, x):
         return torch.exp(-(x ** 2) / 2.0) / math.sqrt(2.0 * math.pi)
-
-    def _log_Phi(self, x):
-        return log_ndtr(x)
 
     def _xi(self, x):
         return (x - self.loc) / self.scale
