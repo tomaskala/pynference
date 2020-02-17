@@ -4,6 +4,7 @@ import torch
 from torch.distributions import Normal, constraints
 from torch.distributions.utils import broadcast_all
 
+from pynference.distributions.constraints import generalized_interval
 from pynference.distributions.distribution import Distribution
 from truncated_normal_cpp import sample_truncated_normal
 
@@ -165,4 +166,4 @@ class TruncatedNormal(Distribution):
 
     @constraints.dependent_property
     def support(self):
-        return constraints.interval(self.low, self.high)
+        return generalized_interval(self.low, self.high)

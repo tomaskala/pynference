@@ -10,10 +10,10 @@ import torch  # noqa E402
 
 import pynference.distributions as dist  # noqa E402
 from pynference.inference import Metropolis  # noqa E402
-from pynference.infrastructure import sample, Condition  # noqa E402
+from pynference.infrastructure import sample  # noqa E402
 
 
-def model(X, logL, logU, hypers, test):
+def model(X, logL, logU, hypers):
     beta0 = hypers["beta0"]
     Sigma0 = hypers["Sigma0"]
     a0 = hypers["a0"]
@@ -28,8 +28,9 @@ def model(X, logL, logU, hypers, test):
             loc=X @ beta, scale=1.0 / torch.sqrt(tau), low=logL, high=logU
         ),
     )
+    assert not torch.isinf(logT).any()
+    assert not torch.isnan(logT).any()
     return logT
-    # sample("test", dist.Normal(loc=X @ beta, scale=1.0 / torch.sqrt(tau)), obs=test)
 
 
 def load_dataframe(df_path: str, which: str) -> pd.DataFrame:
@@ -93,9 +94,6 @@ def main():
     b0 = 0.005
     hypers = {"beta0": beta0, "Sigma0": Sigma0, "a0": a0, "b0": b0}
 
-    # Condition on the observed logL and logU.
-    #conditioned_model = Condition(model, condition={"logL": logL, "logU": logU})
-
     # Run inference.
     n_samples = 10000
     proposal = "normal"
@@ -111,17 +109,16 @@ def main():
         init_strategy=init_strategy,
         tune=tune,
     )
-    test = torch.log(torch.from_numpy(df["FTimeImp"].values))
-    samples = mcmc.run(X=X, logL=logL, logU=logU, hypers=hypers, test=test)
+    samples = mcmc.run(X=X, logL=logL, logU=logU, hypers=hypers)
 
     beta_samples = torch.zeros((n_samples, p))
     tau_samples = torch.zeros((n_samples,))
-    # logT_samples = torch.zeros((n_samples,))
+    logT_samples = torch.zeros((n_samples,))
 
     for i, theta in enumerate(samples):
         beta_samples[i] = theta["beta"]
         tau_samples[i] = theta["tau"]
-        # logT_samples[i] = theta["logT"]
+        logT_samples[i] = theta["logT"]
 
     for i in range(p):
         fig, ax = plt.subplots()
@@ -134,10 +131,10 @@ def main():
     ax.plot(tau_samples)
     plt.show()
 
-    # fig, ax = plt.subplots()
-    # ax.set_title(r"$\log{T}$")
-    # ax.plot(logT_samples)
-    # plt.show()
+    fig, ax = plt.subplots()
+    ax.set_title(r"$\log{T}$")
+    ax.plot(logT_samples)
+    plt.show()
 
 
 if __name__ == "__main__":
