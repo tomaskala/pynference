@@ -1,7 +1,6 @@
 import torch
-from torch.distributions import biject_to, Transform
+from torch.distributions import Transform, biject_to
 from torch.distributions.constraints import Constraint, real
-
 
 __all__ = ["generalized_interval"]
 
@@ -16,7 +15,9 @@ class _GeneralizedInterval(Constraint):
 
     def __repr__(self):
         fmt_string = self.__class__.__name__[1:]
-        fmt_string += '(lower_bound={}, upper_bound={})'.format(self.lower_bound, self.upper_bound)
+        fmt_string += "(lower_bound={}, upper_bound={})".format(
+            self.lower_bound, self.upper_bound
+        )
         return fmt_string
 
 

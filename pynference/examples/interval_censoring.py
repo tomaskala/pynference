@@ -24,7 +24,9 @@ def model(X, logL, logU, hypers, n_subjects, n_units_per_subject):
     # Noise term: sigma2_eps_inv ~ Gamma(nu_eps1, nu_eps2).
     nu_eps1 = hypers["nu_eps1"]
     nu_eps2 = hypers["nu_eps2"]
-    sigma2_eps_inv = sample("sigma2_eps_inv", dist.Gamma(concentration=nu_eps1, rate=nu_eps2))
+    sigma2_eps_inv = sample(
+        "sigma2_eps_inv", dist.Gamma(concentration=nu_eps1, rate=nu_eps2)
+    )
 
     # Random effects mean: mu ~ N(m_mu, s2_mu).
     m_mu = hypers["m_mu"]
@@ -46,7 +48,10 @@ def model(X, logL, logU, hypers, n_subjects, n_units_per_subject):
     logT = sample(
         "logT",
         dist.TruncatedNormal(
-            loc=X @ beta + b, scale=sigma2_eps_inv.sqrt().reciprocal(), low=logL, high=logU
+            loc=X @ beta + b,
+            scale=sigma2_eps_inv.sqrt().reciprocal(),
+            low=logL,
+            high=logU,
         ),
     )
 
@@ -148,7 +153,14 @@ def main():
         init_strategy=init_strategy,
         tune=tune,
     )
-    sampled_theta = mcmc.run(X=X, logL=logL, logU=logU, hypers=hypers, n_subjects=n_subjects, n_units_per_subject=n_units_per_subject)
+    sampled_theta = mcmc.run(
+        X=X,
+        logL=logL,
+        logU=logU,
+        hypers=hypers,
+        n_subjects=n_subjects,
+        n_units_per_subject=n_units_per_subject,
+    )
 
     # Collect samples.
     samples = defaultdict(list)
