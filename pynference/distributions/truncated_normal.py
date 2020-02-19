@@ -1,12 +1,11 @@
 import math
 
 import torch
-from torch.distributions import Normal, constraints
+from torch.distributions import constraints
 from torch.distributions.utils import broadcast_all
 
 from pynference.distributions.constraints import generalized_interval
 from pynference.distributions.distribution import Distribution
-from truncated_normal_cpp import sample_truncated_normal
 
 
 class TruncatedNormal(Distribution):
@@ -115,14 +114,16 @@ class TruncatedNormal(Distribution):
         return torch.max(Z, torch.zeros_like(Z))
 
     def sample(self, sample_shape=torch.Size()):
-        samples = sample_truncated_normal(self.loc, self.scale, self.low, self.high)
-        print(samples)
-        return samples
+        shape = self._extended_shape(sample_shape)
+        return torch.zeros(shape)
+        # samples = sample_truncated_normal(self.loc, self.scale, self.low, self.high)
+        # print(samples)
+        # return samples
         # shape = self._extended_shape(sample_shape)
 
         # with torch.no_grad():
-            # uniform = torch.rand(shape)
-            # return self.icdf(uniform)
+        # uniform = torch.rand(shape)
+        # return self.icdf(uniform)
 
     def cdf(self, x):
         return (self._Phi(self._xi(x)) - self._Phi_alpha) / self._Z
