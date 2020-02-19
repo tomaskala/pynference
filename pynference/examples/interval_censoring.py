@@ -103,6 +103,7 @@ def load_dataframe(df_path: str, which: str) -> pd.DataFrame:
 
 
 def main():
+    torch.manual_seed(941026)
     torch.set_default_dtype(torch.double)
     df_path = str(Path(__file__).parent / Path("./data/Data_20130610.RData"))
     df = load_dataframe(df_path, which="regressors")
