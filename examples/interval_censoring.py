@@ -3,7 +3,7 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent.parent.parent.resolve()))
+sys.path.append(str(Path(__file__).parent.parent.resolve()))
 
 import matplotlib.pyplot as plt  # noqa E402
 import pandas as pd  # noqa E402
@@ -13,6 +13,14 @@ import torch  # noqa E402
 import pynference.distributions as dist  # noqa E402
 from pynference.inference import Metropolis  # noqa E402
 from pynference.infrastructure import sample  # noqa E402
+
+
+# TODO: Misclassification.
+# TODO: Optimize truncnorm constraint.
+# TODO: Optimize truncnorm normalizing constant.
+# TODO: HMC & NUTS.
+# TODO: More chains.
+# TODO: MCMC diagnostics.
 
 
 def model(X, logL, logU, hypers, n_subjects, n_units_per_subject):

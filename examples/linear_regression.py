@@ -2,7 +2,7 @@ import math
 import sys
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent.parent.parent.resolve()))
+sys.path.append(str(Path(__file__).parent.parent.resolve()))
 
 import matplotlib.pyplot as plt  # noqa E402
 import torch  # noqa E402
