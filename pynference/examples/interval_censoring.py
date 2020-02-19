@@ -1,3 +1,4 @@
+import math
 import sys
 from pathlib import Path
 
@@ -13,23 +14,44 @@ from pynference.inference import Metropolis  # noqa E402
 from pynference.infrastructure import sample  # noqa E402
 
 
-def model(X, logL, logU, hypers):
-    beta0 = hypers["beta0"]
-    Sigma0 = hypers["Sigma0"]
-    a0 = hypers["a0"]
-    b0 = hypers["b0"]
+def model(X, logL, logU, hypers, n_subjects, n_units_per_subject):
+    # Fixed effects: beta ~ N(m_beta, V_beta).
+    m_beta = hypers["m_beta"]
+    V_beta = hypers["V_beta"]
+    beta = sample("beta", dist.MultivariateNormal(loc=m_beta, covariance_matrix=V_beta))
 
-    beta = sample("beta", dist.MultivariateNormal(loc=beta0, covariance_matrix=Sigma0))
-    tau = sample("tau", dist.Gamma(concentration=a0, rate=b0))
+    # Noise term: sigma2_eps_inv ~ Gamma(nu_eps1, nu_eps2).
+    nu_eps1 = hypers["nu_eps1"]
+    nu_eps2 = hypers["nu_eps2"]
+    sigma2_eps_inv = sample("sigma2_eps_inv", dist.Gamma(concentration=nu_eps1, rate=nu_eps2))
 
+    # Random effects mean: mu ~ N(m_mu, s2_mu).
+    m_mu = hypers["m_mu"]
+    s2_mu = hypers["s2_mu"]
+    mu = sample("mu", dist.Normal(loc=m_mu, scale=math.sqrt(s2_mu)))
+
+    # Random effects variance: tau2_inv ~ Gamma(nu_tau1, nu_tau2).
+    nu_tau1 = hypers["nu_tau1"]
+    nu_tau2 = hypers["nu_tau2"]
+    tau2_inv = sample("tau2_inv", dist.Gamma(concentration=nu_tau1, rate=nu_tau2))
+
+    # Random effect: b ~ N(mu, tau2_inv^{-1}).
+    mu = mu * torch.ones((n_subjects,))
+    tau2_inv = tau2_inv * torch.ones((n_subjects,))
+    b = sample("b", dist.Normal(loc=mu, scale=tau2_inv.sqrt().reciprocal()))
+    b = torch.repeat_interleave(b, n_units_per_subject)
+
+    # Latent log(event times): logT ~ TN(X @ beta + b, sigma2_eps_inv^{-1}, logL, logU).
     logT = sample(
         "logT",
         dist.TruncatedNormal(
-            loc=X @ beta, scale=1.0 / torch.sqrt(tau), low=logL, high=logU
+            loc=X @ beta + b, scale=sigma2_eps_inv.sqrt().reciprocal(), low=logL, high=logU
         ),
     )
+
     assert not torch.isinf(logT).any()
     assert not torch.isnan(logT).any()
+
     return logT
 
 
@@ -46,11 +68,20 @@ def load_dataframe(df_path: str, which: str) -> pd.DataFrame:
     data1["EXAMINER"] = data1["EXAMINER"].astype(int)
     data1.drop("IdTooth", axis="columns", inplace=True)
     data1 = data1[["IDNR", "TOOTH", "VISIT", "EXAMINER", "STATUS"]]
+    data1.sort_values(by=["IDNR", "TOOTH"], inplace=True)
 
     data2["IDNR"] = data2["IDNR"].astype(int)
     data2["TOOTH"] = data2["TOOTH"].astype(int)
     data2.loc[data2["FBEG"].isna(), "FBEG"] = 0.0
     data2.loc[data2["FEND"].isna(), "FEND"] = float("inf")
+    data2.sort_values(by=["IDNR", "TOOTH"], inplace=True)
+
+    # Drop subjects for which we observe fewer than 4 teeth.
+    grouped_by_subject = data2.groupby("IDNR").count()
+    not_4_teeth = grouped_by_subject[grouped_by_subject["TOOTH"] != 4].index
+
+    data1.drop(data1[data1["IDNR"].isin(not_4_teeth)].index, inplace=True)
+    data2.drop(data2[data2["IDNR"].isin(not_4_teeth)].index, inplace=True)
 
     if which == "misclassifications":
         return data1
@@ -61,7 +92,7 @@ def load_dataframe(df_path: str, which: str) -> pd.DataFrame:
 
     data_merged = pd.merge(
         data1, data2, how="inner", on=["IDNR", "TOOTH"], validate="many_to_one"
-    )
+    ).sort_values(by=["IDNR", "TOOTH"])
 
     if which == "merged":
         return data_merged
@@ -76,7 +107,8 @@ def main():
     df_path = str(Path(__file__).parent / Path("./data/Data_20130610.RData"))
     df = load_dataframe(df_path, which="regressors")
 
-    # TODO: Random intercept.
+    n_subjects = df["IDNR"].nunique()
+    n_units_per_subject = 4  # We observe 4 teeth on each subject.
 
     # Load regressors.
     regressors = ["GIRL", "SEAL", "FREQ.BR"]
@@ -88,11 +120,16 @@ def main():
     logU = torch.log(torch.from_numpy(df["FEND"].values))
 
     # Set-up priors.
-    beta0 = torch.zeros((p,))
-    Sigma0 = 1000.0 * torch.eye(p)
-    a0 = 1.0
-    b0 = 0.005
-    hypers = {"beta0": beta0, "Sigma0": Sigma0, "a0": a0, "b0": b0}
+    hypers = {
+        "m_beta": torch.zeros((p,)),
+        "V_beta": 1000.0 * torch.eye(p),
+        "nu_eps1": 1.0,
+        "nu_eps2": 0.005,
+        "m_mu": 0.0,
+        "s2_mu": 100.0,
+        "nu_tau1": 1.0,
+        "nu_tau2": 0.005,
+    }
 
     # Run inference.
     n_samples = 10000
@@ -109,16 +146,16 @@ def main():
         init_strategy=init_strategy,
         tune=tune,
     )
-    samples = mcmc.run(X=X, logL=logL, logU=logU, hypers=hypers)
+    samples = mcmc.run(X=X, logL=logL, logU=logU, hypers=hypers, n_subjects=n_subjects, n_units_per_subject=n_units_per_subject)
 
     beta_samples = torch.zeros((n_samples, p))
-    tau_samples = torch.zeros((n_samples,))
-    logT_samples = torch.zeros((n_samples,))
+    sigma2_eps_inv_samples = torch.zeros((n_samples,))
+    # logT_samples = torch.zeros((n_samples,))
 
     for i, theta in enumerate(samples):
         beta_samples[i] = theta["beta"]
-        tau_samples[i] = theta["tau"]
-        logT_samples[i] = theta["logT"]
+        sigma2_eps_inv_samples[i] = theta["sigma2_eps_inv"]
+        # logT_samples[i] = theta["logT"]
 
     for i in range(p):
         fig, ax = plt.subplots()
@@ -127,14 +164,14 @@ def main():
         plt.show()
 
     fig, ax = plt.subplots()
-    ax.set_title(r"$\tau$")
-    ax.plot(tau_samples)
+    ax.set_title(r"$\sigma^{-2}_{\epsilon}$")
+    ax.plot(sigma2_eps_inv_samples)
     plt.show()
 
-    fig, ax = plt.subplots()
-    ax.set_title(r"$\log{T}$")
-    ax.plot(logT_samples)
-    plt.show()
+    # fig, ax = plt.subplots()
+    # ax.set_title(r"$\log{T}$")
+    # ax.plot(logT_samples)
+    # plt.show()
 
 
 if __name__ == "__main__":
