@@ -31,12 +31,12 @@ class TruncatedNormal(Distribution):
 
         # Right-sided truncation.
         a_inf = torch.isinf(self._alpha)
-        B = phi_b / self._normal.cdf(self._beta)
+        B = phi_b / self._Phi(self._beta)
         result[a_inf] = -B[a_inf]
 
         # Left-sided truncation.
         b_inf = torch.isinf(self._beta)
-        A = phi_a / self._normal.cdf(-self._alpha)
+        A = phi_a / self._Phi(-self._alpha)
         result[b_inf] = A[b_inf]
 
         # No truncation at all.
@@ -58,12 +58,12 @@ class TruncatedNormal(Distribution):
 
         # Right-sided truncation.
         a_inf = torch.isinf(self._alpha)
-        B = phi_b / self._normal.cdf(self._beta)
+        B = phi_b / self._Phi(self._beta)
         result[a_inf] = (-B * (self._beta - B))[a_inf]
 
         # Left-sided truncation.
         b_inf = torch.isinf(self._beta)
-        A = phi_a / self._normal.cdf(-self._alpha)
+        A = phi_a / self._Phi(-self._alpha)
         result[b_inf] = (A * (self._alpha - A))[b_inf]
 
         # No truncation at all.
@@ -81,39 +81,43 @@ class TruncatedNormal(Distribution):
         if self._validate_args and not torch.lt(self.low, self.high).all():
             raise ValueError("Truncated normal is not defined when low >= high.")
 
-        self._normal = Normal(
-            loc=torch.zeros_like(self.loc), scale=torch.ones_like(self.scale),
-        )
         self._alpha = self._xi(self.low)
         self._beta = self._xi(self.high)
 
-        self._Phi_alpha, self._Z = self._get_constants()
+        self._Phi_alpha = self._Phi(self._alpha)
+        self._Phi_alpha[self._alpha < -self.TRIM] = 0.0
+        self._Phi_alpha[self._alpha > self.TRIM] = 1.0
+        self._Z = self._normalizer()
 
-    def _get_constants(self):
-        # Phi(alpha)
-        Phi_alpha = self._normal.cdf(self._alpha)
-        Phi_alpha[self._alpha < -self.TRIM] = 0.0
-        Phi_alpha[self._alpha > self.TRIM] = 1.0
+    def _log_phi(self, x):
+        return -(x ** 2) / 2.0 - math.log(math.sqrt(2.0 * math.pi))
 
-        # Z
-        Z = torch.zeros_like(self._alpha)
+    def _Phi(self, x):
+        return 0.5 * (1.0 + torch.erf(x / math.sqrt(2.0)))
+
+    def _Phi_inv(self, q):
+        return torch.erfinv(2.0 * q - 1.0) * math.sqrt(2.0)
+
+    def _normalizer(self):
+        Z = torch.empty_like(self._alpha)
         use_cdf = self._alpha <= 0.0
 
-        cdf_a = self._normal.cdf(self._alpha)
-        cdf_b = self._normal.cdf(self._beta)
-        sf_a = self._normal.cdf(-self._alpha)
-        sf_b = self._normal.cdf(-self._beta)
+        cdf_a = self._Phi(self._alpha[use_cdf])
+        cdf_b = self._Phi(self._beta[use_cdf])
+        sf_a = self._Phi(-self._alpha[~use_cdf])
+        sf_b = self._Phi(-self._beta[~use_cdf])
 
-        Z[use_cdf] = cdf_b[use_cdf] - cdf_a[use_cdf]
-        Z[~use_cdf] = sf_a[~use_cdf] - sf_b[~use_cdf]
+        Z[use_cdf] = cdf_b - cdf_a
+        Z[~use_cdf] = sf_a - sf_b
         Z[self._alpha > self.TRIM] = 0.0
         Z[self._beta < -self.TRIM] = 0.0
-        Z = torch.max(Z, torch.zeros_like(Z))
 
-        return Phi_alpha, Z
+        return torch.max(Z, torch.zeros_like(Z))
 
     def sample(self, sample_shape=torch.Size()):
-        return sample_truncated_normal(self.loc, self.scale, self.low, self.high)
+        samples = sample_truncated_normal(self.loc, self.scale, self.low, self.high)
+        print(samples)
+        return samples
         # shape = self._extended_shape(sample_shape)
 
         # with torch.no_grad():
@@ -121,7 +125,7 @@ class TruncatedNormal(Distribution):
             # return self.icdf(uniform)
 
     def cdf(self, x):
-        return (self._normal.cdf(self._xi(x)) - self._Phi_alpha) / self._Z
+        return (self._Phi(self._xi(x)) - self._Phi_alpha) / self._Z
 
     def entropy(self):
         phi_a = self._phi(self._alpha)
@@ -134,12 +138,12 @@ class TruncatedNormal(Distribution):
 
         # Right-sided truncation.
         a_inf = torch.isinf(self._alpha)
-        B = phi_b / self._normal.cdf(self._beta) / 2.0
+        B = phi_b / self._Phi(self._beta) / 2.0
         result[a_inf] = -(B * self._beta)[a_inf]
 
         # Left-sided truncation.
         b_inf = torch.isinf(self._beta)
-        A = phi_a / self._normal.cdf(-self._alpha) / 2.0
+        A = phi_a / self._Phi(-self._alpha) / 2.0
         result[b_inf] = (A * self._alpha)[b_inf]
 
         # No truncation at all.
@@ -153,10 +157,10 @@ class TruncatedNormal(Distribution):
         )
 
     def icdf(self, x):
-        return self.loc + self.scale * self._normal.icdf(self._Z * x + self._Phi_alpha)
+        return self.loc + self.scale * self._Phi_inv(self._Z * x + self._Phi_alpha)
 
     def log_prob(self, x):
-        return self._normal.log_prob(self._xi(x)) - torch.log(self.scale) - torch.log(self._Z)
+        return self._log_phi(self._xi(x)) - torch.log(self.scale) - torch.log(self._Z)
 
     def _phi(self, x):
         return torch.exp(-(x ** 2) / 2.0) / math.sqrt(2.0 * math.pi)
