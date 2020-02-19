@@ -1,5 +1,6 @@
 import math
 import sys
+from collections import defaultdict
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent.parent.resolve()))
@@ -147,26 +148,28 @@ def main():
         init_strategy=init_strategy,
         tune=tune,
     )
-    samples = mcmc.run(X=X, logL=logL, logU=logU, hypers=hypers, n_subjects=n_subjects, n_units_per_subject=n_units_per_subject)
+    sampled_theta = mcmc.run(X=X, logL=logL, logU=logU, hypers=hypers, n_subjects=n_subjects, n_units_per_subject=n_units_per_subject)
 
-    beta_samples = torch.zeros((n_samples, p))
-    sigma2_eps_inv_samples = torch.zeros((n_samples,))
-    # logT_samples = torch.zeros((n_samples,))
+    # Collect samples.
+    samples = defaultdict(list)
 
-    for i, theta in enumerate(samples):
-        beta_samples[i] = theta["beta"]
-        sigma2_eps_inv_samples[i] = theta["sigma2_eps_inv"]
-        # logT_samples[i] = theta["logT"]
+    for theta in sampled_theta:
+        for k, v in theta.items():
+            samples[k].append(v)
 
+    for k in samples:
+        samples[k] = torch.stack(samples[k])
+
+    # Plot samples.
     for i in range(p):
         fig, ax = plt.subplots()
         ax.set_title(r"$\beta_{}$ corresponding to {}".format(i + 1, regressors[i]))
-        ax.plot(beta_samples[:, i])
+        ax.plot(samples["beta"][:, i])
         plt.show()
 
     fig, ax = plt.subplots()
     ax.set_title(r"$\sigma^{-2}_{\epsilon}$")
-    ax.plot(sigma2_eps_inv_samples)
+    ax.plot(samples["sigma2_eps_inv"])
     plt.show()
 
     # fig, ax = plt.subplots()
