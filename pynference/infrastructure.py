@@ -3,6 +3,7 @@ import random
 from copy import copy
 from dataclasses import dataclass, field
 from enum import Enum, auto
+from numbers import Number
 from typing import (  # type: ignore
     Any,
     Callable,
@@ -10,6 +11,7 @@ from typing import (  # type: ignore
     List,
     Optional,
     OrderedDict,
+    Set,
     Tuple,
     Union,
 )
@@ -28,6 +30,7 @@ __all__ = [
     "Block",
     "Seed",
     "Condition",
+    "Plate",
 ]
 
 
@@ -46,6 +49,9 @@ class Message:
     kwargs: Dict[str, Any] = field(default_factory=dict)
     block: bool = field(default=False)
     log_prob_sum: Union[torch.Tensor, None] = field(default=None)
+    conditional_independence_stack: Tuple[
+        "ConditionalIndependenceStackFrame", ...  # noqa W504
+    ] = field(default_factory=tuple)
 
 
 _MESSENGER_STACK: List["Messenger"] = []
@@ -197,6 +203,8 @@ class Seed(Messenger):
         self.old_state: Dict[str, Any] = {}
 
     def __enter__(self):
+        super().__enter__()
+
         self.old_state = {
             "torch": torch.get_rng_state(),
             "random": random.getstate(),
@@ -211,6 +219,7 @@ class Seed(Messenger):
         torch.set_rng_state(self.old_state["torch"])
         random.setstate(self.old_state["random"])
         np.random.set_state(self.old_state["numpy"])
+        return super().__exit__(exc_type, exc_value, traceback)
 
 
 class Condition(Messenger):
@@ -225,3 +234,177 @@ class Condition(Messenger):
             if name in self.condition:
                 message.value = self.condition[name]
                 message.is_observed = message.value is not None
+
+
+class ConditionalIndependenceStackFrame:
+    def __init__(self, name, size, dim, counter):
+        self.name = name
+        self.size = size
+        self.dim = dim
+        self.counter = counter
+
+    @property
+    def vectorized(self):
+        return self.dim is not None
+
+    def __str__(self):
+        return self.name
+
+    def __eq__(self, other):
+        return type(self) == type(other) and self._key == other._key
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    @property
+    def _key(self):
+        return (
+            self.name,
+            self.size if isinstance(self.size, Number) else self.size.item(),
+            self.dim,
+            self.counter,
+        )
+
+
+class _DimensionAllocator:
+    def __init__(self):
+        self._stack: List[Union[str, None]] = []
+        self._used_names: Set[str] = set()
+
+    def allocate(self, name: str, dim: Optional[int] = None):
+        if name in self._used_names:
+            raise ValueError("A plate with the name {} already exists.".format(name))
+
+        if dim is not None and dim >= 0:
+            raise ValueError(
+                "The dimension to be allocated is expected to be a negative index from the right."
+            )
+
+        if dim is None:
+            dim = -1
+
+            while -dim <= len(self._stack) and self._stack[-1 - dim] is not None:
+                dim -= 1
+
+        while dim < -len(self._stack):
+            self._stack.append(None)
+
+        if self._stack[-1 - dim] is not None:
+            raise ValueError(
+                "The plates {} and {} collide at dimension {}.".format(
+                    name, self._stack[-1 - dim], dim
+                )
+            )
+
+        self._stack[-1 - dim] = name
+        self._used_names.add(name)
+        return dim
+
+    def free(self, name: str, dim: int):
+        free_idx = -1 - dim
+        assert self._stack[free_idx] == name
+        assert name in self._used_names
+
+        self._stack[free_idx] = None
+        self._used_names.remove(name)
+
+        while self._stack and self._stack[-1] is None:
+            self._stack.pop()
+
+
+# TODO: Define expanded distribution.
+_DIMENSION_ALLOCATOR = _DimensionAllocator()
+
+
+class Plate(Messenger):
+    def __init__(self, name, size, dim=None):
+        self.name = name
+        self.size = size
+        self.dim = dim
+        self.counter = 0
+
+        self._vectorized = None
+        self._indices = None
+
+    @property
+    def indices(self):
+        if self._indices is None:
+            self._indices = torch.arange(self.size, dtype=torch.long)
+
+        return self._indices
+
+    def process_message(self, message: Message):
+        frame = ConditionalIndependenceStackFrame(
+            name=self.name, size=self.size, dim=self.dim, counter=self.counter
+        )
+        message.conditional_independence_stack = (
+            frame,
+        ) + message.conditional_independence_stack
+
+        if message.message_type is MessageType.SAMPLE:
+            batch_shape = getattr(message.fun, "batch_shape", None)
+
+            if batch_shape is not None:
+                expanded_batch_shape = [
+                    None if size == 1 else size for size in batch_shape
+                ]
+
+                for f in message.conditional_independence_stack:
+                    if f.dim is None or f.size == -1:
+                        continue
+
+                    assert f.dim < 0
+                    expanded_batch_shape = [None] * (
+                        -f.dim - len(expanded_batch_shape)
+                    ) + expanded_batch_shape
+
+                    if (
+                        expanded_batch_shape[f.dim] is not None
+                        and expanded_batch_shape[f.dim] != f.size
+                    ):
+                        raise ValueError(
+                            "Mismatched shapes in plate {} at site {} and dimension {}. {} != {}.".format(
+                                f.name,
+                                message.name,
+                                f.dim,
+                                f.size,
+                                expanded_batch_shape[f.dim],
+                            )
+                        )
+
+                    expanded_batch_shape[f.dim] = f.size
+
+                    for i in range(-len(expanded_batch_shape) + 1, 1):
+                        if expanded_batch_shape[i] is None:
+                            expanded_batch_shape[i] = (
+                                batch_shape[i] if len(batch_shape) >= -1 else 1
+                            )
+
+                    message.fun = message.fun.expand(expanded_batch_shape)
+
+    def __enter__(self):
+        if self._vectorized is not False:
+            self._vectorized = True
+
+        if self._vectorized is True:
+            self.dim = _DIMENSION_ALLOCATOR.allocate(self.name, self.dim)
+
+        return super().__enter__()
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if self._vectorized is True:
+            _DIMENSION_ALLOCATOR.free(self.name, self.dim)
+
+        return super().__exit__(exc_type, exc_value, traceback)
+
+    def __iter__(self):
+        if self._vectorized or self.dim is not None:
+            raise ValueError("Attempting to iterate a vectorized plate.")
+
+        self._vectorized = False
+
+        for i in self.indices:
+            self.counter += 1
+
+            with self:
+                yield i if isinstance(i, Number) else i.item()
