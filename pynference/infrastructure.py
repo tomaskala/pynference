@@ -312,7 +312,6 @@ class _DimensionAllocator:
             self._stack.pop()
 
 
-# TODO: Define expanded distribution.
 _DIMENSION_ALLOCATOR = _DimensionAllocator()
 
 

@@ -209,6 +209,52 @@ torch::Tensor sample_truncated_normal(
 }
 
 
+#define TAIL_TRIM 30
+
+
+torch::Tensor normalizer(torch::Tensor alpha, torch::Tensor beta) {
+    auto Z = torch::zeros_like(alpha);
+    auto n = alpha.size(0);
+
+    for (int i = 0; i < n; ++i) {
+        //auto alpha_i = alpha[i];
+        //auto beta_i = beta[i];
+
+        //auto alpha_i_finite = torch::isfinite(alpha_i).item<bool>();
+        //auto beta_i_finite = torch::isfinite(beta_i).item<bool>();
+
+        //if ((alpha_i > TAIL_TRIM).__or__(beta_i < -TAIL_TRIM).item<bool>()) {
+            //continue;
+        //}
+
+        Z[i] = torch::ones_like(Z[i]);
+
+        //if  (alpha_i_finite && beta_i_finite) {
+            //// Truncation [alpha,beta].
+            //Z[i] = (alpha_i > 0.0).item<bool>() ?
+                //Phi(beta_i) - Phi(alpha_i) :
+                //Phi(-alpha_i) - Phi(-beta_i);
+        //} else if (beta_i_finite) {
+            //// Truncation (-inf,beta].
+            //Z[i] = (beta_i > 0.0).item<bool>() ?
+                //Phi(beta_i) :
+                //1.0 - Phi(-beta_i);
+        //} else if (alpha_i_finite) {
+            //// Truncation [alpha,inf).
+            //Z[i] = (alpha_i > 0.0).item<bool>() ?
+                //1.0 - Phi(alpha_i) :
+                //Phi(-alpha_i);
+        //} else {
+            //// Truncation (-inf,inf).
+            //Z[i] = torch::ones({1});
+        //}
+    }
+
+    return torch::max(Z, torch::zeros_like(Z));
+}
+
+
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
     m.def("sample_truncated_normal", &sample_truncated_normal, "Sample from a truncated normal distribution.");
+    m.def ("normalizer", &normalizer, "Calculate the normalizing constant of a truncated normal distribution.");
 }
