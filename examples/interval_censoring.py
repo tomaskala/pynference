@@ -85,6 +85,10 @@ def model(X, Y, logL, logU, log_v, xi, hypers, N, J, K):
     # TODO: Could the entire i plate be vectorized? This would require merging
     # TODO: together the misclassification and event times model, obfuscating
     # TODO: the generative structure a bit, but might be more efficient.
+
+    # TODO: An alternative approach would be to set K[i] = max_j K[j] for all i,
+    # TODO: vectorize all three plates and use masked distributions where a diagnosis
+    # TODO: does not exist.
     for i in Plate("subjects", N):
         # TODO: Swap the j and k loops?
         for j in Plate("teeth", J):
