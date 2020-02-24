@@ -38,7 +38,7 @@ class DistributionMixin(DistributionABC):
 
 
 class Distribution(distributions.Distribution, DistributionMixin):
-    pass
+    expand = DistributionMixin.expand
 
 
 def _broadcast_shapes(*shapes, strict=False):

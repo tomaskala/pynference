@@ -88,6 +88,23 @@ class TruncatedNormal(Distribution):
         self._Phi_alpha[self._alpha > self.TRIM] = 1.0
         self._Z = self._normalizer()
 
+    def expand(self, batch_shape, _instance=None):
+        new = self._get_checked_instance(TruncatedNormal, _instance)
+        batch_shape = torch.Size(batch_shape)
+
+        new.loc = self.loc.expand(batch_shape)
+        new.scale = self.scale.expand(batch_shape)
+        new.low = self.low.expand(batch_shape)
+        new.high = self.high.expand(batch_shape)
+        new._alpha = self._alpha.expand(batch_shape)
+        new._beta = self._beta.expand(batch_shape)
+        new._Phi_alpha = self._Phi_alpha.expand(batch_shape)
+        new._Z = self._Z.expand(batch_shape)
+
+        super(TruncatedNormal, new).__init__(batch_shape, validate_args=False)
+        new._validate_args = self._validate_args
+        return new
+
     def _log_phi(self, x):
         return -(x ** 2) / 2.0 - math.log(math.sqrt(2.0 * math.pi))
 

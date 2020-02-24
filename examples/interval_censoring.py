@@ -25,6 +25,52 @@ from pynference.infrastructure import sample, Plate  # noqa E402
 
 
 def model(X, Y, logL, logU, log_v, xi, hypers, N, J, K):
+    ### Global parameters.
+    assert logL.size() == logU.size() == (N, J)
+
+    # Fixed effects: beta ~ N(m_beta, V_beta).
+    m_beta = hypers["m_beta"]
+    V_beta = hypers["V_beta"]
+    beta = sample("beta", dist.MultivariateNormal(loc=m_beta, covariance_matrix=V_beta))
+
+    # Noise term: sigma2_eps_inv ~ Gamma(nu_eps1, nu_eps2).
+    nu_eps1 = hypers["nu_eps1"]
+    nu_eps2 = hypers["nu_eps2"]
+    sigma2_eps_inv = sample(
+        "sigma2_eps_inv", dist.Gamma(concentration=nu_eps1, rate=nu_eps2)
+    )
+
+    # Random effects mean: mu ~ N(m_mu, s2_mu).
+    m_mu = hypers["m_mu"]
+    s2_mu = hypers["s2_mu"]
+    mu = sample("mu", dist.Normal(loc=m_mu, scale=math.sqrt(s2_mu)))
+
+    # Random effects variance: tau2_inv ~ Gamma(nu_tau1, nu_tau2).
+    nu_tau1 = hypers["nu_tau1"]
+    nu_tau2 = hypers["nu_tau2"]
+    tau2_inv = sample("tau2_inv", dist.Gamma(concentration=nu_tau1, rate=nu_tau2))
+
+    with Plate("subjects", N, dim=-2):
+        b = sample("b", dist.Normal(loc=mu, scale=tau2_inv.sqrt().reciprocal()))
+        b = b.repeat(1, J)
+        assert b.size() == (N, J), b.size()
+
+        # TODO: This could be vectorized.
+        x_girl = X[0]
+        x_seal = X[1]
+        x_freqbr = X[2]
+
+        with Plate("teeth", J, dim=-1):
+            loc = x_girl * beta[0] + x_seal * beta[1] + x_freqbr * beta[2] + b
+            scale = sigma2_eps_inv.sqrt().reciprocal()
+            assert loc.size() == (N, J), loc.size()
+
+            logT = sample(
+                "logT", dist.TruncatedNormal(loc=loc, scale=scale, low=logL, high=logU)
+            )
+
+
+def model_old(X, Y, logL, logU, log_v, xi, hypers, N, J, K):
     ### Event times model.
 
     # Fixed effects: beta ~ N(m_beta, V_beta).
@@ -209,7 +255,12 @@ def main():
     # Load regressors.
     regressors = ["GIRL", "SEAL", "FREQ.BR"]
     p = len(regressors)
-    X = torch.from_numpy(df_regressors[regressors].values)
+    X = np.empty(shape=(p, N, J))
+
+    for i, regressor in enumerate(regressors):
+        X[i] = df_regressors[regressor].values.reshape(N, J)
+
+    X = torch.from_numpy(X)
 
     # Load the potentially misclassified diagnoses.
     # Y[i, j, k] ... diagnosis of the j-th tooth of the i-th subject on the k-th visit.
@@ -225,8 +276,8 @@ def main():
     )
 
     # Load interval censoring bounds.
-    logL = torch.log(torch.from_numpy(df_regressors["FBEG"].values))
-    logU = torch.log(torch.from_numpy(df_regressors["FEND"].values))
+    logL = torch.log(torch.from_numpy(df_regressors["FBEG"].values.reshape(N, J)))
+    logU = torch.log(torch.from_numpy(df_regressors["FEND"].values.reshape(N, J)))
 
     # Load visit log-times.
     # log_v[i, k] ... log(time of the k-th visit of the i-th subject).

@@ -376,7 +376,7 @@ class Plate(Messenger):
                     for i in range(-len(expanded_batch_shape) + 1, 1):
                         if expanded_batch_shape[i] is None:
                             expanded_batch_shape[i] = (
-                                batch_shape[i] if len(batch_shape) >= -1 else 1
+                                batch_shape[i] if len(batch_shape) >= -i else 1
                             )
 
                     message.fun = message.fun.expand(expanded_batch_shape)
