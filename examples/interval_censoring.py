@@ -13,7 +13,7 @@ import torch  # noqa E402
 
 import pynference.distributions as dist  # noqa E402
 from pynference.inference import Metropolis  # noqa E402
-from pynference.infrastructure import sample, Plate  # noqa E402
+from pynference.infrastructure import sample, Mask, Plate  # noqa E402
 
 
 # TODO: Misclassification.
@@ -28,7 +28,8 @@ from pynference.infrastructure import sample, Plate  # noqa E402
 # TODO: ExpandedDistribution can probably be removed.
 def model(X, Y, logL, logU, logv, xi, hypers, N, J, K_max, visit_exists):
     ### Global parameters.
-    assert logL.size() == logU.size() == logv.size() == (N, J, 1)
+    assert logL.size() == logU.size() == (N, J, 1)
+    assert logv.size() == (N, J, K_max)
     assert xi.size() == (N, J, K_max)
     assert visit_exists.size() == (N, J, K_max) and visit_exists.dtype == torch.bool
 
@@ -60,13 +61,13 @@ def model(X, Y, logL, logU, logv, xi, hypers, N, J, K_max, visit_exists):
     a0_alpha = hypers["a0_alpha"]
     a1_alpha = hypers["a1_alpha"]
     alpha = sample("alpha", dist.Beta(a0_alpha, a1_alpha))
-    assert alpha.size() == (a0_alpha.size().item(),), alpha.size()
+    assert alpha.size() == (a0_alpha.size(0),), alpha.size()
 
     # Specificity: eta ~ Beta(a0_eta, a1_eta).
     a0_eta = hypers["a0_eta"]
     a1_eta = hypers["a1_eta"]
     eta = sample("eta", dist.Beta(a0_eta, a1_eta))
-    assert eta.size() == (a0_eta.size().item(),), eta.size()
+    assert eta.size() == (a0_eta.size(0),), eta.size()
 
     ### Subject-specific parameters.
     with Plate("subjects", N, dim=-3):
@@ -94,8 +95,7 @@ def model(X, Y, logL, logU, logv, xi, hypers, N, J, K_max, visit_exists):
                 alpha = alpha[xi]
                 eta = eta[xi]
 
-                logT = logT.unsqueeze(2).expand(-1, -1, K_max)
-                logv = logv.unsqueeze(1).expand(-1, J, -1)
+                logT = logT.expand(-1, -1, K_max)
 
                 assert (
                     logT.size()
@@ -302,12 +302,13 @@ def main():
     # Load the potentially misclassified diagnoses.
     # Y[i, j, k] ... diagnosis of the j-th tooth of the i-th subject on the k-th visit
     # if such visit occurred, or an arbitrary value otherwise.
-    Y = torch.full(size=(N, J, K_max), fill_value=666.0)
+    Y = np.full(shape=(N, J, K_max), fill_value=666.0)
     Y[
-        df_misclassifications["IDNR"],
-        df_misclassifications["TOOTH_RANK"],
-        df_misclassifications["VISIT_RANK"],
-    ] = df_misclassifications["STATUS"]
+        df_misclassifications["IDNR"].values,
+        df_misclassifications["TOOTH_RANK"].values,
+        df_misclassifications["VISIT_RANK"].values,
+    ] = df_misclassifications["STATUS"].values
+    Y = torch.from_numpy(Y)
 
     # Load interval censoring bounds.
     logL = torch.log(
@@ -320,23 +321,25 @@ def main():
     # Load visit log-times.
     # logv[i, j, k] ... log(time of the k-th visit of the i-th subject on the j-th
     # tooth) if such visit occurred, an arbitrary value otherwise.
-    logv = torch.full(size=(N, J, K_max), fill_value=666.0)
+    logv = np.full(shape=(N, J, K_max), fill_value=666.0)
     logv[
-        df_misclassifications["IDNR"],
-        df_misclassifications["TOOTH_RANK"],
-        df_misclassifications["VISIT_RANK"],
-    ] = df_misclassifications["VISIT"]
+        df_misclassifications["IDNR"].values,
+        df_misclassifications["TOOTH_RANK"].values,
+        df_misclassifications["VISIT_RANK"].values,
+    ] = df_misclassifications["VISIT"].values
+    logv = torch.from_numpy(logv)
     logv.log_()
 
     # Load subject-visit examiner indicators.
     # xi[i, j, k] ... id of the examiner at the k-th visit of the j-th tooth of
     # the i-th subject if such visit occurred, or an arbitrary value otherwise.
-    xi = torch.zeros(size=(N, J, K_max), dtype=torch.int)
+    xi = np.zeros(shape=(N, J, K_max), dtype=int)
     xi[
-        df_misclassifications["IDNR"],
-        df_misclassifications["TOOTH_RANK"],
-        df_misclassifications["VISIT_RANK"],
-    ] = df_misclassifications["EXAMINER"]
+        df_misclassifications["IDNR"].values,
+        df_misclassifications["TOOTH_RANK"].values,
+        df_misclassifications["VISIT_RANK"].values,
+    ] = df_misclassifications["EXAMINER"].values
+    xi = torch.from_numpy(xi)
 
     # Load indicators of visits (i, j, k) being defined.
     visit_exists = Y < 666.0

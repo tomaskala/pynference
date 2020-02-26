@@ -31,6 +31,7 @@ __all__ = [
     "Seed",
     "Condition",
     "Plate",
+    "Mask",
 ]
 
 
@@ -52,6 +53,7 @@ class Message:
     conditional_independence_stack: Tuple[
         "ConditionalIndependenceStackFrame", ...  # noqa W504
     ] = field(default_factory=tuple)
+    mask: Union[torch.Tensor, None] = field(default=None)
 
 
 _MESSENGER_STACK: List["Messenger"] = []
@@ -138,9 +140,14 @@ class Trace(Messenger):
         for name, message in trace.items():
             if message.message_type is MessageType.SAMPLE:
                 if message.log_prob_sum is None:
-                    message.log_prob_sum = torch.sum(
-                        message.fun.log_prob(message.value)
-                    )
+                    message_log_prob = message.fun.log_prob(message.value)
+
+                    if message.mask is not None:
+                        message_log_prob = torch.where(
+                            message.mask, message_log_prob, message_log_prob.new_zeros()
+                        )
+
+                    message.log_prob_sum = torch.sum(message_log_prob)
 
                 log_prob += message.log_prob_sum
 
@@ -407,3 +414,20 @@ class Plate(Messenger):
 
             with self:
                 yield i if isinstance(i, Number) else i.item()
+
+
+class Mask(Messenger):
+    def __init__(self, mask):
+        if not (
+            isinstance(mask, bool)
+            or (isinstance(mask, torch.Tensor) and mask.dtype == torch.bool)
+        ):
+            raise ValueError("The mask must be either a boolean or a boolean tensor.")
+
+        if isinstance(mask, bool):
+            mask = torch.tensor(mask)
+
+        self.mask = mask
+
+    def _process_message(self, message: Message):
+        message.mask = self.mask if message.mask is None else self.mask & message.mask
