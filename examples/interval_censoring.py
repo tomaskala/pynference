@@ -24,9 +24,13 @@ from pynference.infrastructure import sample, Plate  # noqa E402
 # TODO: MCMC diagnostics.
 
 
-def model(X, Y, logL, logU, log_v, xi, hypers, N, J, K):
+# TODO: Some of the truncnorm calculation could use `torch.where` as in masked.
+# TODO: ExpandedDistribution can probably be removed.
+def model(X, Y, logL, logU, logv, xi, hypers, N, J, K_max, visit_exists):
     ### Global parameters.
-    assert logL.size() == logU.size() == (N, J)
+    assert logL.size() == logU.size() == logv.size() == (N, J, 1)
+    assert xi.size() == (N, J, K_max)
+    assert visit_exists.size() == (N, J, K_max) and visit_exists.dtype == torch.bool
 
     # Fixed effects: beta ~ N(m_beta, V_beta).
     m_beta = hypers["m_beta"]
@@ -50,27 +54,65 @@ def model(X, Y, logL, logU, log_v, xi, hypers, N, J, K):
     nu_tau2 = hypers["nu_tau2"]
     tau2_inv = sample("tau2_inv", dist.Gamma(concentration=nu_tau1, rate=nu_tau2))
 
-    with Plate("subjects", N, dim=-2):
+    # TODO: Handle `alpha + eta > 1`.
+    # TODO: This is the simplified model M2.
+    # Sensitivity: alpha ~ Beta(a0_alpha, a1_alpha).
+    a0_alpha = hypers["a0_alpha"]
+    a1_alpha = hypers["a1_alpha"]
+    alpha = sample("alpha", dist.Beta(a0_alpha, a1_alpha))
+    assert alpha.size() == (a0_alpha.size().item(),), alpha.size()
+
+    # Specificity: eta ~ Beta(a0_eta, a1_eta).
+    a0_eta = hypers["a0_eta"]
+    a1_eta = hypers["a1_eta"]
+    eta = sample("eta", dist.Beta(a0_eta, a1_eta))
+    assert eta.size() == (a0_eta.size().item(),), eta.size()
+
+    ### Subject-specific parameters.
+    with Plate("subjects", N, dim=-3):
         b = sample("b", dist.Normal(loc=mu, scale=tau2_inv.sqrt().reciprocal()))
-        b = b.repeat(1, J)
-        assert b.size() == (N, J), b.size()
+        b = b.repeat(1, J, 1)
+        assert b.size() == (N, J, 1), b.size()
 
         # TODO: This could be vectorized.
-        x_girl = X[0]
-        x_seal = X[1]
-        x_freqbr = X[2]
+        x_girl = X[0].unsqueeze(-1)
+        x_seal = X[1].unsqueeze(-1)
+        x_freqbr = X[2].unsqueeze(-1)
 
-        with Plate("teeth", J, dim=-1):
+        ### Subject-tooth-specific parameters.
+        with Plate("teeth", J, dim=-2):
             loc = x_girl * beta[0] + x_seal * beta[1] + x_freqbr * beta[2] + b
             scale = sigma2_eps_inv.sqrt().reciprocal()
-            assert loc.size() == (N, J), loc.size()
+            assert loc.size() == (N, J, 1), loc.size()
 
             logT = sample(
                 "logT", dist.TruncatedNormal(loc=loc, scale=scale, low=logL, high=logU)
             )
 
+            ### Subject-tooth-visit-specific parameters.
+            with Plate("visits", K_max, dim=-1):
+                alpha = alpha[xi]
+                eta = eta[xi]
 
-def model_old(X, Y, logL, logU, log_v, xi, hypers, N, J, K):
+                logT = logT.unsqueeze(2).expand(-1, -1, K_max)
+                logv = logv.unsqueeze(1).expand(-1, J, -1)
+
+                assert (
+                    logT.size()
+                    == logv.size()
+                    == alpha.size()
+                    == eta.size()
+                    == (N, J, K_max)
+                )
+
+                with Mask(visit_exists & (logT <= logv)):
+                    sample("Y_alpha", dist.Bernoulli(alpha), observation=Y)
+
+                with Mask(visit_exists & (logT > logv)):
+                    sample("Y_eta", dist.Bernoulli(1.0 - eta), observation=Y)
+
+
+def model_old(X, Y, logL, logU, logv, xi, hypers, N, J, K):
     ### Event times model.
 
     # Fixed effects: beta ~ N(m_beta, V_beta).
@@ -145,9 +187,9 @@ def model_old(X, Y, logL, logU, log_v, xi, hypers, N, J, K):
                     # The j-th tooth of the i-th subject was not examined on the k-th visit.
                     continue
 
-                # TODO: The indexing of alpha and eta currently assumes the model M1.
+                # TODO: The indexing of alpha and eta currently assumes the simplified model M2.
                 # TODO: Could this be handled by a masked distribution?
-                if logT[i * J + j] <= log_v[i, k]:
+                if logT[i * J + j] <= logv[i, k]:
                     # Observed diagnosis: Y_ijk | T_ij <= v_ik ~ Alt(alpha_{xi_ik}).
                     sample(
                         "Y_({},{},{})".format(i, j, k),
@@ -239,18 +281,13 @@ def main():
     df_path = str(Path(__file__).parent / Path("./data/Data_20130610.RData"))
     df_misclassifications, df_regressors = load_dataframe(df_path, which="both")
 
-    N = df_regressors["IDNR"].nunique()
+    N = df_regressors["IDNR"].nunique()  # Number of subjects.
     J = 4  # We observe 4 teeth on each subject.
     Q = 16  # There are 16 examiners in total.
 
     # Number of visits per subject. Note that there are some visits where not all teeth
     # were examined, hence the max over tooth visit time counts after grouping.
-    K = torch.from_numpy(
-        df_misclassifications.groupby(["IDNR", "TOOTH"])
-        .count()["VISIT"]
-        .max(level=0)
-        .values
-    )
+    K_max = df_misclassifications.groupby(["IDNR", "TOOTH"]).count()["VISIT"].max()
 
     # Load regressors.
     regressors = ["GIRL", "SEAL", "FREQ.BR"]
@@ -263,39 +300,46 @@ def main():
     X = torch.from_numpy(X)
 
     # Load the potentially misclassified diagnoses.
-    # Y[i, j, k] ... diagnosis of the j-th tooth of the i-th subject on the k-th visit.
-    Y = dict(
-        zip(
-            zip(
-                df_misclassifications["IDNR"],
-                df_misclassifications["TOOTH_RANK"],
-                df_misclassifications["VISIT_RANK"],
-            ),
-            df_misclassifications["STATUS"],
-        )
-    )
+    # Y[i, j, k] ... diagnosis of the j-th tooth of the i-th subject on the k-th visit
+    # if such visit occurred, or an arbitrary value otherwise.
+    Y = torch.full(size=(N, J, K_max), fill_value=666.0)
+    Y[
+        df_misclassifications["IDNR"],
+        df_misclassifications["TOOTH_RANK"],
+        df_misclassifications["VISIT_RANK"],
+    ] = df_misclassifications["STATUS"]
 
     # Load interval censoring bounds.
-    logL = torch.log(torch.from_numpy(df_regressors["FBEG"].values.reshape(N, J)))
-    logU = torch.log(torch.from_numpy(df_regressors["FEND"].values.reshape(N, J)))
+    logL = torch.log(
+        torch.from_numpy(df_regressors["FBEG"].values.reshape(N, J))
+    ).unsqueeze(-1)
+    logU = torch.log(
+        torch.from_numpy(df_regressors["FEND"].values.reshape(N, J))
+    ).unsqueeze(-1)
 
     # Load visit log-times.
-    # log_v[i, k] ... log(time of the k-th visit of the i-th subject).
-    log_v = dict(
-        zip(
-            zip(df_misclassifications["IDNR"], df_misclassifications["VISIT_RANK"]),
-            np.log(df_misclassifications["VISIT"]),
-        )
-    )
+    # logv[i, j, k] ... log(time of the k-th visit of the i-th subject on the j-th
+    # tooth) if such visit occurred, an arbitrary value otherwise.
+    logv = torch.full(size=(N, J, K_max), fill_value=666.0)
+    logv[
+        df_misclassifications["IDNR"],
+        df_misclassifications["TOOTH_RANK"],
+        df_misclassifications["VISIT_RANK"],
+    ] = df_misclassifications["VISIT"]
+    logv.log_()
 
     # Load subject-visit examiner indicators.
-    # xi[i, k] ... id of the examiner at the k-th visit of the i-th subject.
-    xi = dict(
-        zip(
-            zip(df_misclassifications["IDNR"], df_misclassifications["VISIT_RANK"]),
-            df_misclassifications["EXAMINER"],
-        )
-    )
+    # xi[i, j, k] ... id of the examiner at the k-th visit of the j-th tooth of
+    # the i-th subject if such visit occurred, or an arbitrary value otherwise.
+    xi = torch.zeros(size=(N, J, K_max), dtype=torch.int)
+    xi[
+        df_misclassifications["IDNR"],
+        df_misclassifications["TOOTH_RANK"],
+        df_misclassifications["VISIT_RANK"],
+    ] = df_misclassifications["EXAMINER"]
+
+    # Load indicators of visits (i, j, k) being defined.
+    visit_exists = Y < 666.0
 
     # Set-up priors.
     hypers = {
@@ -329,7 +373,17 @@ def main():
         tune=tune,
     )
     sampled_theta = mcmc.run(
-        X=X, Y=Y, logL=logL, logU=logU, log_v=log_v, xi=xi, hypers=hypers, N=N, J=J, K=K
+        X=X,
+        Y=Y,
+        logL=logL,
+        logU=logU,
+        logv=logv,
+        xi=xi,
+        hypers=hypers,
+        N=N,
+        J=J,
+        K_max=K_max,
+        visit_exists=visit_exists,
     )
 
     # Collect samples.
