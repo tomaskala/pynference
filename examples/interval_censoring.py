@@ -14,6 +14,7 @@ from torch.distributions import constraints  # noqa E402
 from torch.distributions.utils import broadcast_all  # noqa E402
 
 import pynference.distributions as dist  # noqa E402
+from pynference.distributions.distribution import Distribution
 from pynference.inference import Metropolis  # noqa E402
 from pynference.infrastructure import sample, Mask, Plate  # noqa E402
 
@@ -26,7 +27,7 @@ from pynference.infrastructure import sample, Mask, Plate  # noqa E402
 # TODO: MCMC diagnostics.
 
 
-class AlphaEtaPrior(dist.Distribution):
+class AlphaEtaPrior(Distribution):
     arg_constraints = {
         "a0_alpha": constraints.positive,
         "a1_alpha": constraints.positive,
@@ -65,16 +66,27 @@ class AlphaEtaPrior(dist.Distribution):
         return p_alpha + log_constraint + p_eta
 
     def sample(self, sample_shape=torch.Size()):
+        # eta = self._beta_eta.sample(sample_shape)
+        # u = torch.rand_like(eta)
+        # F_eta = self._beta_eta.cdf(1.0 - eta)
+        # alpha = self._beta_alpha.icdf(F_eta + (1.0 - F_eta) * u)
         eta = self._beta_eta.sample(sample_shape)
-        u = torch.rand_like(eta)
-        F_eta = self._beta_eta.cdf(1.0 - eta)
-        alpha = self._beta_alpha.icdf(F_eta + (1.0 - F_eta) * u)
+        alpha = self._beta_alpha.sample(sample_shape)
 
         return torch.stack((alpha, eta))
 
     @constraints.dependent_property
     def support(self):
-        pass  # TODO
+        # TODO: Correct bounds! The interval should be ([1-eta, 0], [1, 1]).
+        # TODO: Where to get eta?
+        lower_bound = torch.stack((torch.zeros(self._beta_eta.batch_shape), torch.zeros(self._beta_eta.batch_shape)))
+        upper_bound = torch.stack((torch.ones(self._beta_eta.batch_shape), torch.ones(self._beta_eta.batch_shape)))
+        return constraints.interval(lower_bound, upper_bound)
+
+
+# TODO: Implement the distribution as a conditional alpha | eta.
+# TODO: Since eta is fixed, it can be given as a parameter and used as the lower bound of the support.
+# TODO: First sample eta from a beta distribution, then alpha | eta from this distribution.
 
 
 # TODO: ExpandedDistribution can probably be removed.
@@ -112,14 +124,16 @@ def model(X, Y, logL, logU, logv, xi, hypers, N, J, K_max, visit_exists):
     # Sensitivity: alpha ~ Beta(a0_alpha, a1_alpha).
     a0_alpha = hypers["a0_alpha"]
     a1_alpha = hypers["a1_alpha"]
-    alpha = sample("alpha", dist.Beta(a0_alpha, a1_alpha))
-    assert alpha.size() == (a0_alpha.size(0),), alpha.size()
+    # alpha = sample("alpha", dist.Beta(a0_alpha, a1_alpha))
+    # assert alpha.size() == (a0_alpha.size(0),), alpha.size()
 
     # Specificity: eta ~ Beta(a0_eta, a1_eta).
     a0_eta = hypers["a0_eta"]
     a1_eta = hypers["a1_eta"]
-    eta = sample("eta", dist.Beta(a0_eta, a1_eta))
-    assert eta.size() == (a0_eta.size(0),), eta.size()
+    # eta = sample("eta", dist.Beta(a0_eta, a1_eta))
+    # assert eta.size() == (a0_eta.size(0),), eta.size()
+
+    alpha, eta = sample("alpha, eta", AlphaEtaPrior(a0_alpha, a1_alpha, a0_eta, a1_eta))
 
     ### Subject-specific parameters.
     with Plate("subjects", N, dim=-3):
