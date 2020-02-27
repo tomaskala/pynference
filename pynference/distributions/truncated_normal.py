@@ -118,29 +118,27 @@ class TruncatedNormal(Distribution):
         Z = torch.empty_like(self._alpha)
         use_cdf = self._alpha <= 0.0
 
-        cdf_a = self._Phi(self._alpha[use_cdf])
-        cdf_b = self._Phi(self._beta[use_cdf])
-        sf_a = self._Phi(-self._alpha[~use_cdf])
-        sf_b = self._Phi(-self._beta[~use_cdf])
+        cdf_a = self._Phi(self._alpha)
+        cdf_b = self._Phi(self._beta)
+        sf_a = self._Phi(-self._alpha)
+        sf_b = self._Phi(-self._beta)
 
-        Z[use_cdf] = cdf_b - cdf_a
-        Z[~use_cdf] = sf_a - sf_b
-        Z[self._alpha > self.TRIM] = 0.0
-        Z[self._beta < -self.TRIM] = 0.0
+        Z = torch.where(use_cdf, cdf_b - cdf_a, sf_a - sf_b)
+        Z[(self._alpha > self.TRIM) | (self._beta < -self.TRIM)] = 0.0
 
-        return torch.max(Z, torch.zeros_like(Z))
+        return torch.max(Z, Z.new_zeros(()))
 
     def sample(self, sample_shape=torch.Size()):
         shape = self._extended_shape(sample_shape)
-        return torch.zeros(shape)
+        # return torch.zeros(shape)
         # samples = sample_truncated_normal(self.loc, self.scale, self.low, self.high)
         # print(samples)
         # return samples
         # shape = self._extended_shape(sample_shape)
 
-        # with torch.no_grad():
-        # uniform = torch.rand(shape)
-        # return self.icdf(uniform)
+        with torch.no_grad():
+            uniform = torch.rand(shape)
+            return self.icdf(uniform)
 
     def cdf(self, x):
         return (self._Phi(self._xi(x)) - self._Phi_alpha) / self._Z
