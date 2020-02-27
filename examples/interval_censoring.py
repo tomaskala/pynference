@@ -73,7 +73,6 @@ class EtaCondAlpha(Distribution):
         return constraints.interval(1.0 - self.alpha, 1.0)
 
 
-# TODO: ExpandedDistribution can probably be removed.
 def model(X, Y, logL, logU, logv, xi, hypers, N, J, K_max, visit_exists):
     ### Global parameters.
     assert logL.size() == logU.size() == (N, J, 1)
