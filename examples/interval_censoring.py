@@ -10,6 +10,8 @@ import numpy as np  # noqa E402
 import pandas as pd  # noqa E402
 import pyreadr  # noqa E402
 import torch  # noqa E402
+from torch.distributions import constraints  # noqa E402
+from torch.distributions.utils import broadcast_all  # noqa E402
 
 import pynference.distributions as dist  # noqa E402
 from pynference.inference import Metropolis  # noqa E402
@@ -22,6 +24,57 @@ from pynference.infrastructure import sample, Mask, Plate  # noqa E402
 # TODO: HMC & NUTS.
 # TODO: More chains.
 # TODO: MCMC diagnostics.
+
+
+class AlphaEtaPrior(dist.Distribution):
+    arg_constraints = {
+        "a0_alpha": constraints.positive,
+        "a1_alpha": constraints.positive,
+        "a0_eta": constraints.positive,
+        "a1_eta": constraints.positive,
+    }
+
+    def __init__(self, a0_alpha, a1_alpha, a0_eta, a1_eta, validate_args=None):
+        a0_alpha, a1_alpha, a0_eta, a1_eta = broadcast_all(a0_alpha, a1_alpha, a0_eta, a1_eta)
+        batch_shape = a0_alpha.size()
+
+        super(AlphaEtaPrior, self).__init__(batch_shape, validate_args=validate_args)
+
+        self._beta_alpha = dist.Beta(a0_alpha, a1_alpha)
+        self._beta_eta = dist.Beta(a0_eta, a1_eta)
+
+    def expand(self, batch_shape, _instance=None):
+        new = self._get_checked_instance(AlphaEtaPrior, _instance)
+        batch_shape = torch.Size(batch_shape)
+
+        new._beta_alpha = self._beta_alpha.expand(batch_shape)
+        new._beta_eta = self._beta_eta.expand(batch_shape)
+
+        super(AlphaEtaPrior, new).__init__(batch_shape, validate_args=False)
+        new._validate_args = self._validate_args
+        return new
+
+    def log_prob(self, x):
+        alpha, eta = x
+
+        p_eta = self._beta_eta.log_prob(eta)
+        p_alpha = self._beta_alpha.log_prob(alpha)
+        log_constraint = torch.full_like(p_alpha, fill_value=float("-inf"))
+        log_constraint[alpha > 1.0 - eta] = 0.0
+        
+        return p_alpha + log_constraint + p_eta
+
+    def sample(self, sample_shape=torch.Size()):
+        eta = self._beta_eta.sample(sample_shape)
+        u = torch.rand_like(eta)
+        F_eta = self._beta_eta.cdf(1.0 - eta)
+        alpha = self._beta_alpha.icdf(F_eta + (1.0 - F_eta) * u)
+
+        return torch.stack((alpha, eta))
+
+    @constraints.dependent_property
+    def support(self):
+        pass  # TODO
 
 
 # TODO: ExpandedDistribution can probably be removed.
