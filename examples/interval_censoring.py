@@ -24,7 +24,6 @@ from pynference.infrastructure import sample, Mask, Plate  # noqa E402
 # TODO: MCMC diagnostics.
 
 
-# TODO: Some of the truncnorm calculation could use `torch.where` as in masked.
 # TODO: ExpandedDistribution can probably be removed.
 def model(X, Y, logL, logU, logv, xi, hypers, N, J, K_max, visit_exists):
     ### Global parameters.
@@ -110,99 +109,6 @@ def model(X, Y, logL, logU, logv, xi, hypers, N, J, K_max, visit_exists):
 
                 with Mask(visit_exists & (logT > logv)):
                     sample("Y_eta", dist.Bernoulli(1.0 - eta), observation=Y)
-
-
-def model_old(X, Y, logL, logU, logv, xi, hypers, N, J, K):
-    ### Event times model.
-
-    # Fixed effects: beta ~ N(m_beta, V_beta).
-    m_beta = hypers["m_beta"]
-    V_beta = hypers["V_beta"]
-    beta = sample("beta", dist.MultivariateNormal(loc=m_beta, covariance_matrix=V_beta))
-
-    # Noise term: sigma2_eps_inv ~ Gamma(nu_eps1, nu_eps2).
-    nu_eps1 = hypers["nu_eps1"]
-    nu_eps2 = hypers["nu_eps2"]
-    sigma2_eps_inv = sample(
-        "sigma2_eps_inv", dist.Gamma(concentration=nu_eps1, rate=nu_eps2)
-    )
-
-    # Random effects mean: mu ~ N(m_mu, s2_mu).
-    m_mu = hypers["m_mu"]
-    s2_mu = hypers["s2_mu"]
-    mu = sample("mu", dist.Normal(loc=m_mu, scale=math.sqrt(s2_mu)))
-
-    # Random effects variance: tau2_inv ~ Gamma(nu_tau1, nu_tau2).
-    nu_tau1 = hypers["nu_tau1"]
-    nu_tau2 = hypers["nu_tau2"]
-    tau2_inv = sample("tau2_inv", dist.Gamma(concentration=nu_tau1, rate=nu_tau2))
-
-    # Random effect: b ~ N(mu, tau2_inv^{-1}).
-    mu = mu * torch.ones((N,))
-    tau2_inv = tau2_inv * torch.ones((N,))
-    b = sample("b", dist.Normal(loc=mu, scale=tau2_inv.sqrt().reciprocal()))
-    b = torch.repeat_interleave(b, J)
-
-    # Latent log(event times): logT ~ TN(X @ beta + b, sigma2_eps_inv^{-1}, logL, logU).
-    logT = sample(
-        "logT",
-        dist.TruncatedNormal(
-            loc=X @ beta + b,
-            scale=sigma2_eps_inv.sqrt().reciprocal(),
-            low=logL,
-            high=logU,
-        ),
-    )
-
-    # TODO: Remove this once truncnorm is finished.
-    assert not torch.isinf(logT).any()
-    assert not torch.isnan(logT).any()
-
-    ### Misclassification model.
-
-    a0_alpha = hypers["a0_alpha"]
-    a1_alpha = hypers["a1_alpha"]
-
-    a0_eta = hypers["a0_eta"]
-    a1_eta = hypers["a1_eta"]
-
-    # TODO: Handle the alpha + eta > 1 constraint.
-    alpha = sample("alpha", dist.Beta(a0_alpha, a1_alpha))
-    eta = sample("eta", dist.Beta(a0_eta, a1_eta))
-
-    # TODO: Could the entire i plate be vectorized? This would require merging
-    # TODO: together the misclassification and event times model, obfuscating
-    # TODO: the generative structure a bit, but might be more efficient.
-
-    # TODO: An alternative approach would be to set K[i] = max_j K[j] for all i,
-    # TODO: vectorize all three plates and use masked distributions where a diagnosis
-    # TODO: does not exist.
-    for i in Plate("subjects", N):
-        # TODO: Swap the j and k loops?
-        for j in Plate("teeth", J):
-            for k in Plate("visits", K[i]):
-                xi_ik = xi[i, k]
-
-                if (i, j, k) not in Y:
-                    # The j-th tooth of the i-th subject was not examined on the k-th visit.
-                    continue
-
-                # TODO: The indexing of alpha and eta currently assumes the simplified model M2.
-                # TODO: Could this be handled by a masked distribution?
-                if logT[i * J + j] <= logv[i, k]:
-                    # Observed diagnosis: Y_ijk | T_ij <= v_ik ~ Alt(alpha_{xi_ik}).
-                    sample(
-                        "Y_({},{},{})".format(i, j, k),
-                        dist.Bernoulli(alpha[xi_ik]),
-                        observation=Y[i, j, k],
-                    )
-                else:
-                    # Observed diagnosis: Y_ijk | T_ij > v_ik ~ Alt(1 - eta_{xi_ik}).
-                    sample(
-                        "Y_({},{},{})".format(i, j, k),
-                        dist.Bernoulli(1.0 - eta[xi_ik]),
-                        observation=Y[i, j, k],
-                    )
 
 
 def load_dataframe(df_path: str, which: str) -> pd.DataFrame:
