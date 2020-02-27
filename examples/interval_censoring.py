@@ -14,7 +14,7 @@ from torch.distributions import constraints  # noqa E402
 from torch.distributions.utils import broadcast_all  # noqa E402
 
 import pynference.distributions as dist  # noqa E402
-from pynference.distributions.distribution import Distribution
+from pynference.distributions.distribution import Distribution  # noqa E402
 from pynference.inference import Metropolis  # noqa E402
 from pynference.infrastructure import sample, Mask, Plate  # noqa E402
 
@@ -59,7 +59,7 @@ class EtaCondAlpha(Distribution):
         p_eta = self._beta_eta.log_prob(eta)
         log_constraint = torch.full_like(p_eta, fill_value=float("-inf"))
         log_constraint[eta > 1.0 - self.alpha] = 0.0
-        
+
         return p_eta + log_constraint
 
     def sample(self, sample_shape=torch.Size()):
