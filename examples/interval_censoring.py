@@ -27,7 +27,7 @@ from pynference.infrastructure import sample, Mask, Plate  # noqa E402
 # TODO: MCMC diagnostics.
 
 
-class EtaCondAlpha(Distribution):
+class EtaGivenAlpha(Distribution):
     arg_constraints = {
         "alpha": constraints.interval(0.0, 1.0),
         "a0_eta": constraints.positive,
@@ -43,7 +43,7 @@ class EtaCondAlpha(Distribution):
         self._beta_eta = dist.Beta(self.a0_eta, self.a1_eta)
 
     def expand(self, batch_shape, _instance=None):
-        new = self._get_checked_instance(EtaCondAlpha, _instance)
+        new = self._get_checked_instance(EtaGivenAlpha, _instance)
         batch_shape = torch.Size(batch_shape)
 
         new.alpha = self.alpha.expand(batch_shape)
@@ -51,7 +51,7 @@ class EtaCondAlpha(Distribution):
         new.a1_eta = self.a1_eta.expand(batch_shape)
         new._beta_eta = self._beta_eta.expand(batch_shape)
 
-        super(EtaCondAlpha, new).__init__(batch_shape, validate_args=False)
+        super(EtaGivenAlpha, new).__init__(batch_shape, validate_args=False)
         new._validate_args = self._validate_args
         return new
 
@@ -112,7 +112,7 @@ def model(X, Y, logL, logU, logv, xi, hypers, N, J, K_max, visit_exists):
     # Specificity: eta | alpha ~ Beta(a0_eta, a1_eta) x I[alpha + eta > 1].
     a0_eta = hypers["a0_eta"]
     a1_eta = hypers["a1_eta"]
-    eta = sample("eta", EtaCondAlpha(alpha, a0_eta, a1_eta))
+    eta = sample("eta", EtaGivenAlpha(alpha, a0_eta, a1_eta))
     assert eta.size() == (a0_eta.size(0),), eta.size()
 
     ### Subject-specific parameters.
