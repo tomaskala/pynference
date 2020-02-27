@@ -19,7 +19,7 @@ from pynference.inference import Metropolis  # noqa E402
 from pynference.infrastructure import sample, Mask, Plate  # noqa E402
 
 
-# TODO: Misclassification.
+# TODO: Cast the observed Y (STATUS) to the correct type accepted by Bernoulli.
 # TODO: Optimize truncnorm constraint.
 # TODO: Optimize truncnorm normalizing constant.
 # TODO: HMC & NUTS.
@@ -27,66 +27,50 @@ from pynference.infrastructure import sample, Mask, Plate  # noqa E402
 # TODO: MCMC diagnostics.
 
 
-class AlphaEtaPrior(Distribution):
+class EtaCondAlpha(Distribution):
     arg_constraints = {
-        "a0_alpha": constraints.positive,
-        "a1_alpha": constraints.positive,
+        "alpha": constraints.interval(0.0, 1.0),
         "a0_eta": constraints.positive,
         "a1_eta": constraints.positive,
     }
 
-    def __init__(self, a0_alpha, a1_alpha, a0_eta, a1_eta, validate_args=None):
-        a0_alpha, a1_alpha, a0_eta, a1_eta = broadcast_all(a0_alpha, a1_alpha, a0_eta, a1_eta)
-        batch_shape = a0_alpha.size()
+    def __init__(self, alpha, a0_eta, a1_eta, validate_args=None):
+        self.alpha, self.a0_eta, self.a1_eta = broadcast_all(alpha, a0_eta, a1_eta)
+        batch_shape = a0_eta.size()
 
-        super(AlphaEtaPrior, self).__init__(batch_shape, validate_args=validate_args)
+        super().__init__(batch_shape, validate_args=validate_args)
 
-        self._beta_alpha = dist.Beta(a0_alpha, a1_alpha)
-        self._beta_eta = dist.Beta(a0_eta, a1_eta)
+        self._beta_eta = dist.Beta(self.a0_eta, self.a1_eta)
 
     def expand(self, batch_shape, _instance=None):
-        new = self._get_checked_instance(AlphaEtaPrior, _instance)
+        new = self._get_checked_instance(EtaCondAlpha, _instance)
         batch_shape = torch.Size(batch_shape)
 
-        new._beta_alpha = self._beta_alpha.expand(batch_shape)
+        new.alpha = self.alpha.expand(batch_shape)
+        new.a0_eta = self.a0_eta.expand(batch_shape)
+        new.a1_eta = self.a1_eta.expand(batch_shape)
         new._beta_eta = self._beta_eta.expand(batch_shape)
 
-        super(AlphaEtaPrior, new).__init__(batch_shape, validate_args=False)
+        super(EtaCondAlpha, new).__init__(batch_shape, validate_args=False)
         new._validate_args = self._validate_args
         return new
 
-    def log_prob(self, x):
-        alpha, eta = x
-
+    def log_prob(self, eta):
         p_eta = self._beta_eta.log_prob(eta)
-        p_alpha = self._beta_alpha.log_prob(alpha)
-        log_constraint = torch.full_like(p_alpha, fill_value=float("-inf"))
-        log_constraint[alpha > 1.0 - eta] = 0.0
+        log_constraint = torch.full_like(p_eta, fill_value=float("-inf"))
+        log_constraint[eta > 1.0 - self.alpha] = 0.0
         
-        return p_alpha + log_constraint + p_eta
+        return p_eta + log_constraint
 
     def sample(self, sample_shape=torch.Size()):
-        # eta = self._beta_eta.sample(sample_shape)
-        # u = torch.rand_like(eta)
-        # F_eta = self._beta_eta.cdf(1.0 - eta)
-        # alpha = self._beta_alpha.icdf(F_eta + (1.0 - F_eta) * u)
-        eta = self._beta_eta.sample(sample_shape)
-        alpha = self._beta_alpha.sample(sample_shape)
-
-        return torch.stack((alpha, eta))
+        # TODO: Formally correct sampling requires evaluating the cdf and icdf
+        # TODO: of the beta distribution. Since we do not need to differentiate
+        # TODO: the samples themselves, scipy special can be used.
+        return torch.min(1.0 - self.alpha + 1e-3, self.alpha.new_ones(()))
 
     @constraints.dependent_property
     def support(self):
-        # TODO: Correct bounds! The interval should be ([1-eta, 0], [1, 1]).
-        # TODO: Where to get eta?
-        lower_bound = torch.stack((torch.zeros(self._beta_eta.batch_shape), torch.zeros(self._beta_eta.batch_shape)))
-        upper_bound = torch.stack((torch.ones(self._beta_eta.batch_shape), torch.ones(self._beta_eta.batch_shape)))
-        return constraints.interval(lower_bound, upper_bound)
-
-
-# TODO: Implement the distribution as a conditional alpha | eta.
-# TODO: Since eta is fixed, it can be given as a parameter and used as the lower bound of the support.
-# TODO: First sample eta from a beta distribution, then alpha | eta from this distribution.
+        return constraints.interval(1.0 - self.alpha, 1.0)
 
 
 # TODO: ExpandedDistribution can probably be removed.
@@ -119,21 +103,18 @@ def model(X, Y, logL, logU, logv, xi, hypers, N, J, K_max, visit_exists):
     nu_tau2 = hypers["nu_tau2"]
     tau2_inv = sample("tau2_inv", dist.Gamma(concentration=nu_tau1, rate=nu_tau2))
 
-    # TODO: Handle `alpha + eta > 1`.
     # TODO: This is the simplified model M2.
     # Sensitivity: alpha ~ Beta(a0_alpha, a1_alpha).
     a0_alpha = hypers["a0_alpha"]
     a1_alpha = hypers["a1_alpha"]
-    # alpha = sample("alpha", dist.Beta(a0_alpha, a1_alpha))
-    # assert alpha.size() == (a0_alpha.size(0),), alpha.size()
+    alpha = sample("alpha", dist.Beta(a0_alpha, a1_alpha))
+    assert alpha.size() == (a0_alpha.size(0),), alpha.size()
 
-    # Specificity: eta ~ Beta(a0_eta, a1_eta).
+    # Specificity: eta | alpha ~ Beta(a0_eta, a1_eta) x I[alpha + eta > 1].
     a0_eta = hypers["a0_eta"]
     a1_eta = hypers["a1_eta"]
-    # eta = sample("eta", dist.Beta(a0_eta, a1_eta))
-    # assert eta.size() == (a0_eta.size(0),), eta.size()
-
-    alpha, eta = sample("alpha, eta", AlphaEtaPrior(a0_alpha, a1_alpha, a0_eta, a1_eta))
+    eta = sample("eta", EtaCondAlpha(alpha, a0_eta, a1_eta))
+    assert eta.size() == (a0_eta.size(0),), eta.size()
 
     ### Subject-specific parameters.
     with Plate("subjects", N, dim=-3):
