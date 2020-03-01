@@ -36,7 +36,7 @@ class EtaGivenAlpha(Distribution):
 
     def __init__(self, alpha, a0_eta, a1_eta, validate_args=None):
         self.alpha, self.a0_eta, self.a1_eta = broadcast_all(alpha, a0_eta, a1_eta)
-        batch_shape = a0_eta.size()
+        batch_shape = self.a0_eta.size()
 
         super().__init__(batch_shape, validate_args=validate_args)
 
