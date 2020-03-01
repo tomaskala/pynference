@@ -57,8 +57,11 @@ class EtaGivenAlpha(Distribution):
 
     def log_prob(self, eta):
         p_eta = self._beta_eta.log_prob(eta)
-        log_constraint = torch.full_like(p_eta, fill_value=float("-inf"))
-        log_constraint[eta > 1.0 - self.alpha] = 0.0
+        log_constraint = torch.where(
+            eta > 1.0 - self.alpha,
+            p_eta.new_zeros(()),
+            p_eta.new_full((), float("-inf")),
+        )
 
         return p_eta + log_constraint
 
