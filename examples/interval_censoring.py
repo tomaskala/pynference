@@ -1,6 +1,7 @@
 import math
 import sys
 from collections import defaultdict
+from numbers import Integral
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent.resolve()))
@@ -10,6 +11,7 @@ import numpy as np  # noqa E402
 import pandas as pd  # noqa E402
 import pyreadr  # noqa E402
 import torch  # noqa E402
+import torch.nn.functional as F  # noqa E402
 from torch.distributions import constraints  # noqa E402
 from torch.distributions.utils import broadcast_all  # noqa E402
 
@@ -25,6 +27,59 @@ from pynference.infrastructure import sample, Mask, Plate  # noqa E402
 # TODO: HMC & NUTS.
 # TODO: More chains.
 # TODO: MCMC diagnostics.
+
+
+class IGMRF(Distribution):
+    arg_constraints = {
+        "lam": constraints.positive,
+        "M": constraints.positive_integer,
+        "o": constraints.positive_integer,
+    }
+
+    support = constraints.real
+
+    def __init__(self, lam, M, o, validate_args=None):
+        if not isinstance(M, Integral):
+            raise ValueError("The argument `M` must be an integer.")
+
+        if not isinstance(o, Integral):
+            raise ValueError("The argument `o` must be an integer.")
+
+        self.lam = torch.as_tensor(lam)
+        self.o = o
+
+        batch_shape = self.lam.size()
+        event_shape = torch.Size((2 * M + 1,))
+
+        super().__init__(batch_shape, event_shape, validate_args=validate_args)
+
+    def expand(self, batch_shape, _instance=None):
+        new = self._get_checked_instance(IGMRF, _instance)
+        batch_shape = torch.Size(batch_shape)
+
+        new.lam = self.lam.expand(batch_shape)
+        new.o = self.o
+
+        super(IGMRF, new).__init__(batch_shape, validate_args=False)
+        new._validate_args = self._validate_args
+        return new
+
+    def log_prob(self, a):
+        diff = self._finite_difference(a)
+        return -0.5 * self.lam * torch.sum(diff ** 2, dim=-1)
+
+    def _finite_difference(self, a):
+        # TODO: Explicitly implement up to self.o=3.
+        for i in range(self.o):
+            a = a[..., :-1] - a[..., 1:]
+
+        return a
+
+    def sample(self, sample_shape=torch.Size()):
+        # TODO: Implement a correct sampling. The following is just a dummy sample
+        # TODO: used to initialize the MCMC procedures.
+        shape = self._extended_shape(sample_shape)
+        return torch.zeros(shape)
 
 
 class EtaGivenAlpha(Distribution):
@@ -76,7 +131,7 @@ class EtaGivenAlpha(Distribution):
         return constraints.interval(1.0 - self.alpha, 1.0)
 
 
-def model(X, Y, logL, logU, logv, xi, hypers, N, J, K_max, visit_exists):
+def model(X, Y, logL, logU, logv, xi, hypers, N, J, K_max, visit_exists, M, o):
     ### Global parameters.
     assert logL.size() == logU.size() == (N, J, 1)
     assert logv.size() == (N, J, K_max)
@@ -104,6 +159,15 @@ def model(X, Y, logL, logU, logv, xi, hypers, N, J, K_max, visit_exists):
     nu_tau1 = hypers["nu_tau1"]
     nu_tau2 = hypers["nu_tau2"]
     tau2_inv = sample("tau2_inv", dist.Gamma(concentration=nu_tau1, rate=nu_tau2))
+
+    # IGMRF hyperparameter: lambda ~ Gamma(nu_lambda1, nu_lambda2).
+    nu_lambda1 = hypers["nu_lambda1"]
+    nu_lambda2 = hypers["nu_lambda2"]
+    lam = sample("lambda", dist.Gamma(concentration=nu_lambda1, rate=nu_lambda2))
+
+    # Penalized Gaussian mixture weight parameters: a ~ IGMRF(lambda).
+    a = sample("a", IGMRF(lam=lam, M=M, o=o))
+    w = F.softmax(a, dim=-1)
 
     # TODO: This is the simplified model M2.
     # Sensitivity: alpha ~ Beta(a0_alpha, a1_alpha).
@@ -231,7 +295,7 @@ def load_dataframe(df_path: str, which: str) -> pd.DataFrame:
 
 
 def main():
-    torch.manual_seed(941026)
+    torch.manual_seed(2340398234234)
     torch.set_default_dtype(torch.double)
 
     df_path = str(Path(__file__).parent / Path("./data/Data_20130610.RData"))
@@ -306,6 +370,8 @@ def main():
         "V_beta": 1000.0 * torch.eye(p),
         "nu_eps1": 1.0,
         "nu_eps2": 0.005,
+        "nu_lambda1": 1.0,
+        "nu_lambda2": 0.005,
         "m_mu": 0.0,
         "s2_mu": 100.0,
         "nu_tau1": 1.0,
@@ -315,6 +381,12 @@ def main():
         "a0_eta": torch.ones((Q,)),
         "a1_eta": torch.ones((Q,)),
     }
+
+    # Number of the penalized Gaussian mixture elements.
+    M = 15
+
+    # IGMRF difference order.
+    o = 3
 
     # Run inference.
     n_samples = 10000
@@ -343,6 +415,8 @@ def main():
         J=J,
         K_max=K_max,
         visit_exists=visit_exists,
+        M=M,
+        o=o,
     )
 
     # Collect samples.
