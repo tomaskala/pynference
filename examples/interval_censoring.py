@@ -200,14 +200,9 @@ def model(X, Y, logL, logU, logv, xi, hypers, N, J, K_max, visit_exists, M, o):
         b = b.repeat(1, J, 1)
         assert b.size() == (N, J, 1), b.size()
 
-        # TODO: This could be vectorized.
-        x_girl = X[0].unsqueeze(-1)
-        x_seal = X[1].unsqueeze(-1)
-        x_freqbr = X[2].unsqueeze(-1)
-
         ### Subject-tooth-specific parameters.
         with Plate("teeth", J, dim=-2):
-            loc = x_girl * beta[0] + x_seal * beta[1] + x_freqbr * beta[2] + b
+            loc = (X.permute(1, 2, 0) @ beta).unsqueeze(-1)
             scale = sigma2_eps_inv.sqrt().reciprocal()
             assert loc.size() == (N, J, 1), loc.size()
 
