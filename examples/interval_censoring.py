@@ -21,7 +21,6 @@ from pynference.inference import Metropolis  # noqa E402
 from pynference.infrastructure import sample, Enumerate, Mask, Plate  # noqa E402
 
 
-# TODO: Cast the observed Y (STATUS) to the correct type accepted by Bernoulli.
 # TODO: Optimize truncnorm constraint.
 # TODO: Optimize truncnorm normalizing constant.
 # TODO: HMC & NUTS.
