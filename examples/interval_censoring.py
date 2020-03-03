@@ -68,11 +68,17 @@ class IGMRF(Distribution):
         return -0.5 * self.lam * torch.sum(diff ** 2, dim=-1)
 
     def _finite_difference(self, a):
-        # TODO: Explicitly implement up to self.o=3.
-        for i in range(self.o):
-            a = a[..., :-1] - a[..., 1:]
+        if self.o == 1:
+            return a[..., :-1] - a[..., 1:]
+        elif self.o == 2:
+            return a[..., :-2] - 2 * a[..., 1:-1] + a[..., 2:]
+        elif self.o == 3:
+            return a[..., :-3] - 3 * a[..., 1:-2] + 3 * a[..., 2:-1] - a[..., 3:]
+        else:
+            for i in range(self.o):
+                a = a[..., :-1] - a[..., 1:]
 
-        return a
+            return a
 
     def sample(self, sample_shape=torch.Size()):
         # TODO: Implement a correct sampling. The following is just a dummy sample
