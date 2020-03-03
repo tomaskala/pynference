@@ -17,7 +17,7 @@ def initialize_model(
     transformations = {}
 
     for name, message in trace.items():
-        if message.message_type is MessageType.SAMPLE and not message.is_observed:
+        if message.message_type is MessageType.SAMPLE and not message.is_observed and not message.fun.has_enumerate_support:
             dummy_samples[name] = message.value.detach()
             transformations[name] = biject_to(message.fun.support)
 

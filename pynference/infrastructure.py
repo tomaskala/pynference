@@ -32,6 +32,7 @@ __all__ = [
     "Condition",
     "Plate",
     "Mask",
+    "Enumerate",
 ]
 
 
@@ -54,6 +55,7 @@ class Message:
         "ConditionalIndependenceStackFrame", ...  # noqa W504
     ] = field(default_factory=tuple)
     mask: Union[torch.Tensor, None] = field(default=None)
+    done: bool = field(default=False)
 
 
 _MESSENGER_STACK: List["Messenger"] = []
@@ -88,8 +90,10 @@ def _apply_stack(message: Message) -> Message:
         if message.block:
             break
 
-    if message.value is None:
+    if not message.done and not message.is_observed and message.value is None:
         message.value = message.fun(*message.args, **message.kwargs)
+
+    message.done = True
 
     for messenger in _MESSENGER_STACK[-i - 1 :]:
         messenger.postprocess_message(message)
@@ -431,3 +435,22 @@ class Mask(Messenger):
 
     def _process_message(self, message: Message):
         message.mask = self.mask if message.mask is None else self.mask & message.mask
+
+
+class Enumerate(Messenger):
+    def __init__(self):
+        pass
+
+    def _process_message(self, message: Message):
+        if message.done or message.is_observed:
+            return
+
+        dist = message.fun
+
+        if dist.has_enumerate_support:
+            value = dist.enumerate_support()
+
+            # TODO: Speed up the categorical distribution.
+
+            message.value = value
+            message.done = True

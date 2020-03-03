@@ -18,7 +18,7 @@ from torch.distributions.utils import broadcast_all  # noqa E402
 import pynference.distributions as dist  # noqa E402
 from pynference.distributions.distribution import Distribution  # noqa E402
 from pynference.inference import Metropolis  # noqa E402
-from pynference.infrastructure import sample, Mask, Plate  # noqa E402
+from pynference.infrastructure import sample, Enumerate, Mask, Plate  # noqa E402
 
 
 # TODO: Cast the observed Y (STATUS) to the correct type accepted by Bernoulli.
@@ -184,7 +184,14 @@ def model(X, Y, logL, logU, logv, xi, hypers, N, J, K_max, visit_exists, M, o):
 
     ### Subject-specific parameters.
     with Plate("subjects", N, dim=-3):
-        b = sample("b", dist.Normal(loc=mu, scale=tau2_inv.sqrt().reciprocal()))
+        # Random intercepts: b_i ~ penalized Gaussian mixture.
+        kappa = hypers["kappa"]
+        zeta = hypers["zeta"]
+
+        with Enumerate():
+            C = sample("C", dist.Categorical(probs=w))
+
+        b = sample("b", dist.Normal(loc=kappa[C], scale=zeta)) / tau2_inv.sqrt() + mu
         b = b.repeat(1, J, 1)
         assert b.size() == (N, J, 1), b.size()
 
@@ -295,7 +302,7 @@ def load_dataframe(df_path: str, which: str) -> pd.DataFrame:
 
 
 def main():
-    torch.manual_seed(2340398234234)
+    torch.manual_seed(12345)
     torch.set_default_dtype(torch.double)
 
     df_path = str(Path(__file__).parent / Path("./data/Data_20130610.RData"))
@@ -364,6 +371,12 @@ def main():
     # Load indicators of visits (i, j, k) being defined.
     visit_exists = Y < 666.0
 
+    # Number of the penalized Gaussian mixture elements.
+    M = 15
+
+    # IGMRF difference order.
+    o = 3
+
     # Set-up priors.
     hypers = {
         "m_beta": torch.zeros((p,)),
@@ -380,13 +393,9 @@ def main():
         "a1_alpha": torch.ones((Q,)),
         "a0_eta": torch.ones((Q,)),
         "a1_eta": torch.ones((Q,)),
+        "kappa": torch.linspace(-4.5, 4.5, 2 * M + 1),
+        "zeta": 0.2,
     }
-
-    # Number of the penalized Gaussian mixture elements.
-    M = 15
-
-    # IGMRF difference order.
-    o = 3
 
     # Run inference.
     n_samples = 10000
