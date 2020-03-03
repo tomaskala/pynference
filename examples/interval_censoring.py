@@ -164,6 +164,7 @@ def model(X, Y, logL, logU, logv, xi, hypers, N, J, K_max, visit_exists, M, o):
     nu_tau1 = hypers["nu_tau1"]
     nu_tau2 = hypers["nu_tau2"]
     tau2_inv = sample("tau2_inv", dist.Gamma(concentration=nu_tau1, rate=nu_tau2))
+    tau = tau2_inv.sqrt().reciprocal()
 
     # IGMRF hyperparameter: lambda ~ Gamma(nu_lambda1, nu_lambda2).
     nu_lambda1 = hypers["nu_lambda1"]
@@ -196,7 +197,7 @@ def model(X, Y, logL, logU, logv, xi, hypers, N, J, K_max, visit_exists, M, o):
         with Enumerate():
             C = sample("C", dist.Categorical(probs=w))
 
-        b = sample("b", dist.Normal(loc=kappa[C], scale=zeta)) / tau2_inv.sqrt() + mu
+        b = sample("b", dist.Normal(loc=mu + tau * kappa[C], scale=tau * zeta))
         b = b.repeat(1, J, 1)
         assert b.size() == (N, J, 1), b.size()
 
