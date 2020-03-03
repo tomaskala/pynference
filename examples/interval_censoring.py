@@ -202,7 +202,7 @@ def model(X, Y, logL, logU, logv, xi, hypers, N, J, K_max, visit_exists, M, o):
 
         ### Subject-tooth-specific parameters.
         with Plate("teeth", J, dim=-2):
-            loc = (X.permute(1, 2, 0) @ beta).unsqueeze(-1)
+            loc = (X @ beta).unsqueeze(-1)
             scale = sigma2_eps_inv.sqrt().reciprocal()
             assert loc.size() == (N, J, 1), loc.size()
 
@@ -319,10 +319,10 @@ def main():
     # Load regressors.
     regressors = ["GIRL", "SEAL", "FREQ.BR"]
     p = len(regressors)
-    X = np.empty(shape=(p, N, J))
+    X = np.empty(shape=(N, J, p))
 
     for i, regressor in enumerate(regressors):
-        X[i] = df_regressors[regressor].values.reshape(N, J)
+        X[..., i] = df_regressors[regressor].values.reshape(N, J)
 
     X = torch.from_numpy(X)
 
