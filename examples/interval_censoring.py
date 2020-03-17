@@ -1,5 +1,6 @@
 import math
 import sys
+import pickle
 from collections import defaultdict
 from numbers import Integral
 from pathlib import Path
@@ -26,6 +27,9 @@ from pynference.infrastructure import sample, Enumerate, Mask, Plate  # noqa E40
 # TODO: HMC & NUTS.
 # TODO: More chains.
 # TODO: MCMC diagnostics.
+
+
+SAMPLES_PATH = Path("./sampled_theta.pickle")
 
 
 class IGMRF(Distribution):
@@ -419,35 +423,42 @@ def main():
     }
 
     # Run inference.
-    n_samples = 10000
+    n_samples = 100000
     proposal = "normal"
     proposal_scale = 0.05
     init_strategy = "uniform"
     tune = True
 
-    mcmc = Metropolis(
-        model=model,
-        n_samples=n_samples,
-        proposal=proposal,
-        proposal_scale=proposal_scale,
-        init_strategy=init_strategy,
-        tune=tune,
-    )
-    sampled_theta = mcmc.run(
-        X=X,
-        Y=Y,
-        logL=logL,
-        logU=logU,
-        logv=logv,
-        xi=xi,
-        hypers=hypers,
-        N=N,
-        J=J,
-        K_max=K_max,
-        visit_exists=visit_exists,
-        M=M,
-        o=o,
-    )
+    if not SAMPLES_PATH.exists():
+        mcmc = Metropolis(
+            model=model,
+            n_samples=n_samples,
+            proposal=proposal,
+            proposal_scale=proposal_scale,
+            init_strategy=init_strategy,
+            tune=tune,
+        )
+        sampled_theta = mcmc.run(
+            X=X,
+            Y=Y,
+            logL=logL,
+            logU=logU,
+            logv=logv,
+            xi=xi,
+            hypers=hypers,
+            N=N,
+            J=J,
+            K_max=K_max,
+            visit_exists=visit_exists,
+            M=M,
+            o=o,
+        )
+
+        with SAMPLES_PATH.open("wb") as f:
+            pickle.dump(sampled_theta, f)
+    else:
+        with SAMPLES_PATH.open("rb") as f:
+            sampled_theta = pickle.load(f)
 
     # Collect samples.
     samples = defaultdict(list)
