@@ -302,7 +302,22 @@ def load_dataframe(df_path: str, which: str) -> pd.DataFrame:
         raise ValueError("Specify which dataset you want.")
 
 
+def summarize(samples, regressors):
+    samples = samples.numpy()
+
+    summary = pd.DataFrame({
+        "Mean": np.mean(samples, axis=0),
+        "Median": np.median(samples, axis=0),
+        "95 % HPD left": np.quantile(samples, q=0.05, axis=0),
+        "95 % HPD right": np.quantile(samples, q=0.95, axis=0),
+    })
+    summary.index = regressors
+
+    return summary
+
+
 def main():
+    #torch.manual_seed(1587599955643215)
     torch.manual_seed(12345)
     torch.set_default_dtype(torch.double)
 
@@ -318,12 +333,17 @@ def main():
     K_max = df_misclassifications.groupby(["IDNR", "TOOTH"]).count()["VISIT"].max()
 
     # Load regressors.
+    #regressors = ["GIRL", "SEAL", "FREQ.BR", "XCEN", "YCEN"]
     regressors = ["GIRL", "SEAL", "FREQ.BR"]
     p = len(regressors)
     X = np.empty(shape=(N, J, p))
 
     for i, regressor in enumerate(regressors):
         X[..., i] = df_regressors[regressor].values.reshape(N, J)
+
+        if regressor in ("XCEN", "YCEN"):
+            X[..., i] -= np.mean(X[..., i])
+            X[..., i] /= np.std(X[..., i])
 
     X = torch.from_numpy(X)
 
@@ -438,6 +458,8 @@ def main():
 
     for k in samples:
         samples[k] = torch.stack(samples[k])
+
+    print(summarize(samples["beta"], regressors))
 
     # Plot samples.
     for i in range(p):
